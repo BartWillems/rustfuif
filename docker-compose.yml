@@ -1,0 +1,17 @@
+---
+version: "3.4"
+
+services:
+  postgres:
+    image: postgres:12
+    environment:
+      POSTGRES_DB: "rustfuif-dev"
+      POSTGRES_USER: "rustfuif"
+      POSTGRES_PASSWORD: "secret"
+    ports:
+      - 5432:5432
+    networks:
+      - backend
+
+networks:
+  backend:
