@@ -12,6 +12,11 @@ services:
       - 5432:5432
     networks:
       - backend
+    volumes:
+      - rustfuif_postgres:/var/lib/postgresql/data
 
 networks:
   backend:
+
+volumes:
+  rustfuif_postgres:

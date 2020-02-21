@@ -48,6 +48,8 @@ impl From<DBError> for ServiceError {
                     let message = info.details().unwrap_or_else(|| info.message()).to_string();
                     return ServiceError::BadRequest(message);
                 }
+
+                // if let DatabaseErrorKind::
                 ServiceError::InternalServerError
             }
             _ => ServiceError::InternalServerError,

@@ -2,7 +2,7 @@ use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer
 use diesel::{r2d2::ConnectionManager, PgConnection};
 
 use crate::errors::ServiceError;
-use crate::game;
+use crate::games;
 
 pub type Response = Result<HttpResponse, ServiceError>;
 
@@ -25,9 +25,9 @@ pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std
             .service(health)
             .service(
                 web::scope("/games")
-                    .service(game::create_game)
-                    .service(game::get_games)
-                    .service(game::get_game),
+                    .service(games::routes::create_game)
+                    .service(games::routes::get_games)
+                    .service(games::routes::get_game),
             )
     })
     .bind("127.0.0.1:8080")?

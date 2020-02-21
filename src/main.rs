@@ -23,8 +23,8 @@ use terminator::Terminator;
 
 mod db;
 mod errors;
-mod game;
-mod models;
+mod games;
+// mod models;
 mod schema;
 mod web;
 

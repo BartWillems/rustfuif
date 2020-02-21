@@ -5,7 +5,8 @@ CREATE TABLE games (
     start_time TIMESTAMP WITH TIME ZONE NOT NULL,
     close_time TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at TIMESTAMP WITH TIME ZONE
+    updated_at TIMESTAMP WITH TIME ZONE,
+    CHECK(close_time > start_time)
 );
 
 -- a team is a group of users who want to play a game
