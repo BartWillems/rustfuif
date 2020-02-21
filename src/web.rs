@@ -8,13 +8,6 @@ async fn health(_: HttpRequest) -> &'static str {
     "ok"
 }
 
-#[get("/slow")]
-async fn slow(_: HttpRequest) -> &'static str {
-    std::thread::sleep(std::time::Duration::from_secs(1));
-
-    "that was slow"
-}
-
 pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
@@ -26,8 +19,11 @@ pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std
             .data(web::JsonConfig::default().limit(4096))
             .data(web::PayloadConfig::default().limit(262_144))
             .service(health)
-            .service(slow)
-            .service(web::scope("/games").service(game::create_game))
+            .service(
+                web::scope("/games")
+                    .service(game::create_game)
+                    .service(game::get_games),
+            )
     })
     .bind("127.0.0.1:8080")?
     .run()

@@ -14,6 +14,7 @@ extern crate actix;
 extern crate actix_rt;
 extern crate actix_web;
 extern crate chrono;
+extern crate derive_more;
 extern crate dotenv;
 extern crate terminator;
 
@@ -21,6 +22,7 @@ use dotenv::dotenv;
 use terminator::Terminator;
 
 mod db;
+mod errors;
 mod game;
 mod models;
 mod schema;

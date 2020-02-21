@@ -1,7 +1,7 @@
 -- a game is an active rustfuif event, eg, people getting drunk
 CREATE TABLE games (
     id BIGSERIAL PRIMARY KEY,
-    name VARCHAR NOT NULL,
+    name VARCHAR NOT NULL UNIQUE,
     start_time TIMESTAMP WITH TIME ZONE NOT NULL,
     duration_in_seconds INT DEFAULT 3600,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
