@@ -3,7 +3,7 @@ CREATE TABLE games (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR NOT NULL UNIQUE,
     start_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    duration_in_seconds INT DEFAULT 3600,
+    close_time TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
     updated_at TIMESTAMP WITH TIME ZONE
 );

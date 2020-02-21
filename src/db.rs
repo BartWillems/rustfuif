@@ -5,6 +5,7 @@ use diesel::r2d2::{self, ConnectionManager};
 use diesel::PgConnection;
 
 pub type Pool = r2d2::Pool<ConnectionManager<PgConnection>>;
+pub type Conn = r2d2::PooledConnection<diesel::r2d2::ConnectionManager<diesel::PgConnection>>;
 
 fn connect(database_url: &str) -> diesel::ConnectionResult<PgConnection> {
     PgConnection::establish(database_url)

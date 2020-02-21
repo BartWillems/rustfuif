@@ -1,23 +1,18 @@
-use actix_web::web::{Data, HttpResponse, Json};
+use actix_web::web::{Data, HttpResponse, Json, Path, Query};
 use actix_web::{get, post, Result};
-use diesel::insert_into;
 use diesel::prelude::*;
-
-// use std::time::Duration;
 
 use crate::db;
 use crate::errors::ServiceError;
-// use crate::models;
 use crate::schema::games;
+use crate::web;
 
 #[derive(Debug, Serialize, Deserialize, Queryable)]
 pub struct Game {
     pub id: i64,
     pub name: String,
     pub start_time: chrono::NaiveDateTime,
-    pub duration: Option<i32>,
-    // pub teams: Vec<models::Team>,
-    // pub beverage_slots: Vec<models::Slot>,
+    pub close_time: chrono::NaiveDateTime,
     pub created_at: Option<chrono::NaiveDateTime>,
     pub updated_at: Option<chrono::NaiveDateTime>,
 }
@@ -27,37 +22,83 @@ pub struct Game {
 pub struct CreateGame {
     pub name: String,
     pub start_time: chrono::NaiveDateTime,
-    pub duration_in_seconds: i32,
-    // pub teams: Vec<models::Team>,
-    // pub beverage_amount: i8,
+    pub close_time: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GameQuery {
+    pub active: Option<bool>,
+}
+
+impl Game {
+    pub fn create(new_game: CreateGame, conn: &db::Conn) -> Result<Game, ServiceError> {
+        let game = diesel::insert_into(games::table)
+            .values(&new_game)
+            .get_result(conn)?;
+
+        Ok(game)
+    }
+
+    pub fn find(game_id: i64, conn: &db::Conn) -> Result<Option<Game>, ServiceError> {
+        let game = games::table
+            .filter(games::id.eq(game_id))
+            .first(conn)
+            .optional()?;
+
+        Ok(game)
+    }
+
+    pub fn load(conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
+        let games = games::table.order(games::id).load::<Game>(conn)?;
+        Ok(games)
+    }
+
+    pub fn load_active(conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
+        let games = games::table
+            .filter(games::close_time.gt(diesel::dsl::now))
+            .order(games::id)
+            .load::<Game>(conn)?;
+
+        Ok(games)
+    }
 }
 
 #[get("/")]
-pub async fn get_games(pool: Data<db::Pool>) -> Result<HttpResponse, ServiceError> {
-    use crate::schema::games::dsl::games;
-    let conn = pool.get().unwrap();
+pub async fn get_games(query: Query<GameQuery>, pool: Data<db::Pool>) -> web::Response {
+    let conn = pool.get()?;
 
-    let dink = games.load::<Game>(&conn)?;
+    debug!("active: {:#?}", query);
 
-    Ok(HttpResponse::Ok().json(dink))
+    let games: Vec<Game>;
+    if query.active.unwrap_or(false) {
+        games = Game::load_active(&conn)?;
+    } else {
+        games = Game::load(&conn)?;
+    }
+
+    Ok(HttpResponse::Ok().json(games))
 }
 
 #[post("/")]
-pub async fn create_game(
-    game: Json<CreateGame>,
-    pool: Data<db::Pool>,
-) -> Result<HttpResponse, ServiceError> {
-    use crate::schema::games::dsl::games;
-    let conn = pool.get().unwrap();
+pub async fn create_game(game: Json<CreateGame>, pool: Data<db::Pool>) -> web::Response {
+    let conn = pool.get()?;
 
-    let game: Game = insert_into(games)
-        .values(game.into_inner())
-        .get_result(&conn)?;
+    let game = Game::create(game.into_inner(), &conn)?;
 
     Ok(HttpResponse::Ok().json(game))
 }
 
 #[post("/{id}")]
-pub async fn update_game(_game: Json<Game>, _pool: Data<db::Pool>) -> Result<String, ServiceError> {
+pub async fn update_game(_game: Json<Game>, _pool: Data<db::Pool>) -> web::Response {
     unimplemented!();
+}
+
+#[get("/{id}")]
+pub async fn get_game(game_id: Path<i64>, pool: Data<db::Pool>) -> web::Response {
+    let conn = pool.get()?;
+
+    match Game::find(*game_id, &conn)? {
+        Some(game) => return Ok(HttpResponse::Ok().json(game)),
+        None => Ok(HttpResponse::NotFound().json(format!("game {} not found", game_id))),
+    }
 }

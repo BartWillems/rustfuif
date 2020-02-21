@@ -3,7 +3,7 @@ table! {
         id -> Int8,
         name -> Varchar,
         start_time -> Timestamptz,
-        duration_in_seconds -> Nullable<Int4>,
+        close_time -> Timestamptz,
         created_at -> Nullable<Timestamptz>,
         updated_at -> Nullable<Timestamptz>,
     }
@@ -30,4 +30,8 @@ table! {
 joinable!(slots -> games (game_id));
 joinable!(teams -> games (game_id));
 
-allow_tables_to_appear_in_same_query!(games, slots, teams,);
+allow_tables_to_appear_in_same_query!(
+    games,
+    slots,
+    teams,
+);
