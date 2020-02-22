@@ -25,9 +25,7 @@ impl ResponseError for ServiceError {
             ServiceError::InternalServerError => {
                 HttpResponse::InternalServerError().json("Internal Server Error, Please try later")
             }
-            ServiceError::BadRequest(ref message) => {
-                return HttpResponse::BadRequest().json(message);
-            }
+            ServiceError::BadRequest(ref message) => HttpResponse::BadRequest().json(message),
             ServiceError::Unauthorized => HttpResponse::Unauthorized().json("Unauthorized"),
             ServiceError::NotFound => HttpResponse::NotFound().json("Not Found"),
         }
@@ -40,16 +38,12 @@ impl From<DBError> for ServiceError {
         // But this would be helpful to easily map errors as our app grows
         error!("db error: {}", error);
         match error {
-            DBError::NotFound => {
-                return ServiceError::NotFound;
-            }
+            DBError::NotFound => ServiceError::NotFound,
             DBError::DatabaseError(kind, info) => {
                 if let DatabaseErrorKind::UniqueViolation = kind {
                     let message = info.details().unwrap_or_else(|| info.message()).to_string();
                     return ServiceError::BadRequest(message);
                 }
-
-                // if let DatabaseErrorKind::
                 ServiceError::InternalServerError
             }
             _ => ServiceError::InternalServerError,
@@ -57,12 +51,16 @@ impl From<DBError> for ServiceError {
     }
 }
 
-// the trait `std::convert::From<r2d2::Error>` is not implemented for `errors::ServiceError`
 impl From<r2d2::Error> for ServiceError {
     fn from(error: r2d2::Error) -> ServiceError {
         error!("r2d2 connection pool error: {}", error);
-        match error {
-            _ => ServiceError::InternalServerError,
-        }
+        ServiceError::InternalServerError
+    }
+}
+
+impl<E: std::fmt::Debug> From<actix_threadpool::BlockingError<E>> for ServiceError {
+    fn from(error: actix_threadpool::BlockingError<E>) -> ServiceError {
+        error!("actix threadpool pool error: {}", error);
+        ServiceError::InternalServerError
     }
 }

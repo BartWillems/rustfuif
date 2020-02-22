@@ -11,8 +11,8 @@ extern crate log;
 extern crate serde_derive;
 
 extern crate actix;
-extern crate actix_files;
 extern crate actix_rt;
+extern crate actix_threadpool;
 extern crate actix_web;
 extern crate chrono;
 extern crate derive_more;
