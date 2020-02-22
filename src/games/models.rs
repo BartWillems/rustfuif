@@ -1,7 +1,7 @@
 use actix_web::Result;
-use diesel::prelude::*;
 use chrono::Duration;
 use chrono::{DateTime, Utc};
+use diesel::prelude::*;
 
 use crate::db;
 use crate::errors::ServiceError;
@@ -41,16 +41,21 @@ impl Game {
         Ok(game)
     }
 
-    fn check_duration(start_time: DateTime<Utc>, close_time: DateTime<Utc>) -> Result<(), ServiceError> {
+    fn check_duration(
+        start_time: DateTime<Utc>,
+        close_time: DateTime<Utc>,
+    ) -> Result<(), ServiceError> {
         let duration: Duration = close_time.signed_duration_since(start_time);
 
         if duration.num_minutes() <= 0 {
-            return Err(ServiceError::BadRequest(String::from("this game has not gone on long enough")));
+            return Err(ServiceError::BadRequest(String::from(
+                "this game has not gone on long enough",
+            )));
         }
         Ok(())
     }
 
-    pub fn find(game_id: i64, conn: &db::Conn) -> Result<Option<Game>, ServiceError> {
+    pub fn find_by_id(game_id: i64, conn: &db::Conn) -> Result<Option<Game>, ServiceError> {
         let game = games::table
             .filter(games::id.eq(game_id))
             .first(conn)
@@ -73,5 +78,3 @@ impl Game {
         Ok(games)
     }
 }
-
-

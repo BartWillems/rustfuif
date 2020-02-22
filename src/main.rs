@@ -11,6 +11,7 @@ extern crate log;
 extern crate serde_derive;
 
 extern crate actix;
+extern crate actix_files;
 extern crate actix_rt;
 extern crate actix_web;
 extern crate chrono;
@@ -24,31 +25,25 @@ use terminator::Terminator;
 mod db;
 mod errors;
 mod games;
-// mod models;
 mod schema;
-mod web;
+mod server;
 
 #[actix_rt::main]
 async fn main() -> Result<(), Terminator> {
-    init().await?;
-    Ok(())
-}
-
-async fn init() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
     env_logger::init();
 
     let database_url = std::env::var("DATABASE_URL").or(Err("DATABASE_URL must be set"))?;
 
-    debug!("running database migrations");
-    db::migrate(&database_url)?;
-
     debug!("building database connection pool");
     let pool = db::build_connection_pool(&database_url)?;
 
+    debug!("running database migrations");
+    db::migrate(&pool)?;
+
     debug!("launching the actix webserver");
-    web::launch(pool).await?;
+    server::launch(pool).await?;
 
     Ok(())
 }

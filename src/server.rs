@@ -1,3 +1,4 @@
+use actix_files as fs;
 use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
 use diesel::{r2d2::ConnectionManager, PgConnection};
 
@@ -22,13 +23,18 @@ pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std
             // limit the maximum amount of data that server will accept
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))
-            .service(health)
+            .service(fs::Files::new("/", "./static").index_file("index.html"))
             .service(
-                web::scope("/games")
-                    .service(games::routes::create_game)
-                    .service(games::routes::get_games)
-                    .service(games::routes::get_game),
+                web::scope("/api")
+                    .service(
+                        web::scope("/games")
+                            .service(games::routes::create_game)
+                            .service(games::routes::get_games)
+                            .service(games::routes::get_game),
+                    )
+                    .service(health),
             )
+            .service(web::scope("/admin").service(health))
     })
     .bind("127.0.0.1:8080")?
     .run()
