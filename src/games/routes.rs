@@ -44,7 +44,7 @@ async fn create(game: Json<CreateGame>, pool: Data<db::Pool>) -> server::Respons
     //       and I can't seem to figure out how to map E to DB-Errors
     let game = web::block(move || Game::create(game.into_inner(), &conn)).await?;
 
-    Ok(HttpResponse::Ok().json(game))
+    Ok(HttpResponse::Created().json(game))
 }
 
 #[patch("/games/{id}")]
