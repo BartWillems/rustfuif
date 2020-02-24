@@ -48,9 +48,9 @@ impl Game {
         let duration: Duration = close_time.signed_duration_since(start_time);
 
         if duration.num_minutes() <= 0 {
-            return Err(ServiceError::BadRequest(String::from(
-                "this game has not gone on long enough",
-            )));
+            return Err(ServiceError::BadRequest(
+                "this game has not gone on long enough".to_string(),
+            ));
         }
         Ok(())
     }

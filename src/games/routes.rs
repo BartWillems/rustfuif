@@ -7,8 +7,8 @@ use crate::server;
 
 use crate::games::models::{CreateGame, Game, GameQuery};
 
-#[get("/")]
-pub async fn get_games(query: Query<GameQuery>, pool: Data<db::Pool>) -> server::Response {
+#[get("/games")]
+async fn find_all(query: Query<GameQuery>, pool: Data<db::Pool>) -> server::Response {
     let conn = pool.get()?;
 
     let games: Vec<Game> = web::block(move || {
@@ -23,22 +23,8 @@ pub async fn get_games(query: Query<GameQuery>, pool: Data<db::Pool>) -> server:
     Ok(HttpResponse::Ok().json(games))
 }
 
-#[post("/")]
-pub async fn create_game(game: Json<CreateGame>, pool: Data<db::Pool>) -> server::Response {
-    let conn = pool.get()?;
-
-    let game = web::block(move || Game::create(game.into_inner(), &conn)).await?;
-
-    Ok(HttpResponse::Ok().json(game))
-}
-
-#[patch("/{id}")]
-pub async fn update_game(_game: Json<Game>, _pool: Data<db::Pool>) -> server::Response {
-    unimplemented!();
-}
-
-#[get("/{id}")]
-pub async fn get_game(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
+#[get("/games/{id}")]
+async fn find(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
     let conn = pool.get()?;
 
     let game: Option<Game> = web::block(move || Game::find_by_id(*game_id, &conn)).await?;
@@ -49,7 +35,32 @@ pub async fn get_game(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Respo
     }
 }
 
-#[delete("/{id}")]
-pub async fn delete_game(_game: Json<Game>, _pool: Data<db::Pool>) -> server::Response {
+#[post("/games")]
+async fn create(game: Json<CreateGame>, pool: Data<db::Pool>) -> server::Response {
+    let conn = pool.get()?;
+
+    // TODO: figure out a way to receive the DB errors.
+    //       at the moment, actix_threadpool::BlockingError<E> is returned
+    //       and I can't seem to figure out how to map E to DB-Errors
+    let game = web::block(move || Game::create(game.into_inner(), &conn)).await?;
+
+    Ok(HttpResponse::Ok().json(game))
+}
+
+#[patch("/games/{id}")]
+async fn update(_game: Json<Game>, _pool: Data<db::Pool>) -> server::Response {
     unimplemented!();
+}
+
+#[delete("/games/{id}")]
+async fn delete(_game: Json<Game>, _pool: Data<db::Pool>) -> server::Response {
+    unimplemented!();
+}
+
+pub fn register(cfg: &mut web::ServiceConfig) {
+    cfg.service(find_all);
+    cfg.service(find);
+    cfg.service(create);
+    cfg.service(update);
+    cfg.service(delete);
 }

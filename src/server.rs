@@ -24,17 +24,16 @@ pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std
             .data(web::PayloadConfig::default().limit(262_144))
             .service(
                 web::scope("/api")
-                    .service(
-                        web::scope("/games")
-                            .service(games::routes::create_game)
-                            .service(games::routes::get_games)
-                            .service(games::routes::get_game),
-                    )
+                    .configure(games::routes::register)
                     .service(health),
             )
             .service(web::scope("/admin").service(health))
     })
-    .bind("0.0.0.0:8080")?
+    .bind(format!(
+        "{}:{}",
+        std::env::var("HOST").unwrap_or("127.0.0.1".to_string()),
+        std::env::var("PORT").unwrap_or("8080".to_string())
+    ))?
     .run()
     .await
 }

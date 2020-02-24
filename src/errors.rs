@@ -11,6 +11,9 @@ pub enum ServiceError {
     #[display(fmt = "BadRequest: {}", _0)]
     BadRequest(String),
 
+    #[display(fmt = "Conflict: {}", _0)]
+    Conflict(String),
+
     #[display(fmt = "Unauthorized")]
     Unauthorized,
 
@@ -28,21 +31,20 @@ impl ResponseError for ServiceError {
             ServiceError::BadRequest(ref message) => HttpResponse::BadRequest().json(message),
             ServiceError::Unauthorized => HttpResponse::Unauthorized().json("Unauthorized"),
             ServiceError::NotFound => HttpResponse::NotFound().json("Not Found"),
+            ServiceError::Conflict(ref message) => HttpResponse::Conflict().json(message),
         }
     }
 }
 
 impl From<DBError> for ServiceError {
     fn from(error: DBError) -> ServiceError {
-        // Right now we just care about UniqueViolation from diesel
-        // But this would be helpful to easily map errors as our app grows
         error!("db error: {}", error);
         match error {
             DBError::NotFound => ServiceError::NotFound,
             DBError::DatabaseError(kind, info) => {
                 if let DatabaseErrorKind::UniqueViolation = kind {
                     let message = info.details().unwrap_or_else(|| info.message()).to_string();
-                    return ServiceError::BadRequest(message);
+                    return ServiceError::Conflict(message);
                 }
                 ServiceError::InternalServerError
             }

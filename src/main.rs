@@ -10,15 +10,6 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
-extern crate actix;
-extern crate actix_rt;
-extern crate actix_threadpool;
-extern crate actix_web;
-extern crate chrono;
-extern crate derive_more;
-extern crate dotenv;
-extern crate terminator;
-
 use dotenv::dotenv;
 use terminator::Terminator;
 
