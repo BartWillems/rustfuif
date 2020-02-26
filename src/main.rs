@@ -16,6 +16,7 @@ use terminator::Terminator;
 mod db;
 mod errors;
 mod games;
+mod metrics;
 mod schema;
 mod server;
 

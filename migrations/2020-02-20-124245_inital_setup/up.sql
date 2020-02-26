@@ -11,7 +11,7 @@ CREATE TABLE games (
 
 -- a team is a group of users who want to play a game
 -- a team configures their beverage prices/names/...
-CREATE TABLE teams (
+CREATE TABLE participants (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR NOT NULL,
     invitation UUID,
