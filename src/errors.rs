@@ -60,9 +60,16 @@ impl From<r2d2::Error> for ServiceError {
     }
 }
 
-impl<E: std::fmt::Debug> From<actix_threadpool::BlockingError<E>> for ServiceError {
+impl<E> From<actix_threadpool::BlockingError<E>> for ServiceError
+where
+    E: std::fmt::Debug,
+    E: Into<ServiceError>,
+{
     fn from(error: actix_threadpool::BlockingError<E>) -> ServiceError {
         error!("actix threadpool pool error: {}", error);
-        ServiceError::InternalServerError
+        match error {
+            actix_threadpool::BlockingError::Error(e) => e.into(),
+            actix_threadpool::BlockingError::Canceled => ServiceError::InternalServerError,
+        }
     }
 }

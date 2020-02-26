@@ -39,9 +39,6 @@ async fn find(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
 async fn create(game: Json<CreateGame>, pool: Data<db::Pool>) -> server::Response {
     let conn = pool.get()?;
 
-    // TODO: figure out a way to receive the DB errors.
-    //       at the moment, actix_threadpool::BlockingError<E> is returned
-    //       and I can't seem to figure out how to map E to DB-Errors
     let game = web::block(move || Game::create(game.into_inner(), &conn)).await?;
 
     Ok(HttpResponse::Created().json(game))
