@@ -1,6 +1,7 @@
+use actix_web::http::StatusCode;
 use actix_web::web;
 use actix_web::web::{Data, HttpResponse, Json, Path, Query};
-use actix_web::{delete, get, patch, post};
+use actix_web::{delete, get, post, put};
 
 use crate::db;
 use crate::server;
@@ -27,12 +28,9 @@ async fn find_all(query: Query<GameQuery>, pool: Data<db::Pool>) -> server::Resp
 async fn find(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
     let conn = pool.get()?;
 
-    let game: Option<Game> = web::block(move || Game::find_by_id(*game_id, &conn)).await?;
+    let game = web::block(move || Game::find_by_id(*game_id, &conn)).await?;
 
-    match game {
-        Some(game) => Ok(HttpResponse::Ok().json(game)),
-        None => Ok(HttpResponse::NotFound().json("game not found".to_string())),
-    }
+    Ok(HttpResponse::Ok().json(game))
 }
 
 #[post("/games")]
@@ -44,14 +42,22 @@ async fn create(game: Json<CreateGame>, pool: Data<db::Pool>) -> server::Respons
     Ok(HttpResponse::Created().json(game))
 }
 
-#[patch("/games/{id}")]
-async fn update(_game: Json<Game>, _pool: Data<db::Pool>) -> server::Response {
-    unimplemented!();
+#[put("/games")]
+async fn update(game: Json<Game>, pool: Data<db::Pool>) -> server::Response {
+    let conn = pool.get()?;
+
+    let game = web::block(move || game.update(&conn)).await?;
+
+    Ok(HttpResponse::Ok().json(game))
 }
 
 #[delete("/games/{id}")]
-async fn delete(_game: Json<Game>, _pool: Data<db::Pool>) -> server::Response {
-    unimplemented!();
+async fn delete(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
+    let conn = pool.get()?;
+
+    web::block(move || Game::delete_by_id(game_id.into_inner(), &conn)).await?;
+
+    Ok(HttpResponse::new(StatusCode::OK))
 }
 
 pub fn register(cfg: &mut web::ServiceConfig) {

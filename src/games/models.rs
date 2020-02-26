@@ -7,7 +7,7 @@ use crate::db;
 use crate::errors::ServiceError;
 use crate::schema::games;
 
-#[derive(Debug, Serialize, Deserialize, Queryable)]
+#[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
 pub struct Game {
     pub id: i64,
     pub name: String,
@@ -55,12 +55,8 @@ impl Game {
         Ok(())
     }
 
-    pub fn find_by_id(game_id: i64, conn: &db::Conn) -> Result<Option<Game>, ServiceError> {
-        let game = games::table
-            .filter(games::id.eq(game_id))
-            .first(conn)
-            .optional()?;
-
+    pub fn find_by_id(game_id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
+        let game = games::table.filter(games::id.eq(game_id)).first(conn)?;
         Ok(game)
     }
 
@@ -76,5 +72,23 @@ impl Game {
             .load::<Game>(conn)?;
 
         Ok(games)
+    }
+
+    pub fn update(&self, conn: &db::Conn) -> Result<Game, ServiceError> {
+        let game = diesel::update(self).set(self).get_result(conn)?;
+
+        Ok(game)
+    }
+
+    pub fn delete(&self, conn: &db::Conn) -> Result<(), ServiceError> {
+        diesel::delete(self).execute(conn)?;
+
+        Ok(())
+    }
+
+    pub fn delete_by_id(game_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
+        diesel::delete(games::table.filter(games::id.eq(game_id))).execute(conn)?;
+
+        Ok(())
     }
 }
