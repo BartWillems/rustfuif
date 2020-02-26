@@ -31,8 +31,8 @@ pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std
     })
     .bind(format!(
         "{}:{}",
-        std::env::var("HOST").unwrap_or("127.0.0.1".to_string()),
-        std::env::var("PORT").unwrap_or("8080".to_string())
+        std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string()),
+        std::env::var("PORT").unwrap_or_else(|_| "8080".to_string())
     ))?
     .run()
     .await
