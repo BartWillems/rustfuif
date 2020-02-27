@@ -60,6 +60,23 @@ impl From<r2d2::Error> for ServiceError {
     }
 }
 
+impl From<argon2::Error> for ServiceError {
+    fn from(error: argon2::Error) -> ServiceError {
+        error!("argon2 error: {}", error);
+        match error {
+            // these are the only error types that a user could influence
+            argon2::Error::PwdTooShort => {
+                ServiceError::BadRequest("password is too short".to_string())
+            }
+            argon2::Error::PwdTooLong => {
+                ServiceError::BadRequest("password is too long".to_string())
+            }
+            _ => ServiceError::InternalServerError,
+        };
+        ServiceError::InternalServerError
+    }
+}
+
 impl<E> From<actix_threadpool::BlockingError<E>> for ServiceError
 where
     E: std::fmt::Debug,

@@ -19,6 +19,7 @@ mod games;
 mod metrics;
 mod schema;
 mod server;
+mod users;
 
 #[actix_rt::main]
 async fn main() -> Result<(), Terminator> {

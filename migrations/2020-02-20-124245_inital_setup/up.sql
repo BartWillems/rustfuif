@@ -26,6 +26,16 @@ CREATE TABLE slots (
     game_id BIGSERIAL REFERENCES games(id)
 );
 
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR NOT NULL,
+    password VARCHAR NOT NULL,
+    is_admin boolean NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
 -- automatically update `updated_at` columns
 SELECT diesel_manage_updated_at('games');
 SELECT diesel_manage_updated_at('participants');
+SELECT diesel_manage_updated_at('users');

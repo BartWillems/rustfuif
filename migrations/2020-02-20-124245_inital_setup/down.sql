@@ -2,3 +2,4 @@
 DROP TABLE games;
 DROP TABLE participants;
 DROP TABLE slots;
+DROP TABLE users;
