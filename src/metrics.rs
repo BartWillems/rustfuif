@@ -1,25 +1,14 @@
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
 use actix_web::dev::{ServiceRequest, ServiceResponse};
-use actix_web::web::{Data, ServiceConfig};
+use actix_web::web::Data;
 use actix_web::Error;
 use actix_web::{get, HttpResponse};
 use futures::future::{ok, Either, Ready};
 
 use crate::server::Response;
-
-pub fn _register(_cfg: &mut ServiceConfig) {
-    let _metrics = Arc::new(Metrics::new());
-
-    // TODO: figure out what type we need in order to use cfg.wrap()
-    // cfg.wrap(MetricsMiddleware::new(Arc::clone(&metrics)));
-    // cfg.data(Arc::clone(&metrics));
-    // cfg.service(metrics_route);
-    todo!();
-}
 
 // TODO: why the hell do you get garbage collected
 #[derive(Serialize)]
@@ -36,15 +25,15 @@ impl Metrics {
 }
 
 #[get("/metrics")]
-pub async fn metrics_route(metrics: Data<Arc<Metrics>>) -> Response {
+pub async fn metrics_route(metrics: Data<Metrics>) -> Response {
     Ok(HttpResponse::Ok().json(metrics.into_inner()))
 }
 
-pub struct MetricsMiddleware(Arc<Metrics>);
+pub struct MetricsMiddleware;
 
 impl MetricsMiddleware {
-    pub fn new(dink: Arc<Metrics>) -> MetricsMiddleware {
-        MetricsMiddleware(dink)
+    pub fn default() -> MetricsMiddleware {
+        MetricsMiddleware
     }
 }
 
@@ -61,16 +50,12 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(CheckPerfCounterMiddleware {
-            service,
-            counter: self.0.clone(),
-        })
+        ok(CheckPerfCounterMiddleware { service })
     }
 }
 
 pub struct CheckPerfCounterMiddleware<S> {
     service: S,
-    counter: Arc<Metrics>,
 }
 
 impl<S, B> Service for CheckPerfCounterMiddleware<S>
@@ -88,10 +73,19 @@ where
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        // TODO: add counters for good & bad requests
-        self.counter.requests.fetch_add(1, Ordering::SeqCst);
+        let metrics: Option<Data<Metrics>> = req.app_data();
 
-        debug!("counter: {:?}", self.counter.requests);
+        // TODO: add counters for good & bad requests
+        match metrics {
+            Some(metrics) => metrics
+                .into_inner()
+                .requests
+                .fetch_add(1, Ordering::Relaxed),
+            None => {
+                error!("Metrics not found");
+                0
+            }
+        };
 
         // TODO: figure out how to fix this
         Either::Left(self.service.call(req))
