@@ -10,7 +10,6 @@ use futures::future::{ok, Either, Ready};
 
 use crate::server::Response;
 
-// TODO: why the hell do you get garbage collected
 #[derive(Serialize)]
 pub struct Metrics {
     pub requests: AtomicU32,
@@ -25,19 +24,19 @@ impl Metrics {
 }
 
 #[get("/metrics")]
-pub async fn metrics_route(metrics: Data<Metrics>) -> Response {
+pub async fn route(metrics: Data<Metrics>) -> Response {
     Ok(HttpResponse::Ok().json(metrics.into_inner()))
 }
 
-pub struct MetricsMiddleware;
+pub struct Middleware;
 
-impl MetricsMiddleware {
-    pub fn default() -> MetricsMiddleware {
-        MetricsMiddleware
+impl Middleware {
+    pub fn default() -> Middleware {
+        Middleware
     }
 }
 
-impl<S, B> Transform<S> for MetricsMiddleware
+impl<S, B> Transform<S> for Middleware
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,

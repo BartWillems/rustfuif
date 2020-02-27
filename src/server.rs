@@ -3,7 +3,7 @@ use diesel::{r2d2::ConnectionManager, PgConnection};
 
 use crate::errors::ServiceError;
 use crate::games;
-use crate::metrics::{Metrics, MetricsMiddleware};
+use crate::metrics;
 
 pub type Response = Result<HttpResponse, ServiceError>;
 
@@ -13,7 +13,7 @@ async fn health(_: HttpRequest) -> &'static str {
 }
 
 pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std::io::Result<()> {
-    let metrics = web::Data::new(Metrics::new());
+    let metrics = web::Data::new(metrics::Metrics::new());
 
     HttpServer::new(move || {
         App::new()
@@ -23,15 +23,15 @@ pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
             .wrap(middleware::NormalizePath)
-            .wrap(MetricsMiddleware::default())
+            .wrap(metrics::Middleware::default())
             // limit the maximum amount of data that server will accept
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))
+            .service(metrics::route)
             .service(
                 web::scope("/api")
                     .configure(games::routes::register)
-                    .service(health)
-                    .service(crate::metrics::metrics_route),
+                    .service(health),
             )
             .service(web::scope("/admin").service(health))
     })
