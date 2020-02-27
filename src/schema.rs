@@ -10,14 +10,7 @@ table! {
 }
 
 table! {
-    slots (id) {
-        id -> Int8,
-        game_id -> Int8,
-    }
-}
-
-table! {
-    teams (id) {
+    participants (id) {
         id -> Int8,
         name -> Varchar,
         invitation -> Nullable<Uuid>,
@@ -27,11 +20,18 @@ table! {
     }
 }
 
+table! {
+    slots (id) {
+        id -> Int8,
+        game_id -> Int8,
+    }
+}
+
+joinable!(participants -> games (game_id));
 joinable!(slots -> games (game_id));
-joinable!(teams -> games (game_id));
 
 allow_tables_to_appear_in_same_query!(
     games,
+    participants,
     slots,
-    teams,
 );

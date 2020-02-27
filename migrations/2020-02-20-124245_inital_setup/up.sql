@@ -9,8 +9,8 @@ CREATE TABLE games (
     CHECK(close_time > start_time)
 );
 
--- a team is a group of users who want to play a game
--- a team configures their beverage prices/names/...
+-- participants are a group of users who want to play a game
+-- participants configure their beverage prices/names/...
 CREATE TABLE participants (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR NOT NULL,
@@ -20,8 +20,12 @@ CREATE TABLE participants (
     updated_at TIMESTAMP WITH TIME ZONE
 );
 
--- slots are placeholders for beverages for a team
+-- slots are placeholders for beverages for participants
 CREATE TABLE slots (
     id BIGSERIAL PRIMARY KEY,
     game_id BIGSERIAL REFERENCES games(id)
 );
+
+-- automatically update `updated_at` columns
+SELECT diesel_manage_updated_at('games');
+SELECT diesel_manage_updated_at('participants');
