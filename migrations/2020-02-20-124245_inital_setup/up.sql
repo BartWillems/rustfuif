@@ -28,7 +28,7 @@ CREATE TABLE slots (
 
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
-    username VARCHAR NOT NULL,
+    username VARCHAR NOT NULL UNIQUE,
     password VARCHAR NOT NULL,
     is_admin boolean NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
