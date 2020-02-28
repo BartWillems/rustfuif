@@ -13,6 +13,7 @@ extern crate serde_derive;
 use dotenv::dotenv;
 use terminator::Terminator;
 
+mod auth;
 mod db;
 mod errors;
 mod games;
@@ -28,6 +29,9 @@ async fn main() -> Result<(), Terminator> {
     env_logger::init();
 
     let database_url = std::env::var("DATABASE_URL").or(Err("DATABASE_URL must be set"))?;
+    let redis_host = std::env::var("REDIS_HOST").or(Err("REDIS_HOST must be set"))?;
+    let redis_port = std::env::var("REDIS_PORT").or(Err("REDIS_PORT must be set"))?;
+    let redis_url = format!("{}:{}", redis_host, redis_port);
 
     debug!("building database connection pool");
     let pool = db::build_connection_pool(&database_url)?;
@@ -36,7 +40,7 @@ async fn main() -> Result<(), Terminator> {
     db::migrate(&pool)?;
 
     debug!("launching the actix webserver");
-    server::launch(pool).await?;
+    server::launch(pool, redis_url).await?;
 
     Ok(())
 }

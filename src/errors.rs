@@ -1,3 +1,4 @@
+use actix_web::error::Error as ActixError;
 use actix_web::{error::ResponseError, HttpResponse};
 use derive_more::Display;
 use diesel::result::{DatabaseErrorKind, Error as DBError};
@@ -33,6 +34,13 @@ impl ResponseError for ServiceError {
             ServiceError::NotFound => HttpResponse::NotFound().json("Not Found"),
             ServiceError::Conflict(ref message) => HttpResponse::Conflict().json(message),
         }
+    }
+}
+
+impl From<ActixError> for ServiceError {
+    fn from(error: ActixError) -> ServiceError {
+        error!("actix http error: {}", error);
+        ServiceError::InternalServerError
     }
 }
 

@@ -12,6 +12,7 @@ use crate::errors::ServiceError;
 pub struct UserMessage {
     pub username: String,
     pub password: String,
+    pub is_admin: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Queryable, Insertable)]
@@ -38,7 +39,7 @@ impl User {
         Ok(user)
     }
 
-    pub fn find_by_email(username: String, conn: &db::Conn) -> Result<Self, ServiceError> {
+    pub fn find_by_username(username: String, conn: &db::Conn) -> Result<Self, ServiceError> {
         let user = users::table
             .filter(users::username.eq(username))
             .first(conn)?;

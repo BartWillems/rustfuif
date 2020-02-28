@@ -1,6 +1,8 @@
+use actix_redis::RedisSession;
 use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
-use diesel::{r2d2::ConnectionManager, PgConnection};
 
+use crate::auth;
+use crate::db;
 use crate::errors::ServiceError;
 use crate::games;
 use crate::metrics;
@@ -12,7 +14,7 @@ async fn health(_: HttpRequest) -> &'static str {
     "ok"
 }
 
-pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std::io::Result<()> {
+pub async fn launch(db_pool: db::Pool, redis_uri: String) -> std::io::Result<()> {
     let metrics = web::Data::new(metrics::Metrics::new());
 
     HttpServer::new(move || {
@@ -24,6 +26,7 @@ pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std
             .wrap(middleware::Logger::default())
             .wrap(middleware::NormalizePath)
             .wrap(metrics::Middleware::default())
+            .wrap(RedisSession::new(redis_uri.clone(), &[0; 32]))
             // limit the maximum amount of data that server will accept
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))
@@ -31,6 +34,7 @@ pub async fn launch(db_pool: r2d2::Pool<ConnectionManager<PgConnection>>) -> std
             .service(
                 web::scope("/api")
                     .configure(games::routes::register)
+                    .configure(auth::init_routes)
                     .service(health),
             )
             .service(web::scope("/admin").service(health))
