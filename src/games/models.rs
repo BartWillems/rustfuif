@@ -11,6 +11,7 @@ use crate::schema::games;
 pub struct Game {
     pub id: i64,
     pub name: String,
+    pub owner_id: i64,
     pub start_time: DateTime<Utc>,
     pub close_time: DateTime<Utc>,
     pub created_at: Option<DateTime<Utc>>,
@@ -21,6 +22,7 @@ pub struct Game {
 #[table_name = "games"]
 pub struct CreateGame {
     pub name: String,
+    pub owner_id: i64,
     pub start_time: DateTime<Utc>,
     pub close_time: DateTime<Utc>,
 }
