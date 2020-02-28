@@ -14,7 +14,7 @@ use serde_json::json;
 async fn register(user: Json<UserMessage>, pool: Data<db::Pool>) -> Response {
     let conn = pool.get()?;
 
-    User::create(&mut user.into_inner(), &conn)?;
+    web::block(move || User::create(&mut user.into_inner(), &conn)).await?;
 
     Ok(HttpResponse::new(StatusCode::OK))
 }
@@ -24,13 +24,19 @@ async fn login(credentials: Json<UserMessage>, session: Session, pool: Data<db::
     let conn = pool.get()?;
     let credentials = credentials.into_inner();
 
-    let user =
-        User::find_by_username(credentials.username, &conn).map_err(|error| match error {
+    // this can be removed once the web::block() is removed
+    let username = credentials.username;
+    let password = credentials.password;
+
+    let user = web::block(move || {
+        User::find_by_username(username, &conn).map_err(|error| match error {
             ServiceError::NotFound => ServiceError::Unauthorized,
             _ => error,
-        })?;
+        })
+    })
+    .await?;
 
-    let is_valid = user.verify_password(credentials.password.as_bytes())?;
+    let is_valid = user.verify_password(password.as_bytes())?;
 
     if is_valid {
         session.set("user_id", user.id)?;
