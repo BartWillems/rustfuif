@@ -28,9 +28,9 @@ async fn main() -> Result<(), Terminator> {
 
     env_logger::init();
 
-    let database_url = std::env::var("DATABASE_URL").or(Err("DATABASE_URL must be set"))?;
-    let redis_host = std::env::var("REDIS_HOST").or(Err("REDIS_HOST must be set"))?;
-    let redis_port = std::env::var("REDIS_PORT").or(Err("REDIS_PORT must be set"))?;
+    let database_url = get_env("DATABASE_URL")?;
+    let redis_host = get_env("REDIS_HOST")?;
+    let redis_port = get_env("REDIS_PASSWORD")?;
     let redis_url = format!("{}:{}", redis_host, redis_port);
 
     debug!("building database connection pool");
@@ -43,4 +43,9 @@ async fn main() -> Result<(), Terminator> {
     server::launch(pool, redis_url).await?;
 
     Ok(())
+}
+
+fn get_env(key: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let res = std::env::var(key).or(Err(format!("{} must be set", key)))?;
+    Ok(res)
 }
