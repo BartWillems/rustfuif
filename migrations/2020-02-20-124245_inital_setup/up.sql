@@ -34,3 +34,7 @@ CREATE TABLE slots (
 -- automatically update `updated_at` columns
 SELECT diesel_manage_updated_at('games');
 SELECT diesel_manage_updated_at('users');
+
+-- create initial admin:admin account
+INSERT INTO users (username, password, is_admin)
+VALUES ('admin', '$argon2i$v=19$m=4096,t=3,p=1$KA0uyctXkrYJu6+EdkwMcecm97DkFJL1yvFOumns9AM$7XEYsYEd40Z1V0o8mDCoLldu7VTxXA20hXyl/x28LlM', TRUE);

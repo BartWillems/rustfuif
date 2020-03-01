@@ -52,7 +52,7 @@ async fn login(credentials: Json<UserMessage>, session: Session, pool: Data<db::
 async fn logout(session: Session) -> Response {
     let id: Option<i64> = session.get("user_id")?;
 
-    if let Some(_) = id {
+    if id.is_some() {
         session.purge();
         Ok(HttpResponse::Ok().json(json!({ "message": "Successfully signed out" })))
     } else {

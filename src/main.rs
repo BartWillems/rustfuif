@@ -30,7 +30,7 @@ async fn main() -> Result<(), Terminator> {
 
     let database_url = get_env("DATABASE_URL")?;
     let redis_host = get_env("REDIS_HOST")?;
-    let redis_port = get_env("REDIS_PASSWORD")?;
+    let redis_port = get_env("REDIS_PORT")?;
     let redis_url = format!("{}:{}", redis_host, redis_port);
 
     debug!("building database connection pool");
@@ -46,6 +46,6 @@ async fn main() -> Result<(), Terminator> {
 }
 
 fn get_env(key: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let res = std::env::var(key).or(Err(format!("{} must be set", key)))?;
+    let res = std::env::var(key).or_else(|_| Err(format!("{} must be set", key)))?;
     Ok(res)
 }

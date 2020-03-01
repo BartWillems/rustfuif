@@ -22,6 +22,7 @@ pub struct Game {
 #[table_name = "games"]
 pub struct CreateGame {
     pub name: String,
+    #[serde(skip)]
     pub owner_id: i64,
     pub start_time: DateTime<Utc>,
     pub close_time: DateTime<Utc>,
@@ -29,7 +30,9 @@ pub struct CreateGame {
 
 #[derive(Debug, Deserialize)]
 pub struct GameQuery {
-    pub active: Option<bool>,
+    pub name: Option<String>,
+    pub is_active: Option<bool>,
+    pub owner_id: Option<i64>,
 }
 
 impl Game {
@@ -62,17 +65,22 @@ impl Game {
         Ok(game)
     }
 
-    pub fn load(conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
-        let games = games::table.order(games::id).load::<Game>(conn)?;
-        Ok(games)
-    }
+    pub fn find_all(filter: GameQuery, conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
+        let mut query = games::table.into_boxed();
 
-    pub fn load_active(conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
-        let games = games::table
-            .filter(games::close_time.gt(diesel::dsl::now))
-            .order(games::id)
-            .load::<Game>(conn)?;
+        if filter.is_active.unwrap_or(false) {
+            query = query.filter(games::close_time.gt(diesel::dsl::now));
+        }
 
+        if let Some(id) = filter.owner_id {
+            query = query.filter(games::owner_id.eq(id));
+        }
+
+        if let Some(name) = filter.name {
+            query = query.filter(games::name.like(format!("%{}%", name)));
+        }
+
+        let games = query.load::<Game>(conn)?;
         Ok(games)
     }
 

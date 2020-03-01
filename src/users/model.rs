@@ -12,7 +12,6 @@ use crate::errors::ServiceError;
 pub struct UserMessage {
     pub username: String,
     pub password: String,
-    pub is_admin: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Queryable, Insertable)]
@@ -58,6 +57,7 @@ impl User {
     }
 
     pub fn update(id: i64, user: &mut UserMessage, conn: &db::Conn) -> Result<Self, ServiceError> {
+        // this might be removed if I separate this with a "change_credentials" function dink
         user.hash_password()?;
 
         let user = diesel::update(users::table)
