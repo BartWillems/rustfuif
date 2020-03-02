@@ -20,6 +20,27 @@ impl std::fmt::Display for State {
     }
 }
 
+/// Game invite for a user.
+/// When you create a game, you're also instantly invited and accepted
+///
+/// **GET /api/invitations**
+///
+/// When called, it shows the games you're invited to
+///
+/// Example:
+///
+/// ``` shell
+/// curl --location --request GET 'http://localhost:8080/api/invitations'
+/// [
+///     {
+///         "game_id": 1,
+///         "user_id": 3,
+///         "state": "ACCEPTED",
+///         "created_at": "2020-03-02T19:53:33.977263Z",
+///         "updated_at": null
+///     }
+/// ]
+/// ```
 #[derive(Debug, Serialize, Insertable, Queryable, Identifiable, AsChangeset)]
 #[primary_key(game_id, user_id)]
 pub struct Invitation {
@@ -30,6 +51,21 @@ pub struct Invitation {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
+/// InviteMessage is what the client sends us to invite an
+/// existing user to an existing game
+///
+/// **POST /api/invitations**
+///
+/// Example:
+///
+/// ``` shell
+/// curl --location --request POST 'http://localhost:8080/api/invitations' \
+/// --header 'Content-Type: application/json' \
+/// --data-raw '{
+///	    "user_id": 2,
+///	    "game_id": 3
+/// }'
+/// ```
 #[derive(Debug, Deserialize)]
 pub struct InviteMessage {
     pub game_id: i64,

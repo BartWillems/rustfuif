@@ -10,6 +10,20 @@ use futures::future::{ok, Either, Ready};
 
 use crate::server::Response;
 
+/// the Metrics struct holds the request count
+///
+/// **GET /metrics**
+///
+/// exposes the amount of requests that this server has handled
+///
+/// Example:
+///
+/// ``` shell
+/// curl localhost:8080/metrics
+/// {
+///     "requests": 9872
+/// }
+/// ```
 #[derive(Serialize)]
 pub struct Metrics {
     pub requests: AtomicU32,
