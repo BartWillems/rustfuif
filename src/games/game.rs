@@ -1,11 +1,11 @@
 use actix_web::Result;
-use chrono::Duration;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::schema::games;
+use crate::games::invitation::Invitation;
+use crate::schema::{games, invitations, users};
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
 pub struct Game {
@@ -35,28 +35,39 @@ pub struct GameQuery {
     pub owner_id: Option<i64>,
 }
 
+/// GameUser is used to query for invited users
+#[derive(Serialize, Queryable)]
+pub struct GameUser {
+    pub user_id: i64,
+    pub username: String,
+    pub invitation_state: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UserInvite {
+    pub user_id: i64,
+}
+
 impl Game {
     pub fn create(new_game: CreateGame, conn: &db::Conn) -> Result<Game, ServiceError> {
-        Game::check_duration(new_game.start_time, new_game.close_time)?;
+        let game = conn.transaction::<Game, diesel::result::Error, _>(|| {
+            let game: Game = diesel::insert_into(games::table)
+                .values(&new_game)
+                .get_result(conn)?;
 
-        let game = diesel::insert_into(games::table)
-            .values(&new_game)
-            .get_result(conn)?;
+            Invitation::new(game.id, game.owner_id)
+                .accept()
+                .save(conn)?;
+
+            Ok(game)
+        })?;
 
         Ok(game)
     }
 
-    fn check_duration(
-        start_time: DateTime<Utc>,
-        close_time: DateTime<Utc>,
-    ) -> Result<(), ServiceError> {
-        let duration: Duration = close_time.signed_duration_since(start_time);
-
-        if duration.num_minutes() <= 0 {
-            return Err(ServiceError::BadRequest(
-                "this game has not gone on long enough".to_string(),
-            ));
-        }
+    pub fn invite_user(&self, user_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
+        let invite = Invitation::new(self.id, user_id);
+        invite.save(conn)?;
         Ok(())
     }
 
@@ -82,6 +93,15 @@ impl Game {
 
         let games = query.load::<Game>(conn)?;
         Ok(games)
+    }
+
+    pub fn find_users(game_id: i64, conn: &db::Conn) -> Result<Vec<GameUser>, ServiceError> {
+        let res = invitations::table
+            .inner_join(users::table)
+            .filter(invitations::game_id.eq(game_id))
+            .select((users::id, users::username, invitations::state))
+            .load::<GameUser>(conn)?;
+        Ok(res)
     }
 
     pub fn update(&self, conn: &db::Conn) -> Result<Game, ServiceError> {

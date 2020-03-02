@@ -9,13 +9,13 @@ use crate::db;
 use crate::errors::ServiceError;
 use crate::server;
 
-use crate::games::models::{CreateGame, Game, GameQuery};
+use crate::games::game::{CreateGame, Game, GameQuery, UserInvite};
+use crate::games::invitation::Invitation;
 
 #[get("/games")]
 async fn find_all(query: Query<GameQuery>, pool: Data<db::Pool>) -> server::Response {
     let conn = pool.get()?;
 
-    // TODO: query by game_owner
     let games: Vec<Game> = web::block(move || Game::find_all(query.into_inner(), &conn)).await?;
 
     Ok(HttpResponse::Ok().json(games))
@@ -28,6 +28,44 @@ async fn find(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
     let game = web::block(move || Game::find_by_id(*game_id, &conn)).await?;
 
     Ok(HttpResponse::Ok().json(game))
+}
+
+#[get("/games/{id}/users")]
+async fn find_users(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
+    let conn = pool.get()?;
+
+    let users = web::block(move || Game::find_users(*game_id, &conn)).await?;
+
+    Ok(HttpResponse::Ok().json(users))
+}
+
+// should be moved to a separate invitations module
+// so a user could post {game_id, user_id}
+#[post("/games/{id}/users")]
+async fn invite_user(
+    game_id: Path<i64>,
+    invite: Json<UserInvite>,
+    session: Session,
+    pool: Data<db::Pool>,
+) -> server::Response {
+    let conn = pool.get()?;
+    let owner_id = auth::get_user_id(session)?;
+
+    let invite = invite.into_inner();
+
+    web::block(move || {
+        let game = Game::find_by_id(*game_id, &conn)?;
+        if game.owner_id != owner_id {
+            return Err(ServiceError::Forbidden(
+                "Only the game owner can invite users".to_owned(),
+            ));
+        }
+
+        game.invite_user(invite.user_id, &conn)
+    })
+    .await?;
+
+    Ok(HttpResponse::new(StatusCode::CREATED))
 }
 
 #[post("/games")]
@@ -68,7 +106,9 @@ async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, session: Session) -> s
     web::block(move || {
         let game = Game::find_by_id(*game_id, &conn)?;
         if game.owner_id != user_id {
-            return Err(ServiceError::Forbidden);
+            return Err(ServiceError::Forbidden(
+                "Only game owners can delete games".to_owned(),
+            ));
         }
         Game::delete_by_id(game.id, &conn)
     })
@@ -77,10 +117,26 @@ async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, session: Session) -> s
     Ok(HttpResponse::new(StatusCode::OK))
 }
 
+#[get("/games/invites")]
+async fn my_invites(session: Session, pool: Data<db::Pool>) -> server::Response {
+    let user_id = auth::get_user_id(session)?;
+
+    let conn = pool.get()?;
+
+    let invites = Invitation::find(user_id, &conn)?;
+
+    Ok(HttpResponse::Ok().json(invites))
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
+    cfg.service(my_invites);
+
     cfg.service(find_all);
     cfg.service(find);
     cfg.service(create);
     cfg.service(update);
     cfg.service(delete);
+
+    cfg.service(invite_user);
+    cfg.service(find_users);
 }

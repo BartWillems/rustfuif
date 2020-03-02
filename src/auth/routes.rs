@@ -2,7 +2,7 @@
 use crate::db;
 use crate::errors::ServiceError;
 use crate::server::Response;
-use crate::users::model::{User, UserMessage};
+use crate::users::{User, UserMessage};
 
 use actix_session::Session;
 use actix_web::http::StatusCode;

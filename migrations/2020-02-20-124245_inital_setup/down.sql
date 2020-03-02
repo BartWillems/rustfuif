@@ -2,4 +2,4 @@
 DROP TABLE games;
 DROP TABLE slots;
 DROP TABLE users;
-DROP TABLE users_games;
+DROP TABLE invitations;

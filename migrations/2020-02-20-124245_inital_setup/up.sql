@@ -2,7 +2,7 @@ CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     username VARCHAR NOT NULL UNIQUE,
     password VARCHAR NOT NULL,
-    is_admin boolean NOT NULL DEFAULT FALSE,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
     updated_at TIMESTAMP WITH TIME ZONE
 );
@@ -19,21 +19,33 @@ CREATE TABLE games (
     CHECK(close_time > start_time)
 );
 
-CREATE TABLE users_games (
+-- invitations are used to add users to add users to a game
+CREATE TABLE invitations (
     user_id BIGSERIAL REFERENCES users(id),
     game_id BIGSERIAL REFERENCES games(id),
-    CONSTRAINT user_game_pkey PRIMARY KEY (user_id, game_id)
+    state VARCHAR NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT user_game_pkey PRIMARY KEY (user_id, game_id),
+    CHECK(state = 'PENDING' OR state = 'ACCEPTED' OR state = 'DECLINED')
 );
 
--- slots are placeholders for beverages for participants
-CREATE TABLE slots (
+-- a transaction is a sale
+CREATE TABLE transactions (
     id BIGSERIAL PRIMARY KEY,
-    game_id BIGSERIAL REFERENCES games(id)
+    user_id BIGSERIAL REFERENCES users(id),
+    game_id BIGSERIAL REFERENCES games(id),
+    slot_no SMALLINT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    -- to keep it simple, a game has hardcoded 8 slots
+    -- this could be improved by adding a slot_limit to a game and checking against that limit
+    CHECK (slot_no > 0 AND slot_no <= 8)
 );
 
 -- automatically update `updated_at` columns
 SELECT diesel_manage_updated_at('games');
 SELECT diesel_manage_updated_at('users');
+SELECT diesel_manage_updated_at('invitations');
 
 -- create initial admin:admin account
 INSERT INTO users (username, password, is_admin)
