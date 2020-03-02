@@ -10,11 +10,13 @@ cache:
     - .cargo/
     - target/
 
-generate_docs:
+pages:
   stage: build
   image: rust:1.41
   script:
     - cargo doc --no-deps --document-private-items
+    - rm -rf public
+    - mv target/doc/ public
   artifacts:
     paths:
       - target/doc
@@ -25,7 +27,7 @@ deploy-unstable:
   services:
     - docker:dind
   dependencies:
-    - generate_docs
+    - pages
   script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker pull "${CONTAINER_IMAGE}:unstable-${CI_COMMIT_REF_NAME/\//-}" || true
@@ -41,7 +43,7 @@ deploy-stable:
   services:
     - docker:dind
   dependencies:
-    - generate_docs
+    - pages
   script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker pull "${CONTAINER_IMAGE}:latest" || true
