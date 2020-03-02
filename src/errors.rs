@@ -25,6 +25,20 @@ pub enum ServiceError {
     Forbidden(String),
 }
 
+#[macro_export]
+macro_rules! forbidden {
+    ($message:expr) => {
+        return Err(ServiceError::Forbidden($message.to_string()));
+    };
+}
+
+#[macro_export]
+macro_rules! bad_request {
+    ($message:expr) => {
+        return Err(ServiceError::BadRequest($message.to_string()));
+    };
+}
+
 // impl ResponseError trait allows to convert our errors into http responses with appropriate data
 impl ResponseError for ServiceError {
     fn error_response(&self) -> HttpResponse {
@@ -53,13 +67,17 @@ impl From<DBError> for ServiceError {
         error!("db error: {}", error);
         match error {
             DBError::NotFound => ServiceError::NotFound,
-            DBError::DatabaseError(kind, info) => {
-                if let DatabaseErrorKind::UniqueViolation = kind {
-                    let message = info.details().unwrap_or_else(|| info.message()).to_string();
-                    return ServiceError::Conflict(message);
+            DBError::DatabaseError(kind, info) => match kind {
+                DatabaseErrorKind::UniqueViolation => {
+                    debug!("unique violation");
+                    ServiceError::Conflict(info.message().to_string())
                 }
-                ServiceError::InternalServerError
-            }
+                DatabaseErrorKind::ForeignKeyViolation => {
+                    debug!("foreign key violation");
+                    ServiceError::BadRequest(info.message().to_string())
+                }
+                _ => ServiceError::InternalServerError,
+            },
             _ => ServiceError::InternalServerError,
         }
     }

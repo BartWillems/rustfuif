@@ -5,6 +5,7 @@ use crate::auth;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::games;
+use crate::invitations;
 use crate::metrics;
 
 pub type Response = Result<HttpResponse, ServiceError>;
@@ -34,6 +35,7 @@ pub async fn launch(db_pool: db::Pool, redis_uri: String) -> std::io::Result<()>
             .service(
                 web::scope("/api")
                     .configure(games::routes::register)
+                    .configure(invitations::routes::register)
                     .configure(auth::init_routes)
                     .service(health),
             )

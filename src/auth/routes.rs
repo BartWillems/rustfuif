@@ -1,4 +1,3 @@
-// use crate::errors::ServiceError;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::server::Response;
@@ -40,6 +39,7 @@ async fn login(credentials: Json<UserMessage>, session: Session, pool: Data<db::
 
     if is_valid {
         session.set("user_id", user.id)?;
+        session.set("is_admin", user.is_admin)?;
         session.renew();
     } else {
         return Err(ServiceError::Unauthorized);

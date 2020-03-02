@@ -1,10 +1,11 @@
 use actix_web::Result;
+use chrono::Duration;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::games::invitation::Invitation;
+use crate::invitations::Invitation;
 use crate::schema::{games, invitations, users};
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
@@ -50,6 +51,8 @@ pub struct UserInvite {
 
 impl Game {
     pub fn create(new_game: CreateGame, conn: &db::Conn) -> Result<Game, ServiceError> {
+        new_game.validate_duration()?;
+
         let game = conn.transaction::<Game, diesel::result::Error, _>(|| {
             let game: Game = diesel::insert_into(games::table)
                 .values(&new_game)
@@ -119,6 +122,17 @@ impl Game {
     pub fn delete_by_id(game_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
         diesel::delete(games::table.filter(games::id.eq(game_id))).execute(conn)?;
 
+        Ok(())
+    }
+}
+
+impl CreateGame {
+    fn validate_duration(&self) -> Result<(), ServiceError> {
+        let duration: Duration = self.close_time.signed_duration_since(self.start_time);
+
+        if duration.num_minutes() <= 0 {
+            bad_request!("this game has not gone on long enough");
+        }
         Ok(())
     }
 }

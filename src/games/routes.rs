@@ -10,7 +10,7 @@ use crate::errors::ServiceError;
 use crate::server;
 
 use crate::games::game::{CreateGame, Game, GameQuery, UserInvite};
-use crate::games::invitation::Invitation;
+use crate::invitations::Invitation;
 
 #[get("/games")]
 async fn find_all(query: Query<GameQuery>, pool: Data<db::Pool>) -> server::Response {
@@ -49,7 +49,7 @@ async fn invite_user(
     pool: Data<db::Pool>,
 ) -> server::Response {
     let conn = pool.get()?;
-    let owner_id = auth::get_user_id(session)?;
+    let owner_id = auth::get_user_id(&session)?;
 
     let invite = invite.into_inner();
 
@@ -75,7 +75,7 @@ async fn create(
     session: Session,
 ) -> server::Response {
     let mut game = game.into_inner();
-    game.owner_id = auth::get_user_id(session)?;
+    game.owner_id = auth::get_user_id(&session)?;
 
     let conn = pool.get()?;
 
@@ -86,7 +86,7 @@ async fn create(
 
 #[put("/games")]
 async fn update(game: Json<Game>, pool: Data<db::Pool>, session: Session) -> server::Response {
-    auth::validate_session(session)?;
+    auth::validate_session(&session)?;
 
     let conn = pool.get()?;
 
@@ -97,18 +97,15 @@ async fn update(game: Json<Game>, pool: Data<db::Pool>, session: Session) -> ser
 
 #[delete("/games/{id}")]
 async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, session: Session) -> server::Response {
-    let user_id = auth::get_user_id(session)?;
+    let user_id = auth::get_user_id(&session)?;
+    let is_admin = auth::is_admin(&session)?;
 
     let conn = pool.get()?;
 
-    // TODO: this should be done better
-    // admins should also be able to delete/update games
     web::block(move || {
         let game = Game::find_by_id(*game_id, &conn)?;
-        if game.owner_id != user_id {
-            return Err(ServiceError::Forbidden(
-                "Only game owners can delete games".to_owned(),
-            ));
+        if game.owner_id != user_id && !is_admin {
+            forbidden!("Only game owners can delete games");
         }
         Game::delete_by_id(game.id, &conn)
     })
@@ -119,7 +116,7 @@ async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, session: Session) -> s
 
 #[get("/games/invites")]
 async fn my_invites(session: Session, pool: Data<db::Pool>) -> server::Response {
-    let user_id = auth::get_user_id(session)?;
+    let user_id = auth::get_user_id(&session)?;
 
     let conn = pool.get()?;
 

@@ -13,10 +13,13 @@ extern crate serde_derive;
 use dotenv::dotenv;
 use terminator::Terminator;
 
+#[macro_use]
+mod errors;
+
 mod auth;
 mod db;
-mod errors;
 mod games;
+mod invitations;
 mod metrics;
 mod schema;
 mod server;

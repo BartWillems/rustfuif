@@ -5,7 +5,7 @@ use crate::errors::ServiceError;
 /// get the user_id of the current authenticated session
 /// returns Unauthorized when no session is found
 /// and ServerError when a session backend error occures
-pub fn get_user_id(session: Session) -> Result<i64, ServiceError> {
+pub fn get_user_id(session: &Session) -> Result<i64, ServiceError> {
     let user_id: Option<i64> = session.get("user_id")?;
 
     match user_id {
@@ -14,8 +14,15 @@ pub fn get_user_id(session: Session) -> Result<i64, ServiceError> {
     }
 }
 
+/// checks if the current user is an admin
+pub fn is_admin(session: &Session) -> Result<bool, ServiceError> {
+    let admin: Option<bool> = session.get("is_admin")?;
+
+    Ok(admin.unwrap_or(false))
+}
+
 /// check if a user is logged in
-pub fn validate_session(session: Session) -> Result<(), ServiceError> {
+pub fn validate_session(session: &Session) -> Result<(), ServiceError> {
     let user_id: Option<i64> = session.get("user_id")?;
 
     if user_id.is_none() {
