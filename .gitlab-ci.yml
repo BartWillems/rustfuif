@@ -14,7 +14,7 @@ generate_docs:
   stage: build
   image: rust:1.41
   script:
-    - cargo doc --no-deps --open --document-private-items
+    - cargo doc --no-deps --document-private-items
   artifacts:
     paths:
       - target/doc
