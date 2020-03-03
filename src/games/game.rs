@@ -5,7 +5,7 @@ use diesel::prelude::*;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::invitations::{Invitation, State};
+use crate::invitations::{Invitation, InvitationQuery};
 use crate::schema::{games, invitations, users};
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
@@ -33,9 +33,9 @@ pub struct Game {
 /// curl --location --request POST 'localhost:8888/api/games' \
 ///     --header 'Content-Type: application/json' \
 ///     --data-raw '{
-///	        "name": "feestje",
-///	        "start_time": "2020-02-01T22:00:00Z",
-///	        "close_time": "2020-02-01T23:59:59Z"
+///         "name": "feestje",
+///         "start_time": "2020-02-01T22:00:00Z",
+///         "close_time": "2020-02-01T23:59:59Z"
 ///     }'
 /// ```
 #[derive(Debug, Deserialize, Insertable)]
@@ -48,14 +48,18 @@ pub struct CreateGame {
     pub close_time: DateTime<Utc>,
 }
 
+/// GameQuery is used to filter on games
 #[derive(Debug, Deserialize)]
 pub struct GameQuery {
+    /// filter these games by %name%
     pub name: Option<String>,
-    pub is_active: Option<bool>,
+    /// default false, set to true to hide games from the past
+    pub hide_completed: Option<bool>,
+    /// list games created by a specific user
     pub owner_id: Option<i64>,
 }
 
-/// GameUser is used to query for invited users
+/// A GameUser is a user who is invited for a game
 #[derive(Serialize, Queryable)]
 pub struct GameUser {
     pub user_id: i64,
@@ -81,6 +85,11 @@ pub struct UserInvite {
 }
 
 impl Game {
+    /// Creates a new game, saves it in the database and automatically invites and
+    /// accepts the creator in a transaction.
+    ///
+    /// When something fails, the transaction rolls-back, returns an error
+    /// and nothing will have happened.
     pub fn create(new_game: CreateGame, conn: &db::Conn) -> Result<Game, ServiceError> {
         new_game.validate_duration()?;
 
@@ -113,7 +122,7 @@ impl Game {
     pub fn find_all(filter: GameQuery, conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
         let mut query = games::table.into_boxed();
 
-        if filter.is_active.unwrap_or(false) {
+        if filter.hide_completed.unwrap_or(false) {
             query = query.filter(games::close_time.gt(diesel::dsl::now));
         }
 
@@ -133,7 +142,7 @@ impl Game {
     /// filter by changing the invitation state
     pub fn find_users(
         game_id: i64,
-        state: Option<State>,
+        filter: InvitationQuery,
         conn: &db::Conn,
     ) -> Result<Vec<GameUser>, ServiceError> {
         let mut query = invitations::table
@@ -141,7 +150,7 @@ impl Game {
             .filter(invitations::game_id.eq(game_id))
             .into_boxed();
 
-        if let Some(state) = state {
+        if let Some(state) = filter.state {
             query = query.filter(invitations::state.eq(state.to_string()));
         }
 

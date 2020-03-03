@@ -14,8 +14,8 @@ use crate::errors::ServiceError;
 /// curl --location --request POST 'http://localhost:8080/api/login' \
 /// --header 'Content-Type: application/json' \
 /// --data-raw '{
-/// 	"username": "bob",
-/// 	"password": "bob"
+///     "username": "bob",
+///     "password": "bob"
 /// }'
 /// ```
 ///
@@ -31,8 +31,8 @@ use crate::errors::ServiceError;
 /// curl --location --request POST 'http://localhost:8080/api/register' \
 /// --header 'Content-Type: application/json' \
 /// --data-raw '{
-/// 	"username": "bob",
-/// 	"password": "bob"
+///     "username": "bob",
+///     "password": "bob"
 /// }'
 /// ```
 #[derive(Serialize, Deserialize, AsChangeset, Insertable)]

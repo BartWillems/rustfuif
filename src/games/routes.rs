@@ -10,7 +10,7 @@ use crate::errors::ServiceError;
 use crate::server;
 
 use crate::games::game::{CreateGame, Game, GameQuery, UserInvite};
-use crate::invitations::State;
+use crate::invitations::InvitationQuery;
 
 #[get("/games")]
 async fn find_all(query: Query<GameQuery>, pool: Data<db::Pool>) -> server::Response {
@@ -30,12 +30,11 @@ async fn find(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
     http_ok_json!(game);
 }
 
-/// get users who partake in a game, aka, invited users that have accepted
-/// TODO: figure out if this should become /game/$id/users/invitations?state=accepted
+/// show users who are invited for a specific game
 #[get("/games/{id}/users")]
 async fn find_users(
     game_id: Path<i64>,
-    query: Query<Option<State>>,
+    query: Query<InvitationQuery>,
     pool: Data<db::Pool>,
 ) -> server::Response {
     let conn = pool.get()?;

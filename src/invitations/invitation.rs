@@ -7,11 +7,19 @@ use crate::db;
 use crate::errors::ServiceError;
 use crate::schema::invitations;
 
+/// The state shows wether a user has accepted, declined or not yet
+/// responded to an invitation.
 #[derive(Debug, Deserialize)]
 pub enum State {
     PENDING,
     ACCEPTED,
     DECLINED,
+}
+
+/// InvitationQuery is used to filter invited users
+#[derive(Debug, Deserialize)]
+pub struct InvitationQuery {
+    pub state: Option<State>,
 }
 
 impl std::fmt::Display for State {
@@ -51,12 +59,6 @@ pub struct Invitation {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
-// #[derive(Debug, Deserialize)]
-// pub struct InviteMessage {
-//     pub game_id: i64,
-//     pub user_id: i64,
-// }
-
 impl Invitation {
     pub fn new(game_id: i64, user_id: i64) -> Invitation {
         Invitation {
@@ -68,6 +70,7 @@ impl Invitation {
         }
     }
 
+    /// Store an invitation in the database, returns the persisted invitation, or a database error
     pub fn save(&self, conn: &db::Conn) -> Result<Invitation, Error> {
         let invitation: Invitation = diesel::insert_into(invitations::table)
             .values(self)
@@ -75,6 +78,7 @@ impl Invitation {
         Ok(invitation)
     }
 
+    /// Update the invitation, returns the persisted invitation
     pub fn update(&self, conn: &db::Conn) -> Result<Invitation, ServiceError> {
         let invitation = diesel::update(self).set(self).get_result(conn)?;
 
@@ -90,19 +94,15 @@ impl Invitation {
         Ok(invites)
     }
 
+    /// mark a game as accepted, this does not automatically persist
     pub fn accept(&mut self) -> &mut Invitation {
         self.state = State::ACCEPTED.to_string();
         self
     }
 
+    /// mark a game as accepted, this does not automatically persist
     pub fn decline(&mut self) -> &mut Invitation {
         self.state = State::DECLINED.to_string();
         self
     }
 }
-
-// impl From<InviteMessage> for Invitation {
-//     fn from(i: InviteMessage) -> Invitation {
-//         Invitation::new(i.game_id, i.user_id)
-//     }
-// }
