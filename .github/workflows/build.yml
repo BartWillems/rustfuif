@@ -16,7 +16,7 @@ jobs:
       - name: generate-index-page
         run: |
           mv target/doc docs
-          echo '<meta http-equiv="refresh" content="0; url=syncer/index.html">' > docs/index.html
+          echo '<meta http-equiv="refresh" content="0; url=rustfuif/index.html">' > docs/index.html
 
   publish:
     runs-on: ubuntu-18.04
