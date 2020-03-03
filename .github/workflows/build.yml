@@ -43,8 +43,8 @@ jobs:
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
           name: ${{ github.repository }}
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: bartwillems
+          password: ${{ secrets.GITHUB_TOKEN }}
           registry: docker.pkg.github.com
           dockerfile: github.Dockerfile
           cache: "true"
