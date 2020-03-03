@@ -51,26 +51,11 @@ pub struct Invitation {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
-/// InviteMessage is what the client sends us to invite an
-/// existing user to an existing game
-///
-/// **POST /api/invitations**
-///
-/// Example:
-///
-/// ``` shell
-/// curl --location --request POST 'http://localhost:8080/api/invitations' \
-/// --header 'Content-Type: application/json' \
-/// --data-raw '{
-///	    "user_id": 2,
-///	    "game_id": 3
-/// }'
-/// ```
-#[derive(Debug, Deserialize)]
-pub struct InviteMessage {
-    pub game_id: i64,
-    pub user_id: i64,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct InviteMessage {
+//     pub game_id: i64,
+//     pub user_id: i64,
+// }
 
 impl Invitation {
     pub fn new(game_id: i64, user_id: i64) -> Invitation {
@@ -116,8 +101,8 @@ impl Invitation {
     }
 }
 
-impl From<InviteMessage> for Invitation {
-    fn from(i: InviteMessage) -> Invitation {
-        Invitation::new(i.game_id, i.user_id)
-    }
-}
+// impl From<InviteMessage> for Invitation {
+//     fn from(i: InviteMessage) -> Invitation {
+//         Invitation::new(i.game_id, i.user_id)
+//     }
+// }

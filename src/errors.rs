@@ -25,20 +25,6 @@ pub enum ServiceError {
     Forbidden(String),
 }
 
-#[macro_export]
-macro_rules! forbidden {
-    ($message:expr) => {
-        return Err(ServiceError::Forbidden($message.to_string()));
-    };
-}
-
-#[macro_export]
-macro_rules! bad_request {
-    ($message:expr) => {
-        return Err(ServiceError::BadRequest($message.to_string()));
-    };
-}
-
 // impl ResponseError trait allows to convert our errors into http responses with appropriate data
 impl ResponseError for ServiceError {
     fn error_response(&self) -> HttpResponse {

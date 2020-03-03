@@ -5,7 +5,7 @@ use diesel::prelude::*;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::invitations::Invitation;
+use crate::invitations::{Invitation, State};
 use crate::schema::{games, invitations, users};
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
@@ -19,6 +19,25 @@ pub struct Game {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
+///
+/// **POST /api/games**
+///
+/// This struct is used to create games.
+///
+/// The owner_id is is ignored when sent, as it's fetched from the user's session.
+///
+/// When the user isn't authenticated, Unauthorized(401) is returned,
+/// otherwise Created(201) with the game object is returned.
+///
+/// ``` shell
+/// curl --location --request POST 'localhost:8888/api/games' \
+///     --header 'Content-Type: application/json' \
+///     --data-raw '{
+///	        "name": "feestje",
+///	        "start_time": "2020-02-01T22:00:00Z",
+///	        "close_time": "2020-02-01T23:59:59Z"
+///     }'
+/// ```
 #[derive(Debug, Deserialize, Insertable)]
 #[table_name = "games"]
 pub struct CreateGame {
@@ -44,6 +63,18 @@ pub struct GameUser {
     pub invitation_state: String,
 }
 
+/// InviteMessage is what the client sends us to invite an
+/// existing user to an existing game
+///
+/// **POST /api/games/{id}/users/invitations**
+///
+/// Example:
+///
+/// ``` shell
+/// curl --location --request POST 'http://localhost:8080/api/games/1/users/invitations' \
+/// --header 'Content-Type: application/json' \
+/// --data-raw '{ "user_id": 2 }'
+/// ```
 #[derive(Debug, Deserialize)]
 pub struct UserInvite {
     pub user_id: i64,
@@ -98,13 +129,27 @@ impl Game {
         Ok(games)
     }
 
-    pub fn find_users(game_id: i64, conn: &db::Conn) -> Result<Vec<GameUser>, ServiceError> {
-        let res = invitations::table
+    /// returns a list of users who have been invited for a game
+    /// filter by changing the invitation state
+    pub fn find_users(
+        game_id: i64,
+        state: Option<State>,
+        conn: &db::Conn,
+    ) -> Result<Vec<GameUser>, ServiceError> {
+        let mut query = invitations::table
             .inner_join(users::table)
             .filter(invitations::game_id.eq(game_id))
+            .into_boxed();
+
+        if let Some(state) = state {
+            query = query.filter(invitations::state.eq(state.to_string()));
+        }
+
+        let users = query
             .select((users::id, users::username, invitations::state))
             .load::<GameUser>(conn)?;
-        Ok(res)
+
+        Ok(users)
     }
 
     pub fn update(&self, conn: &db::Conn) -> Result<Game, ServiceError> {
@@ -134,5 +179,46 @@ impl CreateGame {
             bad_request!("this game has not gone on long enough");
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::NaiveDate;
+    use std::ops::Add;
+
+    #[test]
+    fn invalid_game_duration() {
+        let time: DateTime<Utc> =
+            DateTime::from_utc(NaiveDate::from_ymd(2020, 1, 1).and_hms(12, 0, 0), Utc);
+
+        let smaller_time = time.add(Duration::hours(-1));
+
+        let game_with_same_times = CreateGame {
+            name: String::from("some_name"),
+            owner_id: 1,
+            start_time: time,
+            close_time: time,
+        };
+
+        let game_with_smaller_end_time = CreateGame {
+            name: String::from("some_name"),
+            owner_id: 1,
+            start_time: time,
+            close_time: smaller_time,
+        };
+
+        let game_with_equal_bigger_end_time = CreateGame {
+            name: String::from("some_name"),
+            owner_id: 1,
+            start_time: smaller_time,
+            close_time: time,
+        };
+
+        assert!(game_with_same_times.validate_duration().is_err());
+        assert!(game_with_smaller_end_time.validate_duration().is_err());
+
+        assert!(game_with_equal_bigger_end_time.validate_duration().is_ok());
     }
 }

@@ -10,7 +10,7 @@ use crate::errors::ServiceError;
 use crate::server;
 
 use crate::games::game::{CreateGame, Game, GameQuery, UserInvite};
-use crate::invitations::Invitation;
+use crate::invitations::State;
 
 #[get("/games")]
 async fn find_all(query: Query<GameQuery>, pool: Data<db::Pool>) -> server::Response {
@@ -18,7 +18,7 @@ async fn find_all(query: Query<GameQuery>, pool: Data<db::Pool>) -> server::Resp
 
     let games: Vec<Game> = web::block(move || Game::find_all(query.into_inner(), &conn)).await?;
 
-    Ok(HttpResponse::Ok().json(games))
+    http_ok_json!(games);
 }
 
 #[get("/games/{id}")]
@@ -27,21 +27,26 @@ async fn find(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
 
     let game = web::block(move || Game::find_by_id(*game_id, &conn)).await?;
 
-    Ok(HttpResponse::Ok().json(game))
+    http_ok_json!(game);
 }
 
+/// get users who partake in a game, aka, invited users that have accepted
+/// TODO: figure out if this should become /game/$id/users/invitations?state=accepted
 #[get("/games/{id}/users")]
-async fn find_users(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
+async fn find_users(
+    game_id: Path<i64>,
+    query: Query<Option<State>>,
+    pool: Data<db::Pool>,
+) -> server::Response {
     let conn = pool.get()?;
 
-    let users = web::block(move || Game::find_users(*game_id, &conn)).await?;
+    let users = web::block(move || Game::find_users(*game_id, query.into_inner(), &conn)).await?;
 
-    Ok(HttpResponse::Ok().json(users))
+    http_ok_json!(users);
 }
 
-// should be moved to a separate invitations module
-// so a user could post {game_id, user_id}
-#[post("/games/{id}/users")]
+/// Invite a user to a game
+#[post("/games/{id}/users/invitations")]
 async fn invite_user(
     game_id: Path<i64>,
     invite: Json<UserInvite>,
@@ -56,9 +61,7 @@ async fn invite_user(
     web::block(move || {
         let game = Game::find_by_id(*game_id, &conn)?;
         if game.owner_id != owner_id {
-            return Err(ServiceError::Forbidden(
-                "Only the game owner can invite users".to_owned(),
-            ));
+            forbidden!("Only the game owner can invite users");
         }
 
         game.invite_user(invite.user_id, &conn)
@@ -81,7 +84,7 @@ async fn create(
 
     let game = web::block(move || Game::create(game, &conn)).await?;
 
-    Ok(HttpResponse::Created().json(game))
+    http_created_json!(game);
 }
 
 #[put("/games")]
@@ -92,7 +95,7 @@ async fn update(game: Json<Game>, pool: Data<db::Pool>, session: Session) -> ser
 
     let game = web::block(move || game.update(&conn)).await?;
 
-    Ok(HttpResponse::Ok().json(game))
+    http_ok_json!(game);
 }
 
 #[delete("/games/{id}")]
@@ -114,20 +117,7 @@ async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, session: Session) -> s
     Ok(HttpResponse::new(StatusCode::OK))
 }
 
-#[get("/games/invites")]
-async fn my_invites(session: Session, pool: Data<db::Pool>) -> server::Response {
-    let user_id = auth::get_user_id(&session)?;
-
-    let conn = pool.get()?;
-
-    let invites = Invitation::find(user_id, &conn)?;
-
-    Ok(HttpResponse::Ok().json(invites))
-}
-
 pub fn register(cfg: &mut web::ServiceConfig) {
-    cfg.service(my_invites);
-
     cfg.service(find_all);
     cfg.service(find);
     cfg.service(create);

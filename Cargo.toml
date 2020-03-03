@@ -16,7 +16,7 @@ actix-threadpool = "0.3"
 actix-web = "2.0.0"
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = "0.99"
-diesel = { version = "1.4", features = ["chrono", "postgres", "uuidv07", "r2d2"] }
+diesel = { version = "1.4", features = ["chrono", "postgres", "r2d2"] }
 diesel_migrations = "1.4"
 dotenv = "0.15.0"
 env_logger = "0.7"
@@ -29,7 +29,6 @@ serde = { version = "1.0", features = ["rc"] }
 serde_derive = "1.0"
 serde_json = "1.0"
 terminator = "0.1.0"
-uuid = { version = "0.8", features = ["serde", "v4"] }
 
 [profile.release]
 lto = true

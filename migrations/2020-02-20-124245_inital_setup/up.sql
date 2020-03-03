@@ -19,7 +19,7 @@ CREATE TABLE games (
     CHECK(close_time > start_time)
 );
 
--- invitations are used to add users to add users to a game
+-- invitations are used to add users to a game
 CREATE TABLE invitations (
     user_id BIGSERIAL REFERENCES users(id),
     game_id BIGSERIAL REFERENCES games(id),

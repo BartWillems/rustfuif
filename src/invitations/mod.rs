@@ -1,3 +1,3 @@
 mod invitation;
 pub mod routes;
-pub use invitation::{Invitation, InviteMessage};
+pub use invitation::{Invitation, State};

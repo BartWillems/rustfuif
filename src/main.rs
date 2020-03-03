@@ -14,10 +14,11 @@ use dotenv::dotenv;
 use terminator::Terminator;
 
 #[macro_use]
-mod errors;
+mod macros;
 
 mod auth;
 mod db;
+mod errors;
 mod games;
 mod invitations;
 mod metrics;
