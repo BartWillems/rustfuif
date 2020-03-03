@@ -24,6 +24,7 @@ mod invitations;
 mod metrics;
 mod schema;
 mod server;
+mod transactions;
 mod users;
 
 #[actix_rt::main]

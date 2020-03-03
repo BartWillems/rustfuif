@@ -1,10 +1,9 @@
 use actix_web::Result;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
-use diesel::result::Error;
+use diesel::result::Error as DBError;
 
 use crate::db;
-use crate::errors::ServiceError;
 use crate::schema::invitations;
 
 /// The state shows wether a user has accepted, declined or not yet
@@ -71,27 +70,24 @@ impl Invitation {
     }
 
     /// Store an invitation in the database, returns the persisted invitation, or a database error
-    pub fn save(&self, conn: &db::Conn) -> Result<Invitation, Error> {
-        let invitation: Invitation = diesel::insert_into(invitations::table)
+    pub fn save(&self, conn: &db::Conn) -> Result<Invitation, DBError> {
+        diesel::insert_into(invitations::table)
             .values(self)
-            .get_result(conn)?;
-        Ok(invitation)
+            .get_result::<Invitation>(conn)
     }
 
     /// Update the invitation, returns the persisted invitation
-    pub fn update(&self, conn: &db::Conn) -> Result<Invitation, ServiceError> {
-        let invitation = diesel::update(self).set(self).get_result(conn)?;
-
-        Ok(invitation)
+    pub fn update(&self, conn: &db::Conn) -> Result<Invitation, DBError> {
+        diesel::update(self)
+            .set(self)
+            .get_result::<Invitation>(conn)
     }
 
     /// get your game invites
-    pub fn find(user_id: i64, conn: &db::Conn) -> Result<Vec<Invitation>, ServiceError> {
-        let invites = invitations::table
+    pub fn find(user_id: i64, conn: &db::Conn) -> Result<Vec<Invitation>, DBError> {
+        invitations::table
             .filter(invitations::user_id.eq(user_id))
-            .load::<Invitation>(conn)?;
-
-        Ok(invites)
+            .load::<Invitation>(conn)
     }
 
     /// mark a game as accepted, this does not automatically persist
@@ -105,4 +101,21 @@ impl Invitation {
         self.state = State::DECLINED.to_string();
         self
     }
+}
+
+/// InviteMessage is what the client sends us to invite an
+/// existing user to an existing game
+///
+/// **POST /api/games/{id}/users/invitations**
+///
+/// Example:
+///
+/// ``` shell
+/// curl --location --request POST 'http://localhost:8080/api/games/1/users/invitations' \
+/// --header 'Content-Type: application/json' \
+/// --data-raw '{ "user_id": 2 }'
+/// ```
+#[derive(Debug, Deserialize)]
+pub struct UserInvite {
+    pub user_id: i64,
 }

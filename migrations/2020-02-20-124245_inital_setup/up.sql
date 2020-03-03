@@ -39,7 +39,7 @@ CREATE TABLE transactions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
     -- to keep it simple, a game has hardcoded 8 slots
     -- this could be improved by adding a slot_limit to a game and checking against that limit
-    CHECK (slot_no > 0 AND slot_no <= 8)
+    CHECK (slot_no >= 0 AND slot_no < 8)
 );
 
 -- automatically update `updated_at` columns

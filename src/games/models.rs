@@ -2,6 +2,7 @@ use actix_web::Result;
 use chrono::Duration;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
+use diesel::result::Error as DBError;
 
 use crate::db;
 use crate::errors::ServiceError;
@@ -48,9 +49,10 @@ pub struct CreateGame {
     pub close_time: DateTime<Utc>,
 }
 
-/// GameQuery is used to filter on games
+/// GameFilter a struct that the client
+/// can use to query for games.
 #[derive(Debug, Deserialize)]
-pub struct GameQuery {
+pub struct GameFilter {
     /// filter these games by %name%
     pub name: Option<String>,
     /// default false, set to true to hide games from the past
@@ -65,23 +67,6 @@ pub struct GameUser {
     pub user_id: i64,
     pub username: String,
     pub invitation_state: String,
-}
-
-/// InviteMessage is what the client sends us to invite an
-/// existing user to an existing game
-///
-/// **POST /api/games/{id}/users/invitations**
-///
-/// Example:
-///
-/// ``` shell
-/// curl --location --request POST 'http://localhost:8080/api/games/1/users/invitations' \
-/// --header 'Content-Type: application/json' \
-/// --data-raw '{ "user_id": 2 }'
-/// ```
-#[derive(Debug, Deserialize)]
-pub struct UserInvite {
-    pub user_id: i64,
 }
 
 impl Game {
@@ -114,12 +99,13 @@ impl Game {
         Ok(())
     }
 
-    pub fn find_by_id(game_id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
-        let game = games::table.filter(games::id.eq(game_id)).first(conn)?;
-        Ok(game)
+    pub fn find_by_id(game_id: i64, conn: &db::Conn) -> Result<Game, DBError> {
+        games::table
+            .filter(games::id.eq(game_id))
+            .first::<Game>(conn)
     }
 
-    pub fn find_all(filter: GameQuery, conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
+    pub fn find_all(filter: GameFilter, conn: &db::Conn) -> Result<Vec<Game>, DBError> {
         let mut query = games::table.into_boxed();
 
         if filter.hide_completed.unwrap_or(false) {
@@ -134,8 +120,7 @@ impl Game {
             query = query.filter(games::name.like(format!("%{}%", name)));
         }
 
-        let games = query.load::<Game>(conn)?;
-        Ok(games)
+        query.load::<Game>(conn)
     }
 
     /// returns a list of users who have been invited for a game
@@ -184,9 +169,16 @@ impl CreateGame {
     fn validate_duration(&self) -> Result<(), ServiceError> {
         let duration: Duration = self.close_time.signed_duration_since(self.start_time);
 
+        // TODO: set the minimum duration a little higher, maybe 1 hour?
+        // this is fine during development
         if duration.num_minutes() <= 0 {
             bad_request!("this game has not gone on long enough");
         }
+
+        if duration.num_hours() > 24 {
+            bad_request!("the max duration of a game is 24 hours");
+        }
+
         Ok(())
     }
 }

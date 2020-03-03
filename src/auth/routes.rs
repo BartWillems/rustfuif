@@ -10,7 +10,7 @@ use actix_web::{post, web, HttpResponse};
 use serde_json::json;
 
 #[post("/register")]
-async fn register(user: Json<UserMessage>, pool: Data<db::Pool>) -> Response {
+async fn create_account(user: Json<UserMessage>, pool: Data<db::Pool>) -> Response {
     let conn = pool.get()?;
 
     web::block(move || User::create(&mut user.into_inner(), &conn)).await?;
@@ -60,8 +60,8 @@ async fn logout(session: Session) -> Response {
     }
 }
 
-pub fn init_routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(register);
+pub fn register(cfg: &mut web::ServiceConfig) {
+    cfg.service(create_account);
     cfg.service(login);
     cfg.service(logout);
 }

@@ -1,3 +1,3 @@
-mod game;
+mod models;
 pub mod routes;
-pub use game::Game;
+pub use models::Game;
