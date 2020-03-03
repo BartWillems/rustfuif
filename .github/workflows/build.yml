@@ -27,14 +27,24 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-      - uses: actions-rs/cargo@v1
-        name: build
+      - name: Build Release
+        uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release
 
-      - uses: actions-rs/cargo@v1
-        name: build
+      - name: Generate Docs
+        uses: actions-rs/cargo@v1
         with:
           command: doc
           args: --no-deps --document-private-items
+
+      - name: Publish Docker image
+        uses: elgohr/Publish-Docker-Github-Action@master
+        with:
+          name: ${{ GITHUB_REPOSITORY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: docker.pkg.github.com
+          dockerfile: github.Dockerfile
+          cache: "true"

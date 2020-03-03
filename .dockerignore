@@ -1,5 +1,3 @@
 target
-Dockerfile
-docker-compose.yml
-README.md
+!target/release/rustfuif
 .env
