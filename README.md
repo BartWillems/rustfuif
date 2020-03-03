@@ -1,5 +1,7 @@
 # Rustfuif
 
+![Rust](https://github.com/BartWillems/rustfuif/workflows/Rust/badge.svg?branch=master)
+
 ## Development
 
 ``` bash
