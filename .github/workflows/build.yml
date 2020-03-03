@@ -3,10 +3,11 @@ name: Rust
 on: [push]
 
 jobs:
-  build_docs:
+  publish:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
+
       - name: Generate Docs
         uses: actions-rs/cargo@v1
         with:
@@ -18,11 +19,6 @@ jobs:
           mv target/doc docs
           echo '<meta http-equiv="refresh" content="0; url=rustfuif/index.html">' > docs/index.html
 
-  publish:
-    runs-on: ubuntu-18.04
-    needs: [build_docs]
-    steps:
-      - uses: actions/checkout@v2
       - name: Publish Docker image
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
