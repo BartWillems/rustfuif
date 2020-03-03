@@ -3,18 +3,26 @@ name: Rust
 on: [push]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
+  build_docs:
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
-
       - name: Generate Docs
         uses: actions-rs/cargo@v1
         with:
           command: doc
           args: --no-deps --document-private-items
 
+      - name: generate-index-page
+        run: |
+          mv target/doc docs
+          echo '<meta http-equiv="refresh" content="0; url=syncer/index.html">' > docs/index.html
+
+  publish:
+    runs-on: ubuntu-18.04
+    needs: [build_docs]
+    steps:
+      - uses: actions/checkout@v2
       - name: Publish Docker image
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
@@ -24,3 +32,12 @@ jobs:
           registry: docker.pkg.github.com
           dockerfile: Dockerfile
           cache: "true"
+
+      - name: Publish Docs
+        uses: crazy-max/ghaction-github-pages@v1
+        with:
+          target_branch: gh-pages
+          build_dir: docs
+          keep_history: "true"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
