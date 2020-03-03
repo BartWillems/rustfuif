@@ -18,7 +18,7 @@ jobs:
       - name: Publish Docker image
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
-          name: bartwillems/rustfuif
+          name: bartwillems/rustfuif/backend
           username: bartwillems
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: docker.pkg.github.com
