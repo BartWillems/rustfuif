@@ -5,12 +5,12 @@ info:
   title: "Rustfuif"
 basePath: "/api"
 tags:
-  - name: "CreateGame"
-    description: "an object used to create games"
-  - name: "game"
-    description: "a game object"
-  - name: "user"
+  - name: "games"
+    description: "Beursfuif games"
+  - name: "auth"
     description: "Operations about user"
+  - name: "invitations"
+    description: "Invitations to games"
 schemes:
   - "https"
   - "http"
@@ -20,15 +20,47 @@ paths:
       tags:
         - "auth"
       operationId: "register"
+      parameters:
+        - in: "body"
+          name: "body"
+          required: true
+          schema:
+            $ref: "#/definitions/UserCredentials"
       responses:
         201:
           description: "successful registration"
         400:
           description: "password too long (maximum is 2^32 - 1)"
+  /login:
+    post:
+      tags:
+        - "auth"
+      operationId: "login"
+      parameters:
+        - in: "body"
+          name: "body"
+          required: true
+          schema:
+            $ref: "#/definitions/UserCredentials"
+      responses:
+        200:
+          description: "successfully authenticated"
+        401:
+          description: "incorrect credentials"
+  /logout:
+    post:
+      tags:
+        - "auth"
+      operationId: "logout"
+      responses:
+        200:
+          description: "successfully logged out"
+        401:
+          description: "user has no session/is already logged out"
   /games:
     get:
       tags:
-        - "game"
+        - "games"
       summary: "Finds games"
       description: "Multiple status values can be provided with comma separated strings"
       operationId: "filterByGames"
@@ -58,7 +90,7 @@ paths:
               $ref: "#/definitions/Game"
     post:
       tags:
-        - "game"
+        - "games"
       summary: "create a game"
       parameters:
         - in: "body"
@@ -80,7 +112,7 @@ paths:
   /games/{gameID}:
     get:
       tags:
-        - "game"
+        - "games"
       summary: "Find game by ID"
       description: "Returns a single game"
       operationId: "getGameByID"
@@ -95,15 +127,102 @@ paths:
           format: "int64"
       responses:
         200:
-          description: "successful operation"
+          description: "found game by ID"
           schema:
             $ref: "#/definitions/Game"
         404:
           description: "Game not found"
+
+  /games/{gameID}/users:
+    get:
+      tags:
+        - "games"
+        - "invitations"
+      description: "all players who are invited for a game"
+      produces:
+        - "application/json"
+      parameters:
+        - name: "gameID"
+          in: "path"
+          description: "ID of game to return"
+          required: true
+          type: "integer"
+          format: "int64"
+      responses:
+        200:
+          description: "all players who are invited for a game"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Invitation"
+        401:
+          description: "only the game owner can see this list"
+
+  /games/{gameID}/users/invitations:
+    post:
+      tags:
+        - "games"
+        - "invitations"
+      description: "Invite a user to a game"
+      produces:
+        - "application/json"
+      consumes:
+        - "application/json"
+      security:
+        - rustfuif_auth: []
+      parameters:
+        - in: "body"
+          name: "body"
+          required: true
+          schema:
+            $ref: "#/definitions/UserInvite"
+        - name: "gameID"
+          in: "path"
+          description: "ID of game to return"
+          required: true
+          type: "integer"
+          format: "int64"
+      responses:
+        201:
+          description: "invite created"
+        401:
+          description: "only the game owner can invite players"
+
+  /invitations:
+    get:
+      tags:
+        - invitations
+      description: "fetch invitations for games you're invited to"
+      produces:
+        - "application/json"
+      responses:
+        200:
+          description: "list of games you're invited to"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Invitation"
+        401:
+          description: "user is not logged in"
+
 securityDefinitions:
   rustfuif_auth:
     type: "basic"
+
 definitions:
+  UserCredentials:
+    type: "object"
+    required:
+      - "username"
+      - "password"
+    properties:
+      username:
+        type: "string"
+        example: "admin"
+      password:
+        type: "string"
+        example: "hunter2"
+
   Game:
     type: "object"
     properties:
@@ -145,6 +264,37 @@ definitions:
       close_time:
         type: "string"
         format: "date-time"
+
+  Invitation:
+    type: "object"
+    properties:
+      game_id:
+        type: "integer"
+        format: "int64"
+      user_id:
+        type: "integer"
+        format: "int64"
+      state:
+        type: "string"
+        enum:
+          - ACCEPTED
+          - PENDING
+          - DECLINED
+      created_at:
+        type: "string"
+        format: "date-time"
+      updated_at:
+        type: "string"
+        format: "date-time"
+
+  UserInvite:
+    type: "object"
+    required:
+      - "user_id"
+    properties:
+      user_id:
+        type: "integer"
+        format: "int64"
 
 externalDocs:
   description: "Find out more about Swagger"
