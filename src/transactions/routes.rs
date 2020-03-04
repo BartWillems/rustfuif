@@ -11,7 +11,6 @@ use crate::transactions::models::{Sale, Transaction, TransactionFilter};
 #[get("/games/{id}/sales")]
 async fn get_sales(game_id: Path<i64>, session: Session, pool: Data<db::Pool>) -> server::Response {
     let user_id = auth::get_user_id(&session)?;
-    let conn = pool.get()?;
     let game_id = game_id.into_inner();
 
     let filter = TransactionFilter {
@@ -19,7 +18,7 @@ async fn get_sales(game_id: Path<i64>, session: Session, pool: Data<db::Pool>) -
         game_id: Some(game_id),
     };
 
-    let transactions = web::block(move || Transaction::find_all(&filter, &conn)).await?;
+    let transactions = web::block(move || Transaction::find_all(&filter, &pool.get()?)).await?;
 
     http_ok_json!(transactions);
 }
@@ -32,15 +31,13 @@ async fn create_sale(
     pool: Data<db::Pool>,
 ) -> server::Response {
     let user_id = auth::get_user_id(&session)?;
-    let conn = pool.get()?;
-
     let sale = Sale {
         user_id,
         game_id: game_id.into_inner(),
         slot_no: slot_no.into_inner(),
     };
 
-    let transaction = web::block(move || sale.save(&conn)).await?;
+    let transaction = web::block(move || sale.save(&pool.get()?)).await?;
     http_created_json!(transaction);
 }
 

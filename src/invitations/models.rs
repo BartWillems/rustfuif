@@ -4,6 +4,7 @@ use diesel::prelude::*;
 use diesel::result::Error as DBError;
 
 use crate::db;
+use crate::errors::ServiceError;
 use crate::schema::invitations;
 
 /// The state shows wether a user has accepted, declined or not yet
@@ -71,23 +72,26 @@ impl Invitation {
 
     /// Store an invitation in the database, returns the persisted invitation, or a database error
     pub fn save(&self, conn: &db::Conn) -> Result<Invitation, DBError> {
+        // This has to return the actual database error, because it's used in transactions.
         diesel::insert_into(invitations::table)
             .values(self)
             .get_result::<Invitation>(conn)
     }
 
     /// Update the invitation, returns the persisted invitation
-    pub fn update(&self, conn: &db::Conn) -> Result<Invitation, DBError> {
-        diesel::update(self)
+    pub fn update(&self, conn: &db::Conn) -> Result<Invitation, ServiceError> {
+        let invitation = diesel::update(self)
             .set(self)
-            .get_result::<Invitation>(conn)
+            .get_result::<Invitation>(conn)?;
+        Ok(invitation)
     }
 
     /// get your game invites
-    pub fn find(user_id: i64, conn: &db::Conn) -> Result<Vec<Invitation>, DBError> {
-        invitations::table
+    pub fn find(user_id: i64, conn: &db::Conn) -> Result<Vec<Invitation>, ServiceError> {
+        let invitations = invitations::table
             .filter(invitations::user_id.eq(user_id))
-            .load::<Invitation>(conn)
+            .load::<Invitation>(conn)?;
+        Ok(invitations)
     }
 
     /// mark a game as accepted, this does not automatically persist

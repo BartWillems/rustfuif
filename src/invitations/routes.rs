@@ -12,9 +12,8 @@ use crate::server;
 #[get("/invitations")]
 async fn my_invitations(session: Session, pool: Data<db::Pool>) -> server::Response {
     let owner_id = auth::get_user_id(&session)?;
-    let conn = pool.get()?;
 
-    let invitations = web::block(move || Invitation::find(owner_id, &conn)).await?;
+    let invitations = web::block(move || Invitation::find(owner_id, &pool.get()?)).await?;
 
     http_ok_json!(invitations);
 }
@@ -26,9 +25,8 @@ async fn find_users(
     query: Query<InvitationQuery>,
     pool: Data<db::Pool>,
 ) -> server::Response {
-    let conn = pool.get()?;
-
-    let users = web::block(move || Game::find_users(*game_id, query.into_inner(), &conn)).await?;
+    let users =
+        web::block(move || Game::find_users(*game_id, query.into_inner(), &pool.get()?)).await?;
 
     http_ok_json!(users);
 }
@@ -41,12 +39,12 @@ async fn invite_user(
     session: Session,
     pool: Data<db::Pool>,
 ) -> server::Response {
-    let conn = pool.get()?;
     let owner_id = auth::get_user_id(&session)?;
 
     let invite = invite.into_inner();
 
     web::block(move || {
+        let conn = pool.get()?;
         let game = Game::find_by_id(*game_id, &conn)?;
         if game.owner_id != owner_id {
             forbidden!("Only the game owner can invite users");

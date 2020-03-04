@@ -11,16 +11,17 @@ use serde_json::json;
 
 #[post("/register")]
 async fn create_account(user: Json<UserMessage>, pool: Data<db::Pool>) -> Response {
-    let conn = pool.get()?;
-
-    web::block(move || User::create(&mut user.into_inner(), &conn)).await?;
+    web::block(move || {
+        let conn = pool.get()?;
+        User::create(&mut user.into_inner(), &conn)
+    })
+    .await?;
 
     Ok(HttpResponse::new(StatusCode::OK))
 }
 
 #[post("/login")]
 async fn login(credentials: Json<UserMessage>, session: Session, pool: Data<db::Pool>) -> Response {
-    let conn = pool.get()?;
     let credentials = credentials.into_inner();
 
     // this can be removed once the web::block() is removed
@@ -28,6 +29,7 @@ async fn login(credentials: Json<UserMessage>, session: Session, pool: Data<db::
     let password = credentials.password;
 
     let user = web::block(move || {
+        let conn = pool.get()?;
         User::find_by_username(username, &conn).map_err(|error| match error {
             ServiceError::NotFound => ServiceError::Unauthorized,
             _ => error,

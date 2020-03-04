@@ -12,18 +12,14 @@ use crate::games::models::{CreateGame, Game, GameFilter};
 
 #[get("/games")]
 async fn find_all(query: Query<GameFilter>, pool: Data<db::Pool>) -> server::Response {
-    let conn = pool.get()?;
-
-    let games: Vec<Game> = web::block(move || Game::find_all(query.into_inner(), &conn)).await?;
+    let games = web::block(move || Game::find_all(query.into_inner(), &pool.get()?)).await?;
 
     http_ok_json!(games);
 }
 
 #[get("/games/{id}")]
 async fn find(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
-    let conn = pool.get()?;
-
-    let game = web::block(move || Game::find_by_id(*game_id, &conn)).await?;
+    let game = web::block(move || Game::find_by_id(*game_id, &pool.get()?)).await?;
 
     http_ok_json!(game);
 }
@@ -37,9 +33,7 @@ async fn create(
     let mut game = game.into_inner();
     game.owner_id = auth::get_user_id(&session)?;
 
-    let conn = pool.get()?;
-
-    let game = web::block(move || Game::create(game, &conn)).await?;
+    let game = web::block(move || Game::create(game, &pool.get()?)).await?;
 
     http_created_json!(game);
 }
@@ -48,9 +42,7 @@ async fn create(
 async fn update(game: Json<Game>, pool: Data<db::Pool>, session: Session) -> server::Response {
     auth::validate_session(&session)?;
 
-    let conn = pool.get()?;
-
-    let game = web::block(move || game.update(&conn)).await?;
+    let game = web::block(move || game.update(&pool.get()?)).await?;
 
     http_ok_json!(game);
 }
@@ -60,9 +52,8 @@ async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, session: Session) -> s
     let user_id = auth::get_user_id(&session)?;
     let is_admin = auth::is_admin(&session)?;
 
-    let conn = pool.get()?;
-
     web::block(move || {
+        let conn = pool.get()?;
         let game = Game::find_by_id(*game_id, &conn)?;
         if game.owner_id != user_id && !is_admin {
             forbidden!("Only game owners can delete games");

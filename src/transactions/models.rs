@@ -58,7 +58,7 @@ impl Transaction {
     pub fn find_all(
         filter: &TransactionFilter,
         conn: &db::Conn,
-    ) -> Result<Vec<Transaction>, DBError> {
+    ) -> Result<Vec<Transaction>, ServiceError> {
         let mut query = transactions::table.into_boxed();
 
         if let Some(game_id) = filter.game_id {
@@ -69,6 +69,7 @@ impl Transaction {
             query = query.filter(transactions::user_id.eq(user_id));
         }
 
-        query.load::<Transaction>(conn)
+        let transactions = query.load::<Transaction>(conn)?;
+        Ok(transactions)
     }
 }

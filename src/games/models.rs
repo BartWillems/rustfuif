@@ -2,7 +2,6 @@ use actix_web::Result;
 use chrono::Duration;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
-use diesel::result::Error as DBError;
 
 use crate::db;
 use crate::errors::ServiceError;
@@ -99,13 +98,14 @@ impl Game {
         Ok(())
     }
 
-    pub fn find_by_id(game_id: i64, conn: &db::Conn) -> Result<Game, DBError> {
-        games::table
+    pub fn find_by_id(game_id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
+        let game = games::table
             .filter(games::id.eq(game_id))
-            .first::<Game>(conn)
+            .first::<Game>(conn)?;
+        Ok(game)
     }
 
-    pub fn find_all(filter: GameFilter, conn: &db::Conn) -> Result<Vec<Game>, DBError> {
+    pub fn find_all(filter: GameFilter, conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
         let mut query = games::table.into_boxed();
 
         if filter.hide_completed.unwrap_or(false) {
@@ -120,7 +120,8 @@ impl Game {
             query = query.filter(games::name.like(format!("%{}%", name)));
         }
 
-        query.load::<Game>(conn)
+        let games = query.load::<Game>(conn)?;
+        Ok(games)
     }
 
     /// returns a list of users who have been invited for a game
