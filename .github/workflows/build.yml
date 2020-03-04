@@ -19,16 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Generate Docs
-        uses: actions-rs/cargo@v1
+      - name: Generate API Spec
+        uses: actions/setup-node@v1
         with:
-          command: doc
-          args: --no-deps --document-private-items
-
-      - name: generate-index-page
-        run: |
-          mv target/doc docs
-          echo '<meta http-equiv="refresh" content="0; url=rustfuif/index.html">' > docs/index.html
+          node-version: "12.x"
+      - run: npm install -g redoc-cli
+      - run: redoc-cli bundle api-spec/spec.yaml -o api-spec/index.html
 
       - name: Publish Docker image
         uses: elgohr/Publish-Docker-Github-Action@master
@@ -44,7 +40,6 @@ jobs:
         uses: crazy-max/ghaction-github-pages@v1
         with:
           target_branch: gh-pages
-          build_dir: docs
-          keep_history: "true"
+          build_dir: api-spec
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

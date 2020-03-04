@@ -1,3 +1,4 @@
+use actix_files as fs;
 use actix_redis::RedisSession;
 use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
 
@@ -39,7 +40,8 @@ pub async fn launch(db_pool: db::Pool, redis_uri: String) -> std::io::Result<()>
                     .configure(invitations::routes::register)
                     .configure(auth::routes::register)
                     .configure(transactions::routes::register)
-                    .service(health),
+                    .service(health)
+                    .service(fs::Files::new("/spec", "./api-spec").index_file("index.html")),
             )
             .service(web::scope("/admin").service(health))
     })
