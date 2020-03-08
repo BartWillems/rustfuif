@@ -39,7 +39,7 @@ pub struct NewSale {
 #[derive(Debug, Deserialize)]
 pub struct Slot {
     /// determines which beverage is bought
-    pub number: i16,
+    pub slot_number: i16,
     pub amount: u8,
 }
 
@@ -61,7 +61,7 @@ impl NewSale {
                 let sale = Sale {
                     user_id: self.user_id,
                     game_id: self.game_id,
-                    slot_no: slot.number,
+                    slot_no: slot.slot_number,
                 };
                 sale.validate()?;
                 sales.push(sale);
@@ -118,15 +118,15 @@ mod tests {
             game_id: 1,
             slots: vec![
                 Slot {
-                    number: 0,
+                    slot_number: 0,
                     amount: 2,
                 },
                 Slot {
-                    number: 1,
+                    slot_number: 1,
                     amount: 1,
                 },
                 Slot {
-                    number: 2,
+                    slot_number: 2,
                     // this should produce no sale record
                     amount: 0,
                 },
@@ -144,7 +144,7 @@ mod tests {
             game_id: 1,
             slots: vec![Slot {
                 // 7 is the maximum slot number
-                number: 8,
+                slot_number: 8,
                 amount: 2,
             }],
         };

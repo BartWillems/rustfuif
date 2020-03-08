@@ -7,6 +7,8 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE
 );
 
+CREATE UNIQUE INDEX username_unique_case_insensitive_idx on users (LOWER(username));
+
 -- a game is an active rustfuif event, eg, people getting drunk
 CREATE TABLE games (
     id BIGSERIAL PRIMARY KEY,
@@ -18,6 +20,8 @@ CREATE TABLE games (
     updated_at TIMESTAMP WITH TIME ZONE,
     CHECK(close_time > start_time)
 );
+
+CREATE UNIQUE INDEX game_name_unique_case_insensitive_idx on games (LOWER(name));
 
 -- invitations are used to add users to a game
 CREATE TABLE invitations (

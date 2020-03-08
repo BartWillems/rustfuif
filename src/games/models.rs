@@ -117,7 +117,7 @@ impl Game {
         }
 
         if let Some(name) = filter.name {
-            query = query.filter(games::name.like(format!("%{}%", name)));
+            query = query.filter(games::name.ilike(format!("%{}%", name)));
         }
 
         let games = query.load::<Game>(conn)?;
