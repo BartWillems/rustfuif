@@ -32,7 +32,7 @@ async fn find_users(
 }
 
 /// Invite a user to a game
-#[post("/games/{id}/users/invitations")]
+#[post("/games/{id}/invitations")]
 async fn invite_user(
     game_id: Path<i64>,
     invite: Json<UserInvite>,

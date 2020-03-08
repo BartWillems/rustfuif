@@ -5,8 +5,9 @@ use actix_web::{get, post};
 
 use crate::auth;
 use crate::db;
+use crate::games::Game;
 use crate::server;
-use crate::transactions::models::{Sale, Transaction, TransactionFilter};
+use crate::transactions::models::{NewSale, Slot, Transaction, TransactionFilter};
 
 #[get("/games/{id}/sales")]
 async fn get_sales(game_id: Path<i64>, session: Session, pool: Data<db::Pool>) -> server::Response {
@@ -26,18 +27,25 @@ async fn get_sales(game_id: Path<i64>, session: Session, pool: Data<db::Pool>) -
 #[post("/games/{id}/sales")]
 async fn create_sale(
     game_id: Path<i64>,
-    slot_no: Json<i16>,
+    slots: Json<Vec<Slot>>,
     session: Session,
     pool: Data<db::Pool>,
 ) -> server::Response {
     let user_id = auth::get_user_id(&session)?;
-    let sale = Sale {
-        user_id,
-        game_id: game_id.into_inner(),
-        slot_no: slot_no.into_inner(),
-    };
 
-    let transaction = web::block(move || sale.save(&pool.get()?)).await?;
+    let transaction = web::block(move || {
+        let conn = pool.get()?;
+        let sale = NewSale {
+            user_id,
+            game_id: game_id.into_inner(),
+            slots: slots.into_inner(),
+        };
+        if !Game::verify_user(sale.game_id, sale.user_id, &conn)? {
+            forbidden!("you are not partaking in this game");
+        }
+        sale.save(&conn)
+    })
+    .await?;
     http_created_json!(transaction);
 }
 

@@ -30,7 +30,6 @@ pub async fn launch(db_pool: db::Pool, redis_uri: String) -> std::io::Result<()>
             .wrap(middleware::NormalizePath)
             .wrap(metrics::Middleware::default())
             .wrap(RedisSession::new(redis_uri.clone(), &[0; 32]))
-            // limit the maximum amount of data that server will accept
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))
             .service(metrics::route)

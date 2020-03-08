@@ -5,7 +5,7 @@ use diesel::prelude::*;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::invitations::{Invitation, InvitationQuery};
+use crate::invitations::{Invitation, InvitationQuery, State};
 use crate::schema::{games, invitations, users};
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
@@ -145,6 +145,19 @@ impl Game {
             .load::<GameUser>(conn)?;
 
         Ok(users)
+    }
+
+    /// validates if a user is actually partaking in a game (invited and accepted)
+    pub fn verify_user(game_id: i64, user_id: i64, conn: &db::Conn) -> Result<bool, ServiceError> {
+        let res = invitations::table
+            .filter(invitations::game_id.eq(game_id))
+            .filter(invitations::user_id.eq(user_id))
+            .filter(invitations::state.eq(State::ACCEPTED.to_string()))
+            .select(invitations::user_id)
+            .first::<i64>(conn)
+            .optional()?;
+
+        Ok(res.is_some())
     }
 
     pub fn update(&self, conn: &db::Conn) -> Result<Game, ServiceError> {

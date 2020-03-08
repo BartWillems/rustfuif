@@ -1,3 +1,3 @@
 mod models;
 pub mod routes;
-pub use models::{Invitation, InvitationQuery, UserInvite};
+pub use models::{Invitation, InvitationQuery, State, UserInvite};
