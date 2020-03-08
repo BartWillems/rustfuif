@@ -3,7 +3,7 @@ use std::thread;
 
 use actix_files as fs;
 use actix_redis::RedisSession;
-use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{cookie, get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
 
 use crate::auth;
 use crate::db;
@@ -20,7 +20,11 @@ async fn health(_: HttpRequest) -> &'static str {
     "ok"
 }
 
-pub async fn launch(db_pool: db::Pool, redis_uri: String) -> std::io::Result<()> {
+pub async fn launch(
+    db_pool: db::Pool,
+    redis_uri: String,
+    session_private_key: String,
+) -> std::io::Result<()> {
     let metrics = web::Data::new(metrics::Metrics::new());
 
     let (tx, rx) = mpsc::channel::<transactions::models::Transaction>();
@@ -43,7 +47,10 @@ pub async fn launch(db_pool: db::Pool, redis_uri: String) -> std::io::Result<()>
             .wrap(middleware::Logger::default())
             .wrap(middleware::NormalizePath)
             .wrap(metrics::Middleware::default())
-            .wrap(RedisSession::new(redis_uri.clone(), &[0; 32]))
+            .wrap(
+                RedisSession::new(redis_uri.clone(), &session_private_key.as_bytes())
+                    .cookie_same_site(cookie::SameSite::Strict),
+            )
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))
             .service(metrics::route)

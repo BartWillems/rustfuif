@@ -7,34 +7,6 @@ use rand::Rng;
 use crate::db;
 use crate::errors::ServiceError;
 
-/// API Paths:
-///
-/// **POST /login**
-/// ``` shell
-/// curl --location --request POST 'http://localhost:8080/api/login' \
-/// --header 'Content-Type: application/json' \
-/// --data-raw '{
-///     "username": "bob",
-///     "password": "bob"
-/// }'
-/// ```
-///
-/// **POST /logout**
-///
-/// ``` shell
-/// curl --location --request POST 'http://localhost:8080/api/logout'
-/// ```
-///
-/// **POST /register**
-///
-/// ``` shell
-/// curl --location --request POST 'http://localhost:8080/api/register' \
-/// --header 'Content-Type: application/json' \
-/// --data-raw '{
-///     "username": "bob",
-///     "password": "bob"
-/// }'
-/// ```
 #[derive(Serialize, Deserialize, AsChangeset, Insertable)]
 #[table_name = "users"]
 pub struct UserMessage {

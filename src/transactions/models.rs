@@ -45,6 +45,12 @@ pub struct Slot {
 
 impl NewSale {
     pub fn save(&self, conn: &db::Conn) -> Result<Transaction, ServiceError> {
+        // TODO: cache this game
+        let game = crate::games::Game::find_by_id(self.game_id, conn)?;
+        if !game.is_happening() {
+            bad_request!("game is not started or is already finished");
+        }
+
         let sales = self.unroll()?;
 
         let transactions = diesel::insert_into(transactions::table)

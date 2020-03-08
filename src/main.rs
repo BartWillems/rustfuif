@@ -29,6 +29,12 @@ mod users;
 
 #[actix_rt::main]
 async fn main() -> Result<(), Terminator> {
+    init().await?;
+
+    Ok(())
+}
+
+async fn init() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
     env_logger::init();
@@ -37,6 +43,14 @@ async fn main() -> Result<(), Terminator> {
     let redis_host = get_env("REDIS_HOST")?;
     let redis_port = get_env("REDIS_PORT")?;
     let redis_url = format!("{}:{}", redis_host, redis_port);
+    let session_private_key = get_env("SESSION_PRIVATE_KEY")?;
+
+    if session_private_key.len() < 32 {
+        return Err(Box::from(format!(
+            "session private key should be at least 32 bytes, found: {}",
+            session_private_key.len()
+        )));
+    }
 
     debug!("building database connection pool");
     let pool = db::build_connection_pool(&database_url)?;
@@ -45,7 +59,7 @@ async fn main() -> Result<(), Terminator> {
     db::migrate(&pool)?;
 
     debug!("launching the actix webserver");
-    server::launch(pool, redis_url).await?;
+    server::launch(pool, redis_url, session_private_key).await?;
 
     Ok(())
 }

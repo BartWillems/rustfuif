@@ -19,25 +19,6 @@ pub struct Game {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
-///
-/// **POST /api/games**
-///
-/// This struct is used to create games.
-///
-/// The owner_id is is ignored when sent, as it's fetched from the user's session.
-///
-/// When the user isn't authenticated, Unauthorized(401) is returned,
-/// otherwise Created(201) with the game object is returned.
-///
-/// ``` shell
-/// curl --location --request POST 'localhost:8888/api/games' \
-///     --header 'Content-Type: application/json' \
-///     --data-raw '{
-///         "name": "feestje",
-///         "start_time": "2020-02-01T22:00:00Z",
-///         "close_time": "2020-02-01T23:59:59Z"
-///     }'
-/// ```
 #[derive(Debug, Deserialize, Insertable)]
 #[table_name = "games"]
 pub struct CreateGame {
@@ -176,6 +157,15 @@ impl Game {
         diesel::delete(games::table.filter(games::id.eq(game_id))).execute(conn)?;
 
         Ok(())
+    }
+
+    /// returns if the game is going on at the moment
+    pub fn is_happening(&self) -> bool {
+        let now = chrono::offset::Utc::now();
+        if self.start_time < now && self.close_time > now {
+            return true;
+        }
+        false
     }
 }
 

@@ -76,12 +76,6 @@ impl From<r2d2::Error> for ServiceError {
     }
 }
 
-// impl From<r2d2::Error> for DBError {
-//     fn from(error: r2d2::Error) -> DBError {
-//         DBError::from(error)
-//     }
-// }
-
 impl From<argon2::Error> for ServiceError {
     fn from(error: argon2::Error) -> ServiceError {
         error!("argon2 error: {}", error);
