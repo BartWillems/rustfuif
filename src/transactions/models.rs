@@ -6,7 +6,7 @@ use crate::db;
 use crate::errors::ServiceError;
 use crate::schema::transactions;
 
-#[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
+#[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset, Clone)]
 pub struct Transaction {
     pub id: i64,
     pub user_id: i64,

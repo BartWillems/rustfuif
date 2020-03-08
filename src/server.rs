@@ -1,3 +1,6 @@
+use std::sync::mpsc;
+use std::thread;
+
 use actix_files as fs;
 use actix_redis::RedisSession;
 use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
@@ -20,9 +23,20 @@ async fn health(_: HttpRequest) -> &'static str {
 pub async fn launch(db_pool: db::Pool, redis_uri: String) -> std::io::Result<()> {
     let metrics = web::Data::new(metrics::Metrics::new());
 
+    let (tx, rx) = mpsc::channel::<transactions::models::Transaction>();
+
+    // TODO: move this over to the websockets module
+    // TODO 2 ELECTRIC BOOGALOO: make the websockets module
+    thread::spawn(move || {
+        for received in rx {
+            debug!("received {:?}!", received);
+        }
+    });
+
     HttpServer::new(move || {
         App::new()
             .data(db_pool.clone())
+            .data(tx.clone())
             .app_data(metrics.clone())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
             .wrap(middleware::Compress::default())

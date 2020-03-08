@@ -1,3 +1,5 @@
+use std::sync::mpsc;
+
 use actix_session::Session;
 use actix_web::web;
 use actix_web::web::{Data, Json, Path};
@@ -30,6 +32,7 @@ async fn create_sale(
     slots: Json<Vec<Slot>>,
     session: Session,
     pool: Data<db::Pool>,
+    tx: Data<mpsc::Sender<Transaction>>,
 ) -> server::Response {
     let user_id = auth::get_user_id(&session)?;
 
@@ -46,6 +49,14 @@ async fn create_sale(
         sale.save(&conn)
     })
     .await?;
+
+    if let Err(e) = tx.into_inner().send(transaction.clone()) {
+        error!(
+            "unable to notify users about transaction(id: {}): {}",
+            transaction.id, e
+        );
+    }
+
     http_created_json!(transaction);
 }
 
