@@ -169,17 +169,19 @@ impl Game {
     }
 }
 
+/// minimum duration is 30 minutes
+const MIN_GAME_SECONDS: i64 = 60 * 30;
+/// maximum duration is 24 hours
+const MAX_GAME_SECONDS: i64 = 60 * 60 * 24;
+
 impl CreateGame {
     fn validate_duration(&self) -> Result<(), ServiceError> {
         let duration: Duration = self.close_time.signed_duration_since(self.start_time);
-
-        // TODO: set the minimum duration a little higher, maybe 1 hour?
-        // this is fine during development
-        if duration.num_minutes() <= 0 {
-            bad_request!("this game has not gone on long enough");
+        if duration.num_seconds() <= MIN_GAME_SECONDS {
+            bad_request!("this game has not gone on long enough, minimum duration is 30 minutes");
         }
 
-        if duration.num_hours() > 24 {
+        if duration.num_seconds() > MAX_GAME_SECONDS {
             bad_request!("the max duration of a game is 24 hours");
         }
 
