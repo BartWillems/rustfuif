@@ -46,8 +46,7 @@ async fn login(credentials: Json<UserMessage>, session: Session, pool: Data<db::
     } else {
         return Err(ServiceError::Unauthorized);
     }
-
-    Ok(HttpResponse::new(StatusCode::OK))
+    http_created_json!(user);
 }
 
 #[post("/logout")]

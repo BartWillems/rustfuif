@@ -7,14 +7,14 @@ use rand::Rng;
 use crate::db;
 use crate::errors::ServiceError;
 
-#[derive(Serialize, Deserialize, AsChangeset, Insertable)]
+#[derive(Deserialize, AsChangeset, Insertable)]
 #[table_name = "users"]
 pub struct UserMessage {
     pub username: String,
     pub password: String,
 }
 
-#[derive(Serialize, Deserialize, Queryable, Insertable)]
+#[derive(Serialize, Queryable, Insertable)]
 pub struct User {
     pub id: i64,
     pub username: String,
