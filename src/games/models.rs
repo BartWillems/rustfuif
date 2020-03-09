@@ -49,6 +49,11 @@ pub struct GameUser {
     pub invitation_state: String,
 }
 
+/// minimum duration is 30 minutes
+const MIN_GAME_SECONDS: i64 = 60 * 30;
+/// maximum duration is 24 hours
+const MAX_GAME_SECONDS: i64 = 60 * 60 * 24;
+
 impl Game {
     /// Creates a new game, saves it in the database and automatically invites and
     /// accepts the creator in a transaction.
@@ -71,6 +76,23 @@ impl Game {
         })?;
 
         Ok(game)
+    }
+
+    pub fn is_open(game_id: i64, user_id: i64, conn: &db::Conn) -> Result<bool, ServiceError> {
+        use diesel::dsl::now;
+
+        let game_id = games::table
+            .inner_join(invitations::table)
+            .filter(games::id.eq(game_id))
+            .filter(invitations::user_id.eq(user_id))
+            .filter(invitations::state.eq(State::ACCEPTED.to_string()))
+            // TODO: test these timestamps with timezones
+            .filter(games::start_time.lt(now))
+            .filter(games::close_time.gt(now))
+            .select(games::id)
+            .first::<i64>(conn)
+            .optional()?;
+        Ok(game_id.is_some())
     }
 
     pub fn invite_user(&self, user_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
@@ -160,7 +182,7 @@ impl Game {
     }
 
     /// returns if the game is going on at the moment
-    pub fn is_happening(&self) -> bool {
+    pub fn is_playable(&self) -> bool {
         let now = chrono::offset::Utc::now();
         if self.start_time < now && self.close_time > now {
             return true;
@@ -168,11 +190,6 @@ impl Game {
         false
     }
 }
-
-/// minimum duration is 30 minutes
-const MIN_GAME_SECONDS: i64 = 60 * 30;
-/// maximum duration is 24 hours
-const MAX_GAME_SECONDS: i64 = 60 * 60 * 24;
 
 impl CreateGame {
     fn validate_duration(&self) -> Result<(), ServiceError> {

@@ -6,7 +6,7 @@ use crate::db;
 use crate::errors::ServiceError;
 use crate::schema::transactions;
 
-#[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset, Clone)]
+#[derive(Debug, Serialize, Queryable, Identifiable, AsChangeset, Clone)]
 pub struct Transaction {
     pub id: i64,
     pub user_id: i64,
@@ -45,12 +45,6 @@ pub struct Slot {
 
 impl NewSale {
     pub fn save(&self, conn: &db::Conn) -> Result<Transaction, ServiceError> {
-        // TODO: cache this game
-        let game = crate::games::Game::find_by_id(self.game_id, conn)?;
-        if !game.is_happening() {
-            bad_request!("game is not started or is already finished");
-        }
-
         let sales = self.unroll()?;
 
         let transactions = diesel::insert_into(transactions::table)
@@ -69,7 +63,7 @@ impl NewSale {
                     game_id: self.game_id,
                     slot_no: slot.slot_number,
                 };
-                sale.validate()?;
+                sale.validate_slot()?;
                 sales.push(sale);
             }
         }
@@ -79,7 +73,7 @@ impl NewSale {
 }
 
 impl Sale {
-    pub fn validate(&self) -> Result<(), ServiceError> {
+    pub fn validate_slot(&self) -> Result<(), ServiceError> {
         if !(0..8).contains(&self.slot_no) {
             bad_request!("the slot number should be within [0-7]");
         }

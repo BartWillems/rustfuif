@@ -43,11 +43,11 @@ async fn create_sale(
             game_id: game_id.into_inner(),
             slots: slots.into_inner(),
         };
-        // TODO: try to remove this, maybe a many_to_many table with
-        // foreign keys could work
-        if !Game::verify_user(sale.game_id, sale.user_id, &conn)? {
-            forbidden!("you are not partaking in this game");
+
+        if !Game::is_open(sale.game_id, sale.user_id, &conn)? {
+            forbidden!("game is not available for purchases");
         }
+
         sale.save(&conn)
     })
     .await?;
