@@ -67,8 +67,8 @@ pub async fn launch(
     })
     .bind(format!(
         "{}:{}",
-        std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string()),
-        std::env::var("PORT").unwrap_or_else(|_| "8080".to_string())
+        std::env::var("API_HOST").unwrap_or_else(|_| "localhost".to_string()),
+        std::env::var("API_PORT").unwrap_or_else(|_| "8080".to_string())
     ))?
     .run()
     .await
