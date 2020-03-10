@@ -32,11 +32,11 @@ async fn create_sale(
     slots: Json<Vec<Slot>>,
     session: Session,
     pool: Data<db::Pool>,
-    tx: Data<mpsc::Sender<Transaction>>,
+    tx: Data<mpsc::Sender<Vec<Transaction>>>,
 ) -> server::Response {
     let user_id = auth::get_user_id(&session)?;
 
-    let transaction = web::block(move || {
+    let transactions = web::block(move || {
         let conn = pool.get()?;
         let sale = NewSale {
             user_id,
@@ -52,14 +52,11 @@ async fn create_sale(
     })
     .await?;
 
-    if let Err(e) = tx.into_inner().send(transaction.clone()) {
-        error!(
-            "unable to notify users about transaction(id: {}): {}",
-            transaction.id, e
-        );
+    if let Err(e) = tx.into_inner().send(transactions.clone()) {
+        error!("unable to notify users about transaction: {}", e);
     }
 
-    http_created_json!(transaction);
+    http_created_json!(transactions);
 }
 
 pub fn register(cfg: &mut web::ServiceConfig) {

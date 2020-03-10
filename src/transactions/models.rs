@@ -44,12 +44,12 @@ pub struct Slot {
 }
 
 impl NewSale {
-    pub fn save(&self, conn: &db::Conn) -> Result<Transaction, ServiceError> {
+    pub fn save(&self, conn: &db::Conn) -> Result<Vec<Transaction>, ServiceError> {
         let sales = self.unroll()?;
 
         let transactions = diesel::insert_into(transactions::table)
             .values(sales)
-            .get_result::<Transaction>(conn)?;
+            .get_results::<Transaction>(conn)?;
 
         Ok(transactions)
     }

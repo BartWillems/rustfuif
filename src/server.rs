@@ -27,7 +27,7 @@ pub async fn launch(
 ) -> std::io::Result<()> {
     let metrics = web::Data::new(metrics::Metrics::new());
 
-    let (tx, rx) = mpsc::channel::<transactions::models::Transaction>();
+    let (tx, rx) = mpsc::channel::<Vec<transactions::Transaction>>();
 
     // TODO: move this over to the websockets module
     // TODO 2 ELECTRIC BOOGALOO: make the websockets module
