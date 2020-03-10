@@ -24,7 +24,10 @@ FROM debian:buster-slim
 
 WORKDIR /usr/src/rustfuif
 
-RUN apt update && apt install libpq-dev -y
+RUN apt-get update && \
+    apt-get install libpq-dev -y --no-install-recommends && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN mkdir api-spec
 
