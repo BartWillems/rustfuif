@@ -14,11 +14,30 @@ services:
       - backend
     volumes:
       - rustfuif_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "pg_isready"
+        - "-d"
+        - "rustfuif-dev"
+        - "-U"
+        - "rustfuif"
+      timeout: 30s
+      interval: 10s
+      retries: 10
 
   redis:
     image: redis:5
     ports:
       - 6379:6379
+    healthcheck:
+      test:
+        - "CMD"
+        - "redis-cli"
+        - "ping"
+      timeout: 10s
+      interval: 5s
+      retries: 10
 
 networks:
   backend:
