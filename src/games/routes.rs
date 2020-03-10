@@ -40,9 +40,18 @@ async fn create(
 
 #[put("/games")]
 async fn update(game: Json<Game>, pool: Data<db::Pool>, session: Session) -> server::Response {
-    auth::validate_session(&session)?;
+    let user_id = auth::get_user_id(&session)?;
+    let is_admin = auth::is_admin(&session)?;
 
-    let game = web::block(move || game.update(&pool.get()?)).await?;
+    let game = web::block(move || {
+        let conn = pool.get()?;
+        let old_game = Game::find_by_id(game.id, &conn)?;
+        if old_game.owner_id != user_id && !is_admin {
+            forbidden!("Only game owners can delete games");
+        }
+        game.update(&conn)
+    })
+    .await?;
 
     http_ok_json!(game);
 }
