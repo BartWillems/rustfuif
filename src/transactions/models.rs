@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use diesel::result::Error as DBError;
@@ -55,8 +57,15 @@ impl NewSale {
     }
 
     fn unroll(&self) -> Result<Vec<Sale>, ServiceError> {
+        let mut slot_set: HashSet<i16> = HashSet::with_capacity(8);
         let mut sales: Vec<Sale> = Vec::new();
         for slot in &self.slots {
+            if slot_set.contains(&slot.slot_number) {
+                bad_request!(format!("duplicate slot found: {}", &slot.slot_number));
+            }
+
+            slot_set.insert(slot.slot_number);
+
             for _ in 0..slot.amount {
                 let sale = Sale {
                     user_id: self.user_id,
