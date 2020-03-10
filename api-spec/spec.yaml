@@ -1,4 +1,4 @@
-swagger: "3.0"
+swagger: "2.0"
 info:
   description: "Rustfuif API Spec"
   version: "0.1.0"
