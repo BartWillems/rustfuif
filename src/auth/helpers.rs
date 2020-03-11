@@ -20,14 +20,3 @@ pub fn is_admin(session: &Session) -> Result<bool, ServiceError> {
 
     Ok(admin.unwrap_or(false))
 }
-
-/// check if a user is logged in
-pub fn validate_session(session: &Session) -> Result<(), ServiceError> {
-    let user_id: Option<i64> = session.get("user_id")?;
-
-    if user_id.is_none() {
-        return Err(ServiceError::Unauthorized);
-    }
-
-    Ok(())
-}
