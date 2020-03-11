@@ -8,6 +8,7 @@ use actix_web::Error;
 use actix_web::{get, HttpResponse};
 use futures::future::{ok, Either, Ready};
 
+use crate::db;
 use crate::server::Response;
 
 /// the Metrics struct holds the request count
@@ -37,9 +38,26 @@ impl Metrics {
     }
 }
 
+#[derive(Serialize)]
+pub struct MetricsResponse {
+    pub requests: u32,
+    pub active_db_connections: u32,
+    pub idle_db_connections: u32,
+}
+
 #[get("/metrics")]
-pub async fn route(metrics: Data<Metrics>) -> Response {
-    Ok(HttpResponse::Ok().json(metrics.into_inner()))
+pub async fn route(metrics: Data<Metrics>, pool: Data<db::Pool>) -> Response {
+    let state = pool.into_inner().state();
+
+    let metrics = metrics.into_inner();
+
+    let resp = MetricsResponse {
+        requests: metrics.requests.load(Ordering::Relaxed),
+        active_db_connections: state.connections,
+        idle_db_connections: state.idle_connections,
+    };
+
+    Ok(HttpResponse::Ok().json(resp))
 }
 
 pub struct Middleware;
