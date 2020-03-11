@@ -2,6 +2,8 @@
 
 ![Rust](https://github.com/BartWillems/rustfuif/workflows/Rust/badge.svg?branch=master)
 
+![alt text](logo.png "Rustfuif Logo")
+
 ## Development
 
 ``` bash
