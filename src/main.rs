@@ -26,6 +26,7 @@ mod schema;
 mod server;
 mod transactions;
 mod users;
+mod validator;
 
 #[actix_rt::main]
 async fn main() -> Result<(), Terminator> {

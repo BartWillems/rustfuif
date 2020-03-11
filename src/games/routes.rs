@@ -7,6 +7,7 @@ use actix_web::{delete, get, post, put};
 use crate::auth;
 use crate::db;
 use crate::server;
+use crate::validator::Validator;
 
 use crate::games::models::{CreateGame, Game, GameFilter};
 
@@ -26,11 +27,12 @@ async fn find(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
 
 #[post("/games")]
 async fn create(
-    game: Json<CreateGame>,
+    game: Json<Validator<CreateGame>>,
     pool: Data<db::Pool>,
     session: Session,
 ) -> server::Response {
-    let mut game = game.into_inner();
+    let mut game = game.into_inner().validate()?;
+
     game.owner_id = auth::get_user_id(&session)?;
 
     let game = web::block(move || Game::create(game, &pool.get()?)).await?;

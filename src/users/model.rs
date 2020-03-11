@@ -99,3 +99,21 @@ impl UserMessage {
         Ok(())
     }
 }
+
+impl crate::validator::Validate<UserMessage> for UserMessage {
+    fn validate(&self) -> Result<(), ServiceError> {
+        if self.username.trim().len() < 1 {
+            bad_request!("username is too short");
+        }
+
+        if self.username.trim().len() > 16 {
+            bad_request!("username is too long, max 16 characters");
+        }
+
+        if self.password.trim().len() < 8 {
+            bad_request!("your password should at least be 8 characters long");
+        }
+
+        Ok(())
+    }
+}

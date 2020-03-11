@@ -61,8 +61,6 @@ impl Game {
     /// When something fails, the transaction rolls-back, returns an error
     /// and nothing will have happened.
     pub fn create(new_game: CreateGame, conn: &db::Conn) -> Result<Game, ServiceError> {
-        new_game.validate_duration()?;
-
         let game = conn.transaction::<Game, diesel::result::Error, _>(|| {
             let game: Game = diesel::insert_into(games::table)
                 .values(&new_game)
@@ -182,7 +180,9 @@ impl Game {
     }
 
     /// returns if the game is going on at the moment
-    pub fn is_playable(&self) -> bool {
+    /// Should perhaps be changed to use database values
+    /// should be used to determine if the start/ending times could be altered
+    pub fn is_in_progress(&self) -> bool {
         let now = chrono::offset::Utc::now();
         if self.start_time < now && self.close_time > now {
             return true;
@@ -191,8 +191,8 @@ impl Game {
     }
 }
 
-impl CreateGame {
-    fn validate_duration(&self) -> Result<(), ServiceError> {
+impl crate::validator::Validate<CreateGame> for CreateGame {
+    fn validate(&self) -> Result<(), ServiceError> {
         let duration: Duration = self.close_time.signed_duration_since(self.start_time);
         if duration.num_seconds() <= MIN_GAME_SECONDS {
             bad_request!("this game has not gone on long enough, minimum duration is 30 minutes");
@@ -214,6 +214,7 @@ mod tests {
 
     #[test]
     fn invalid_game_duration() {
+        use crate::validator::Validator;
         let time: DateTime<Utc> =
             DateTime::from_utc(NaiveDate::from_ymd(2020, 1, 1).and_hms(12, 0, 0), Utc);
 
@@ -240,9 +241,13 @@ mod tests {
             close_time: time,
         };
 
-        assert!(game_with_same_times.validate_duration().is_err());
-        assert!(game_with_smaller_end_time.validate_duration().is_err());
+        assert!(Validator::new(game_with_same_times).validate().is_err());
+        assert!(Validator::new(game_with_smaller_end_time)
+            .validate()
+            .is_err());
 
-        assert!(game_with_equal_bigger_end_time.validate_duration().is_ok());
+        assert!(Validator::new(game_with_equal_bigger_end_time)
+            .validate()
+            .is_ok());
     }
 }

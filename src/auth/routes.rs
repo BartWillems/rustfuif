@@ -2,6 +2,7 @@ use crate::db;
 use crate::errors::ServiceError;
 use crate::server::Response;
 use crate::users::{User, UserMessage};
+use crate::validator::Validator;
 
 use actix_session::Session;
 use actix_web::http::StatusCode;
@@ -10,10 +11,10 @@ use actix_web::{post, web, HttpResponse};
 use serde_json::json;
 
 #[post("/register")]
-async fn create_account(user: Json<UserMessage>, pool: Data<db::Pool>) -> Response {
+async fn create_account(user: Json<Validator<UserMessage>>, pool: Data<db::Pool>) -> Response {
     web::block(move || {
         let conn = pool.get()?;
-        User::create(&mut user.into_inner(), &conn)
+        User::create(&mut user.into_inner().validate()?, &conn)
     })
     .await?;
 
