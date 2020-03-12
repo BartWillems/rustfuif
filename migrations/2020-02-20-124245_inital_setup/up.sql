@@ -46,6 +46,23 @@ CREATE TABLE transactions (
     CHECK (slot_no >= 0 AND slot_no < 8)
 );
 
+-- Bevearage config for a team for a game
+CREATE TABLE beverage_configs (
+    game_id BIGSERIAL REFERENCES games(id),
+    user_id BIGSERIAL REFERENCES users(id),
+    slot_no SMALLINT NOT NULL,
+    name VARCHAR NOT NULL,
+    image_url VARCHAR,
+    min_price INT NOT NULL,
+    max_price INT NOT NULL,
+    starting_price INT NOT NULL,
+    CONSTRAINT game_config_pkey PRIMARY KEY (user_id, game_id, slot_no),
+    CHECK (slot_no >= 0 AND slot_no < 8),
+    CHECK (min_price > 0),
+    CHECK (starting_price > min_price),
+    CHECK (max_price > starting_price)
+);
+
 -- automatically update `updated_at` columns
 SELECT diesel_manage_updated_at('games');
 SELECT diesel_manage_updated_at('users');

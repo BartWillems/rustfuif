@@ -7,7 +7,7 @@ use regex::Regex;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::invitations::{Invitation, InvitationQuery, State};
-use crate::schema::{games, invitations, users};
+use crate::schema::{beverage_configs, games, invitations, users};
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
 pub struct Game {
@@ -218,6 +218,41 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Insertable, Deserialize, Serialize, Queryable)]
+pub struct BeverageConfig {
+    game_id: i64,
+    user_id: i64,
+    slot_no: i16,
+    name: String,
+    image_url: Option<String>,
+    min_price: i32,
+    max_price: i32,
+    starting_price: i32,
+}
+
+impl BeverageConfig {
+    pub fn save(&self, conn: &db::Conn) -> Result<BeverageConfig, ServiceError> {
+        let config = diesel::insert_into(beverage_configs::table)
+            .values(self)
+            .get_result::<BeverageConfig>(conn)?;
+
+        Ok(config)
+    }
+
+    pub fn find(
+        game_id: i64,
+        user_id: i64,
+        conn: &db::Conn,
+    ) -> Result<Vec<BeverageConfig>, ServiceError> {
+        let configs = beverage_configs::table
+            .filter(beverage_configs::user_id.eq(user_id))
+            .filter(beverage_configs::game_id.eq(game_id))
+            .load::<BeverageConfig>(conn)?;
+
+        Ok(configs)
     }
 }
 
