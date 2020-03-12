@@ -33,5 +33,5 @@ cargo watch -x run
 
 ## Game Configuration/variables
 
-* inflation rate, how fast do the prices rice & fall
+* inflation rate, how fast do the prices rise & fall
 * special events rate, eg: corona virus outbreak, all pricess fall
