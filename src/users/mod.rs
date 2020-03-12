@@ -1,3 +1,3 @@
-mod model;
+mod models;
 
-pub use model::{User, UserMessage};
+pub use models::{User, UserMessage};

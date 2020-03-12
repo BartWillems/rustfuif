@@ -2,6 +2,7 @@ use actix_web::Result;
 use chrono::Duration;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
+use regex::Regex;
 
 use crate::db;
 use crate::errors::ServiceError;
@@ -200,6 +201,20 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
 
         if duration.num_seconds() > MAX_GAME_SECONDS {
             bad_request!("the max duration of a game is 24 hours");
+        }
+
+        let pattern: Regex = Regex::new(r"^[0-9A-Za-z-_]+$").unwrap();
+
+        if self.name.trim().is_empty() {
+            bad_request!("name is too short");
+        }
+
+        if self.name.trim().len() > 20 {
+            bad_request!("name is too long, maximum 20 characters");
+        }
+
+        if !pattern.is_match(&self.name) {
+            bad_request!("name can only contain letters, numbers, '-' and '_'");
         }
 
         Ok(())

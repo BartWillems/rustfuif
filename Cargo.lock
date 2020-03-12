@@ -1642,6 +1642,7 @@ dependencies = [
  "log",
  "r2d2",
  "rand 0.7.3",
+ "regex",
  "rust-argon2",
  "serde",
  "serde_derive",

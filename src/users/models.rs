@@ -3,6 +3,7 @@ use argon2::Config;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use rand::Rng;
+use regex::Regex;
 
 use crate::db;
 use crate::errors::ServiceError;
@@ -102,12 +103,18 @@ impl UserMessage {
 
 impl crate::validator::Validate<UserMessage> for UserMessage {
     fn validate(&self) -> Result<(), ServiceError> {
-        if self.username.trim().len() < 1 {
+        if self.username.trim().is_empty() {
             bad_request!("username is too short");
         }
 
-        if self.username.trim().len() > 16 {
-            bad_request!("username is too long, max 16 characters");
+        if self.username.trim().len() > 20 {
+            bad_request!("username is too long, max 20 characters");
+        }
+
+        let pattern: Regex = Regex::new(r"^[0-9A-Za-z-_]+$").unwrap();
+
+        if !pattern.is_match(&self.username) {
+            bad_request!("username can only contain letters, numbers, '-' and '_'");
         }
 
         if self.password.trim().len() < 8 {
@@ -115,5 +122,69 @@ impl crate::validator::Validate<UserMessage> for UserMessage {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::validator::Validator;
+
+    #[test]
+    /// the user password should never be exposed through the api
+    fn password_should_not_leak() {
+        let password = "password";
+        let user = User {
+            id: 1,
+            username: "".to_string(),
+            password: password.to_string(),
+            is_admin: false,
+            created_at: None,
+            updated_at: None,
+        };
+
+        let serialized = serde_json::to_string(&user).unwrap();
+
+        assert_eq!(serialized.contains(password), false);
+    }
+
+    #[test]
+    fn invalid_username() {
+        let user = UserMessage {
+            username: String::from("a€$b"),
+            password: String::from("hunter2boogaloo"),
+        };
+
+        assert!(Validator::new(user).validate().is_err());
+    }
+
+    #[test]
+    fn empty_username() {
+        let user = UserMessage {
+            username: String::from(""),
+            password: String::from("hunter2boogaloo"),
+        };
+
+        assert!(Validator::new(user).validate().is_err());
+    }
+
+    #[test]
+    fn valid_username() {
+        let user = UserMessage {
+            username: String::from("rickybobby"),
+            password: String::from("hunter2boogaloo"),
+        };
+
+        assert!(Validator::new(user).validate().is_ok());
+    }
+
+    #[test]
+    fn valid_username_with_other_characters() {
+        let user = UserMessage {
+            username: String::from("a-b_c-0123"),
+            password: String::from("hunter2boogaloo"),
+        };
+
+        assert!(Validator::new(user).validate().is_ok());
     }
 }
