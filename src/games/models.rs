@@ -256,6 +256,27 @@ impl BeverageConfig {
     }
 }
 
+impl crate::validator::Validate<BeverageConfig> for BeverageConfig {
+    fn validate(&self) -> Result<(), ServiceError> {
+        if self.min_price <= 0 {
+            bad_request!("the minimum price has to be above 0");
+        }
+
+        if self.starting_price <= self.min_price {
+            bad_request!("the starting price should be bigger than the minimum price");
+        }
+
+        if self.max_price <= self.starting_price {
+            bad_request!("the the maximum price should be bigger than the starting price");
+        }
+
+        // TODO: validate if image_url is a real URL
+        // TODO: validate beverage name
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
