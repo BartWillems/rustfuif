@@ -3,6 +3,7 @@ use chrono::Duration;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use regex::Regex;
+use url::Url;
 
 use crate::db;
 use crate::errors::ServiceError;
@@ -223,14 +224,18 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
 
 #[derive(Insertable, Deserialize, Serialize, Queryable)]
 pub struct BeverageConfig {
-    game_id: i64,
-    user_id: i64,
-    slot_no: i16,
-    name: String,
-    image_url: Option<String>,
-    min_price: i32,
-    max_price: i32,
-    starting_price: i32,
+    #[serde(skip_deserializing)]
+    pub game_id: i64,
+
+    #[serde(skip_deserializing)]
+    pub user_id: i64,
+
+    pub slot_no: i16,
+    pub name: String,
+    pub image_url: Option<String>,
+    pub min_price: i32,
+    pub max_price: i32,
+    pub starting_price: i32,
 }
 
 impl BeverageConfig {
@@ -258,6 +263,10 @@ impl BeverageConfig {
 
 impl crate::validator::Validate<BeverageConfig> for BeverageConfig {
     fn validate(&self) -> Result<(), ServiceError> {
+        if !(0..8).contains(&self.slot_no) {
+            bad_request!("the slot number should be within [0-7]");
+        }
+
         if self.min_price <= 0 {
             bad_request!("the minimum price has to be above 0");
         }
@@ -270,8 +279,25 @@ impl crate::validator::Validate<BeverageConfig> for BeverageConfig {
             bad_request!("the the maximum price should be bigger than the starting price");
         }
 
-        // TODO: validate if image_url is a real URL
-        // TODO: validate beverage name
+        if let Some(url) = self.image_url.as_ref() {
+            if Url::parse(&url).is_err() {
+                bad_request!("the image url is not a valid url");
+            }
+        }
+
+        let pattern: Regex = Regex::new(r"^[0-9A-Za-z-_]+$").unwrap();
+
+        if self.name.trim().is_empty() {
+            bad_request!("name is too short");
+        }
+
+        if self.name.trim().len() > 20 {
+            bad_request!("name is too long, maximum 20 characters");
+        }
+
+        if !pattern.is_match(&self.name) {
+            bad_request!("name can only contain letters, numbers, '-' and '_'");
+        }
 
         Ok(())
     }

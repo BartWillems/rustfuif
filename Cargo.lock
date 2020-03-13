@@ -1648,6 +1648,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "terminator",
+ "url",
 ]
 
 [[package]]
