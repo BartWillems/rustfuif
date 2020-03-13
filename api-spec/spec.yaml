@@ -271,6 +271,65 @@ paths:
         403:
           description: "user is not in game"
 
+  /games/{gameID}/beverages:
+    get:
+      tags:
+        - "games"
+      description: "Get the prices, name and image for a beverage"
+      produces:
+        - "application/json"
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: "gameID"
+          in: "path"
+          description: "ID of game"
+          required: true
+          type: "integer"
+          format: "int64"
+      responses:
+        200:
+          description: "list of configured beverages"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/BeverageConfigResponse"
+        401:
+          description: "user is not logged in"
+    post:
+      tags:
+        - "games"
+      description: "Set the prices, name and image for a beverage"
+      produces:
+        - "application/json"
+      consumes:
+        - "application/json"
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: "body"
+          name: "BeverageConfig"
+          required: true
+          schema:
+            $ref: "#/definitions/BeverageConfig"
+        - name: "gameID"
+          in: "path"
+          description: "ID of game"
+          required: true
+          type: "integer"
+          format: "int64"
+      responses:
+        201:
+          description: "config created"
+          schema:
+            type: "object"
+            items:
+              $ref: "#/definitions/BeverageConfigResponse"
+        401:
+          description: "user is not logged in"
+        403:
+          description: "user is not in game"
+
   /invitations:
     get:
       tags:
@@ -427,6 +486,78 @@ definitions:
         format: "int64"
         example: 1
         description: the amount of beverages that have been bought for this slot
+
+  BeverageConfig:
+    type: "object"
+    required:
+      - slot_no
+      - name
+      - min_price
+      - max_price
+      - starting_price
+    properties:
+      slot_no:
+        type: "integer"
+        format: "int16"
+        example: 0
+        minimum: 0
+        maximum: 7
+        description: the slot number that matches the beverage
+      name:
+        type: "string"
+        example: "orval"
+      min_price:
+        type: "integer"
+        format: "int32"
+        example: 200
+        description: "the lowest price this beverage could drop to in cents"
+      max_price:
+        type: "integer"
+        format: "int32"
+        example: 350
+        description: "the highest price this beverage could rise to in cents"
+      starting_price:
+        type: "integer"
+        format: "int32"
+        example: 250
+        description: "the price at which this beverage starts in cents"
+      image_url:
+        type: "string"
+        example: "https://www.orval.be/orval-flesken.png"
+        description: "an url used to display the beverage"
+
+  BeverageConfigResponse:
+    type: "object"
+    properties:
+      slot_no:
+        type: "integer"
+        format: "int16"
+        example: 0
+        minimum: 0
+        maximum: 7
+        description: the slot number that matches the beverage
+      name:
+        type: "string"
+        example: "orval"
+      min_price:
+        type: "integer"
+        format: "int32"
+        example: 200
+        description: "the lowest price this beverage could drop to in cents"
+      max_price:
+        type: "integer"
+        format: "int32"
+        example: 350
+        description: "the highest price this beverage could rise to in cents"
+      starting_price:
+        type: "integer"
+        format: "int32"
+        example: 250
+        description: "the price at which this beverage starts in cents"
+      image_url:
+        type: "string"
+        example: "https://www.orval.be/orval-flesken.png"
+        description: "an url used to display the beverage"
 
 externalDocs:
   description: "Find out more about Swagger"
