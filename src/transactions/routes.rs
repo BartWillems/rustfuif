@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::mpsc;
 
 use actix_session::Session;
@@ -9,7 +10,7 @@ use crate::auth;
 use crate::db;
 use crate::games::Game;
 use crate::server;
-use crate::transactions::models::{NewSale, Slot, Transaction, TransactionFilter};
+use crate::transactions::models::{NewSale, Transaction, TransactionFilter};
 
 #[get("/games/{id}/sales")]
 async fn get_sales(game_id: Path<i64>, session: Session, pool: Data<db::Pool>) -> server::Response {
@@ -29,7 +30,7 @@ async fn get_sales(game_id: Path<i64>, session: Session, pool: Data<db::Pool>) -
 #[post("/games/{id}/sales")]
 async fn create_sale(
     game_id: Path<i64>,
-    slots: Json<Vec<Slot>>,
+    slots: Json<HashMap<i16, u8>>,
     session: Session,
     pool: Data<db::Pool>,
     tx: Data<mpsc::Sender<Vec<Transaction>>>,

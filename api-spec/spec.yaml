@@ -256,14 +256,12 @@ paths:
           in: "body"
           required: true
           schema:
-            type: "array"
-            items:
-              $ref: "#/definitions/SalesOrder"
+            $ref: "#/definitions/SalesOrder"
       responses:
         201:
           description: "sucessfuly created transaction"
           schema:
-            type: "object"
+            type: "array"
             items:
               $ref: "#/definitions/Transaction"
         401:
@@ -470,22 +468,63 @@ definitions:
 
   SalesOrder:
     type: "object"
-    required:
-      - "number"
-      - "amount"
     properties:
-      slot_number:
-        type: "integer"
-        format: "int16"
-        example: 0
+      0:
+        type: integer
+        format: "uint8"
         minimum: 0
-        maximum: 7
-        description: the slot number that matches the beverage
-      amount:
-        type: "integer"
-        format: "int64"
-        example: 1
-        description: the amount of beverages that have been bought for this slot
+        maximum: 255
+        example: 3
+        description: "amount of sales for slot 0"
+      1:
+        type: integer
+        format: "uint8"
+        minimum: 0
+        maximum: 255
+        example: 0
+        description: "amount of sales for slot 1"
+      2:
+        type: integer
+        format: "uint8"
+        minimum: 0
+        maximum: 255
+        example: 5
+        description: "amount of sales for slot 2"
+      3:
+        type: integer
+        format: "uint8"
+        minimum: 0
+        maximum: 255
+        example: 5
+        description: "amount of sales for slot 3"
+      4:
+        type: integer
+        format: "uint8"
+        minimum: 0
+        maximum: 255
+        example: 5
+        description: "amount of sales for slot 4"
+      5:
+        type: integer
+        format: "uint8"
+        minimum: 0
+        maximum: 255
+        example: 5
+        description: "amount of sales for slot 5"
+      6:
+        type: integer
+        format: "uint8"
+        minimum: 0
+        maximum: 255
+        example: 5
+        description: "amount of sales for slot 6"
+      7:
+        type: integer
+        format: "uint8"
+        minimum: 0
+        maximum: 255
+        example: 0
+        description: "amount of sales for slot 7"
 
   BeverageConfig:
     type: "object"

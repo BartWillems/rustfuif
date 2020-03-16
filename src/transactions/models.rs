@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
@@ -35,14 +35,7 @@ pub struct Sale {
 pub struct NewSale {
     pub user_id: i64,
     pub game_id: i64,
-    pub slots: Vec<Slot>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Slot {
-    /// determines which beverage is bought
-    pub slot_number: i16,
-    pub amount: u8,
+    pub slots: HashMap<i16, u8>,
 }
 
 impl NewSale {
@@ -56,23 +49,20 @@ impl NewSale {
         Ok(transactions)
     }
 
+    /// turn the map of slots to a list of sales
     fn unroll(&self) -> Result<Vec<Sale>, ServiceError> {
-        let mut slot_set: HashSet<i16> = HashSet::with_capacity(8);
         let mut sales: Vec<Sale> = Vec::new();
-        for slot in &self.slots {
-            if slot_set.contains(&slot.slot_number) {
-                bad_request!(format!("duplicate slot found: {}", &slot.slot_number));
+
+        for (slot_no, amount) in &self.slots {
+            if slot_no < &0 || slot_no > &7 {
+                bad_request!("the slot number should be within [0-7]");
             }
-
-            slot_set.insert(slot.slot_number);
-
-            for _ in 0..slot.amount {
+            for _ in 0..*amount {
                 let sale = Sale {
                     user_id: self.user_id,
                     game_id: self.game_id,
-                    slot_no: slot.slot_number,
+                    slot_no: *slot_no,
                 };
-                sale.validate_slot()?;
                 sales.push(sale);
             }
         }
@@ -122,24 +112,14 @@ mod tests {
 
     #[test]
     fn unroll_sale_to_sales() {
+        let mut slots = HashMap::new();
+        slots.insert(0, 2);
+        slots.insert(1, 1);
+        slots.insert(2, 0);
         let sale = NewSale {
             user_id: 1,
             game_id: 1,
-            slots: vec![
-                Slot {
-                    slot_number: 0,
-                    amount: 2,
-                },
-                Slot {
-                    slot_number: 1,
-                    amount: 1,
-                },
-                Slot {
-                    slot_number: 2,
-                    // this should produce no sale record
-                    amount: 0,
-                },
-            ],
+            slots,
         };
 
         let res = sale.unroll().unwrap();
@@ -148,14 +128,12 @@ mod tests {
 
     #[test]
     fn unroll_invalid_sale() {
+        let mut slots = HashMap::new();
+        slots.insert(8, 2);
         let sale = NewSale {
             user_id: 1,
             game_id: 1,
-            slots: vec![Slot {
-                // 7 is the maximum slot number
-                slot_number: 8,
-                amount: 2,
-            }],
+            slots,
         };
 
         assert_eq!(sale.unroll().is_err(), true);
