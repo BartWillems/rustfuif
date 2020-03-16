@@ -9,7 +9,10 @@ pub fn get_user_id(session: &Session) -> Result<i64, ServiceError> {
     let user_id: Option<i64> = session.get("user_id")?;
 
     match user_id {
-        Some(id) => Ok(id),
+        Some(id) => {
+            session.renew();
+            Ok(id)
+        }
         None => Err(ServiceError::Unauthorized),
     }
 }
