@@ -1,5 +1,6 @@
 use std::sync::mpsc;
 use std::thread;
+use url::Url;
 
 use actix_files as fs;
 use actix_redis::RedisSession;
@@ -22,7 +23,7 @@ async fn health(_: HttpRequest) -> &'static str {
 
 pub async fn launch(
     db_pool: db::Pool,
-    redis_uri: String,
+    redis_url: Url,
     session_private_key: String,
 ) -> std::io::Result<()> {
     let metrics = web::Data::new(metrics::Metrics::new());
@@ -48,8 +49,15 @@ pub async fn launch(
             .wrap(middleware::NormalizePath)
             .wrap(metrics::Middleware::default())
             .wrap(
-                RedisSession::new(redis_uri.clone(), &session_private_key.as_bytes())
-                    .cookie_same_site(cookie::SameSite::Strict),
+                RedisSession::new(
+                    format!(
+                        "{}:{}",
+                        redis_url.host_str().expect("missing redis host"),
+                        redis_url.port().unwrap_or(6379),
+                    ),
+                    &session_private_key.as_bytes(),
+                )
+                .cookie_same_site(cookie::SameSite::Strict),
             )
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))

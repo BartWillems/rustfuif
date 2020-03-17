@@ -16,7 +16,10 @@ use terminator::Terminator;
 #[macro_use]
 mod macros;
 
+use url::Url;
+
 mod auth;
+mod cache;
 mod db;
 mod errors;
 mod games;
@@ -40,12 +43,7 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
 
     env_logger::init();
 
-    let database_url = get_env("DATABASE_URL")?;
-    let redis_host = get_env("REDIS_HOST")?;
-    let redis_port = get_env("REDIS_PORT")?;
-    let redis_url = format!("{}:{}", redis_host, redis_port);
     let session_private_key = get_env("SESSION_PRIVATE_KEY")?;
-
     if session_private_key.len() < 32 {
         return Err(Box::from(format!(
             "session private key should be at least 32 bytes, found: {}",
@@ -53,11 +51,16 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
         )));
     }
 
+    let database_url = get_env("DATABASE_URL")?;
+
     debug!("building database connection pool");
     let pool = db::build_connection_pool(&database_url)?;
 
     debug!("running database migrations");
     db::migrate(&pool)?;
+
+    let redis_url: Url =
+        Url::parse(&get_env("REDIS_URL")?).or_else(|e| Err(format!("invalid redis url: {}", e)))?;
 
     debug!("launching the actix webserver");
     server::launch(pool, redis_url, session_private_key).await?;
