@@ -383,15 +383,19 @@ definitions:
       start_time:
         type: "string"
         format: "date-time"
+        description: "ISO 8601 formatted date-time"
       close_time:
         type: "string"
         format: "date-time"
+        description: "ISO 8601 formatted date-time"
       created_at:
         type: "string"
         format: "date-time"
+        description: "ISO 8601 formatted date-time"
       updated_at:
         type: "string"
         format: "date-time"
+        description: "ISO 8601 formatted date-time"
 
   CreateGame:
     type: "object"
@@ -406,11 +410,13 @@ definitions:
       start_time:
         type: "string"
         format: "date-time"
-        example: "2020-3-9T19:45:59Z"
+        example: "2020-03-17T13:07:22+01:00"
+        description: "ISO 8601 formatted date-time"
       close_time:
         type: "string"
         format: "date-time"
-        example: "2020-3-10T19:45:59Z"
+        example: "2020-03-17T13:37:22+01:00"
+        description: "ISO 8601 formatted date-time"
 
   Invitation:
     type: "object"
