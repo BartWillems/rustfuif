@@ -10,7 +10,7 @@ use crate::auth;
 use crate::db;
 use crate::games::Game;
 use crate::server;
-use crate::transactions::models::{NewSale, Transaction, TransactionFilter};
+use crate::transactions::models::{NewSale, SlotSale, Transaction, TransactionFilter};
 
 #[get("/games/{id}/sales")]
 async fn get_sales(game_id: Path<i64>, session: Session, pool: Data<db::Pool>) -> server::Response {
@@ -33,15 +33,16 @@ async fn create_sale(
     slots: Json<HashMap<i16, u8>>,
     session: Session,
     pool: Data<db::Pool>,
-    tx: Data<mpsc::Sender<Vec<Transaction>>>,
+    tx: Data<mpsc::Sender<i64>>,
 ) -> server::Response {
     let user_id = auth::get_user_id(&session)?;
+    let game_id = game_id.into_inner();
 
     let transactions = web::block(move || {
         let conn = pool.get()?;
         let sale = NewSale {
             user_id,
-            game_id: game_id.into_inner(),
+            game_id: game_id.clone(),
             slots: slots.into_inner(),
         };
 
@@ -53,14 +54,24 @@ async fn create_sale(
     })
     .await?;
 
-    if let Err(e) = tx.into_inner().send(transactions.clone()) {
+    if let Err(e) = tx.into_inner().send(game_id) {
         error!("unable to notify users about transaction: {}", e);
     }
 
     http_created_json!(transactions);
 }
 
+#[get("/games/{id}/prices")]
+async fn prices(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
+    let game_id = game_id.into_inner();
+
+    let sales = web::block(move || SlotSale::get_sales(game_id, &pool.get()?)).await?;
+
+    http_created_json!(sales);
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(get_sales);
     cfg.service(create_sale);
+    cfg.service(prices);
 }

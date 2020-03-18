@@ -28,13 +28,14 @@ pub async fn launch(
 ) -> std::io::Result<()> {
     let metrics = web::Data::new(metrics::Metrics::new());
 
-    let (tx, rx) = mpsc::channel::<Vec<transactions::Transaction>>();
+    // used to notify the clients when a purchase is made in your game
+    let (tx, rx) = mpsc::channel::<i64>();
 
     // TODO: move this over to the websockets module
     // TODO 2 ELECTRIC BOOGALOO: make the websockets module
     thread::spawn(move || {
         for received in rx {
-            debug!("received {:?}!", received);
+            debug!("sale has been made in game: {}!", received);
         }
     });
 
