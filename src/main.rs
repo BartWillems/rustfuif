@@ -19,7 +19,6 @@ mod macros;
 use url::Url;
 
 mod auth;
-mod cache;
 mod db;
 mod errors;
 mod games;
