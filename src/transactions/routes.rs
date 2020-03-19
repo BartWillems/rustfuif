@@ -10,7 +10,7 @@ use crate::auth;
 use crate::db;
 use crate::games::Game;
 use crate::server;
-use crate::transactions::models::{NewSale, SlotSale, Transaction, TransactionFilter};
+use crate::transactions::models::{NewSale, Transaction, TransactionFilter};
 
 #[get("/games/{id}/sales")]
 async fn get_sales(game_id: Path<i64>, session: Session, pool: Data<db::Pool>) -> server::Response {
@@ -42,7 +42,7 @@ async fn create_sale(
         let conn = pool.get()?;
         let sale = NewSale {
             user_id,
-            game_id: game_id.clone(),
+            game_id: game_id,
             slots: slots.into_inner(),
         };
 
@@ -65,7 +65,7 @@ async fn create_sale(
 async fn prices(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
     let game_id = game_id.into_inner();
 
-    let sales = web::block(move || SlotSale::get_sales(game_id, &pool.get()?)).await?;
+    let sales = web::block(move || Transaction::get_sales(game_id, &pool.get()?)).await?;
 
     http_created_json!(sales);
 }
