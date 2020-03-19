@@ -41,6 +41,13 @@ pub struct NewSale {
     pub slots: HashMap<i16, u8>,
 }
 
+/// contains how many sales have been made for a given slot
+#[derive(Serialize, Queryable, Clone, Copy, Debug, Default)]
+pub struct SlotSale {
+    pub slot_no: i16,
+    pub sales: i64,
+}
+
 impl NewSale {
     pub fn save(&self, conn: &db::Conn) -> Result<Vec<Transaction>, ServiceError> {
         let sales = self.unroll()?;
@@ -107,16 +114,7 @@ impl Transaction {
         let transactions = query.load::<Transaction>(conn)?;
         Ok(transactions)
     }
-}
 
-/// contains how many sales have been made for a given slot
-#[derive(Serialize, Queryable, Clone, Copy, Debug, Default)]
-pub struct SlotSale {
-    pub slot_no: i16,
-    pub sales: i64,
-}
-
-impl SlotSale {
     pub fn get_sales(game_id: i64, conn: &db::Conn) -> Result<Vec<SlotSale>, ServiceError> {
         use diesel::dsl::sql;
 
@@ -130,7 +128,7 @@ impl SlotSale {
             .order(transactions::slot_no)
             .load::<SlotSale>(conn)?;
 
-        let sales = SlotSale::fill_gaps(sales);
+        let sales = Transaction::fill_gaps(sales);
         Ok(sales)
     }
 
@@ -218,7 +216,7 @@ mod tests {
             sales: 1,
         });
 
-        slot_sales = SlotSale::fill_gaps(slot_sales);
+        slot_sales = Transaction::fill_gaps(slot_sales);
 
         assert_eq!(slot_sales.len(), (MAX_SLOT_NO + 1) as usize);
 
