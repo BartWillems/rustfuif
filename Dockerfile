@@ -24,8 +24,9 @@ FROM debian:buster-slim
 
 WORKDIR /usr/src/rustfuif
 
+# curl is used for docker-compose health checks
 RUN apt-get update && \
-    apt-get install libpq-dev -y --no-install-recommends && \
+    apt-get install libpq-dev curl -y --no-install-recommends && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
