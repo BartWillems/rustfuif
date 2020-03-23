@@ -17,7 +17,7 @@ use crate::transactions;
 pub type Response = Result<HttpResponse, ServiceError>;
 
 #[get("/health")]
-async fn health(_: HttpRequest) -> &'static str {
+async fn health() -> &'static str {
     "ok"
 }
 
