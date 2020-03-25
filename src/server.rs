@@ -2,9 +2,10 @@ use std::sync::mpsc;
 use std::thread;
 use url::Url;
 
+use actix_cors::Cors;
 use actix_files as fs;
 use actix_redis::RedisSession;
-use actix_web::{cookie, get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{cookie, get, middleware, web, App, HttpResponse, HttpServer};
 
 use crate::auth;
 use crate::db;
@@ -49,6 +50,7 @@ pub async fn launch(
             .wrap(middleware::Logger::default())
             .wrap(middleware::NormalizePath)
             .wrap(metrics::Middleware::default())
+            .wrap(Cors::default())
             .wrap(
                 RedisSession::new(
                     format!(
