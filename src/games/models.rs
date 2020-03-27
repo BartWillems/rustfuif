@@ -38,7 +38,7 @@ pub struct GameFilter {
     /// filter these games by %name%
     pub name: Option<String>,
     /// default false, set to true to hide games from the past
-    pub hide_completed: Option<bool>,
+    pub completed: Option<bool>,
     /// list games created by a specific user
     pub owner_id: Option<i64>,
 }
@@ -111,7 +111,7 @@ impl Game {
     pub fn find_all(filter: GameFilter, conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
         let mut query = games::table.into_boxed();
 
-        if filter.hide_completed.unwrap_or(false) {
+        if !filter.completed.unwrap_or(true) {
             query = query.filter(games::close_time.gt(diesel::dsl::now));
         }
 
@@ -124,6 +124,37 @@ impl Game {
         }
 
         let games = query.load::<Game>(conn)?;
+        Ok(games)
+    }
+
+    pub fn find_by_user(
+        user_id: i64,
+        filter: GameFilter,
+        conn: &db::Conn,
+    ) -> Result<Vec<Game>, ServiceError> {
+        let invitations = invitations::table
+            .filter(invitations::user_id.eq(user_id))
+            .select(invitations::game_id);
+
+        let mut query = games::table.into_boxed();
+
+        use diesel::dsl::any;
+
+        if !filter.completed.unwrap_or(true) {
+            query = query.filter(games::close_time.gt(diesel::dsl::now));
+        }
+
+        if let Some(id) = filter.owner_id {
+            query = query.filter(games::owner_id.eq(id));
+        }
+
+        if let Some(name) = filter.name {
+            query = query.filter(games::name.ilike(format!("%{}%", name)));
+        }
+
+        let games = query
+            .filter(games::id.eq(any(invitations)))
+            .load::<Game>(conn)?;
         Ok(games)
     }
 
