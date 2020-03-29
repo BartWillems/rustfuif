@@ -50,7 +50,7 @@ pub async fn launch(
             .wrap(middleware::Logger::default())
             .wrap(middleware::NormalizePath)
             .wrap(metrics::Middleware::default())
-            .wrap(Cors::default())
+            .wrap(Cors::new().supports_credentials().finish())
             .wrap(
                 RedisSession::new(
                     format!(
@@ -60,7 +60,8 @@ pub async fn launch(
                     ),
                     &session_private_key.as_bytes(),
                 )
-                .cookie_same_site(cookie::SameSite::Strict),
+                .cookie_same_site(cookie::SameSite::Strict)
+                .cookie_http_only(false),
             )
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))
