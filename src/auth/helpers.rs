@@ -1,25 +1,13 @@
-use actix_session::Session;
+use actix_identity::Identity;
 
 use crate::errors::ServiceError;
+use crate::users::User;
 
-/// get the user_id of the current authenticated session
-/// returns Unauthorized when no session is found
-/// and ServerError when a session backend error occures
-pub fn get_user_id(session: &Session) -> Result<i64, ServiceError> {
-    let user_id: Option<i64> = session.get("user_id")?;
+pub fn get_user(id: &Identity) -> Result<User, ServiceError> {
+    let user_str = id.identity().ok_or(ServiceError::Unauthorized)?;
 
-    match user_id {
-        Some(id) => {
-            session.renew();
-            Ok(id)
-        }
-        None => Err(ServiceError::Unauthorized),
-    }
-}
-
-/// checks if the current user is an admin
-pub fn is_admin(session: &Session) -> Result<bool, ServiceError> {
-    let admin: Option<bool> = session.get("is_admin")?;
-
-    Ok(admin.unwrap_or(false))
+    serde_json::from_str(&user_str).or_else(|e| {
+        error!("unable to deserialize user: {}", e);
+        return Err(ServiceError::Unauthorized);
+    })
 }

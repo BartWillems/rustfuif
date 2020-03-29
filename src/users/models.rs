@@ -15,11 +15,11 @@ pub struct UserMessage {
     pub password: String,
 }
 
-#[derive(Serialize, Queryable, Insertable)]
+#[derive(Serialize, Deserialize, Queryable, Insertable)]
 pub struct User {
     pub id: i64,
     pub username: String,
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing, skip_deserializing)]
     pub password: String,
     pub is_admin: bool,
     pub created_at: Option<DateTime<Utc>>,

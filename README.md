@@ -21,7 +21,6 @@ cargo watch -x run
 | `0.1.0` | `API_PORT`            | The port the rustfuif listens on                | `80`                                            | `8080`                           |
 | `0.1.0` | `RUST_LOG`            | loglevel for different crates                   | `rustfuif=info`                                 | `rustfuif=debug,actix_web=debug` |
 | `0.1.0` | `DATABASE_URL`        | URL to the database                             | `postgres://rustfuif:secret@127.0.0.1/rustfuif` | ``                               |
-| `0.1.0` | `REDIS_URL`           | Redis url for cookie storage/cache              | `redis://localhost:6379`                        | ``                               |
 | `0.1.0` | `SESSION_PRIVATE_KEY` | secret used for cookies(minimum 32 characters)  | `...random_characters...`                       | ``                               |
 
 ## Market influence ideas

@@ -16,8 +16,6 @@ use terminator::Terminator;
 #[macro_use]
 mod macros;
 
-use url::Url;
-
 mod auth;
 mod db;
 mod errors;
@@ -58,11 +56,8 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
     debug!("running database migrations");
     db::migrate(&pool)?;
 
-    let redis_url: Url =
-        Url::parse(&get_env("REDIS_URL")?).or_else(|e| Err(format!("invalid redis url: {}", e)))?;
-
     debug!("launching the actix webserver");
-    server::launch(pool, redis_url, session_private_key).await?;
+    server::launch(pool, session_private_key).await?;
 
     Ok(())
 }

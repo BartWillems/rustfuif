@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::mpsc;
 
-use actix_session::Session;
+use actix_identity::Identity;
 use actix_web::web;
 use actix_web::web::{Data, Json, Path};
 use actix_web::{get, post};
@@ -13,12 +13,12 @@ use crate::server;
 use crate::transactions::models::{NewSale, Transaction, TransactionFilter};
 
 #[get("/games/{id}/sales")]
-async fn get_sales(game_id: Path<i64>, session: Session, pool: Data<db::Pool>) -> server::Response {
-    let user_id = auth::get_user_id(&session)?;
+async fn get_sales(game_id: Path<i64>, id: Identity, pool: Data<db::Pool>) -> server::Response {
+    let user = auth::get_user(&id)?;
     let game_id = game_id.into_inner();
 
     let filter = TransactionFilter {
-        user_id: Some(user_id),
+        user_id: Some(user.id),
         game_id: Some(game_id),
     };
 
@@ -31,17 +31,17 @@ async fn get_sales(game_id: Path<i64>, session: Session, pool: Data<db::Pool>) -
 async fn create_sale(
     game_id: Path<i64>,
     slots: Json<HashMap<i16, u8>>,
-    session: Session,
+    id: Identity,
     pool: Data<db::Pool>,
     tx: Data<mpsc::Sender<i64>>,
 ) -> server::Response {
-    let user_id = auth::get_user_id(&session)?;
+    let user = auth::get_user(&id)?;
     let game_id = game_id.into_inner();
 
     let transactions = web::block(move || {
         let conn = pool.get()?;
         let sale = NewSale {
-            user_id,
+            user_id: user.id,
             game_id: game_id,
             slots: slots.into_inner(),
         };

@@ -1,4 +1,4 @@
-use actix_session::Session;
+use actix_identity::Identity;
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, HttpResponse, Json, Path, Query};
 use actix_web::{get, post, web};
@@ -10,10 +10,10 @@ use crate::invitations::{Invitation, InvitationQuery, UserInvite};
 use crate::server;
 
 #[get("/invitations")]
-async fn my_invitations(session: Session, pool: Data<db::Pool>) -> server::Response {
-    let owner_id = auth::get_user_id(&session)?;
+async fn my_invitations(id: Identity, pool: Data<db::Pool>) -> server::Response {
+    let user = auth::get_user(&id)?;
 
-    let invitations = web::block(move || Invitation::find(owner_id, &pool.get()?)).await?;
+    let invitations = web::block(move || Invitation::find(user.id, &pool.get()?)).await?;
 
     http_ok_json!(invitations);
 }
@@ -36,17 +36,17 @@ async fn find_users(
 async fn invite_user(
     game_id: Path<i64>,
     invite: Json<UserInvite>,
-    session: Session,
+    id: Identity,
     pool: Data<db::Pool>,
 ) -> server::Response {
-    let owner_id = auth::get_user_id(&session)?;
+    let user = auth::get_user(&id)?;
 
     let invite = invite.into_inner();
 
     web::block(move || {
         let conn = pool.get()?;
         let game = Game::find_by_id(*game_id, &conn)?;
-        if game.owner_id != owner_id {
+        if game.owner_id != user.id {
             forbidden!("Only the game owner can invite users");
         }
 

@@ -1,4 +1,4 @@
-use actix_session::Session;
+use actix_identity::Identity;
 use actix_web::http::StatusCode;
 use actix_web::web;
 use actix_web::web::{Data, HttpResponse, Json, Path, Query};
@@ -15,18 +15,17 @@ use crate::games::models::{BeverageConfig, CreateGame, Game, GameFilter};
 async fn find_all(
     query: Query<GameFilter>,
     pool: Data<db::Pool>,
-    session: Session,
+    id: Identity,
 ) -> server::Response {
-    let user_id = auth::get_user_id(&session)?;
-    let is_admin = auth::is_admin(&session)?;
+    let user = auth::get_user(&id)?;
 
     let games = web::block(move || {
-        if is_admin {
+        if user.is_admin {
             debug!("user is admin, showing all games");
             return Game::find_all(query.into_inner(), &pool.get()?);
         } else {
             debug!("find by user");
-            return Game::find_by_user(user_id, query.into_inner(), &pool.get()?);
+            return Game::find_by_user(user.id, query.into_inner(), &pool.get()?);
         }
     })
     .await?;
@@ -45,11 +44,11 @@ async fn find(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
 async fn create(
     game: Json<Validator<CreateGame>>,
     pool: Data<db::Pool>,
-    session: Session,
+    id: Identity,
 ) -> server::Response {
     let mut game = game.into_inner().validate()?;
 
-    game.owner_id = auth::get_user_id(&session)?;
+    game.owner_id = auth::get_user(&id)?.id;
 
     let game = web::block(move || Game::create(game, &pool.get()?)).await?;
 
@@ -57,14 +56,13 @@ async fn create(
 }
 
 #[put("/games")]
-async fn update(game: Json<Game>, pool: Data<db::Pool>, session: Session) -> server::Response {
-    let user_id = auth::get_user_id(&session)?;
-    let is_admin = auth::is_admin(&session)?;
+async fn update(game: Json<Game>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+    let user = auth::get_user(&id)?;
 
     let game = web::block(move || {
         let conn = pool.get()?;
         let old_game = Game::find_by_id(game.id, &conn)?;
-        if old_game.owner_id != user_id && !is_admin {
+        if old_game.owner_id != user.id && !user.is_admin {
             forbidden!("Only game owners can delete games");
         }
         game.update(&conn)
@@ -75,14 +73,13 @@ async fn update(game: Json<Game>, pool: Data<db::Pool>, session: Session) -> ser
 }
 
 #[delete("/games/{id}")]
-async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, session: Session) -> server::Response {
-    let user_id = auth::get_user_id(&session)?;
-    let is_admin = auth::is_admin(&session)?;
+async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+    let user = auth::get_user(&id)?;
 
     web::block(move || {
         let conn = pool.get()?;
         let game = Game::find_by_id(*game_id, &conn)?;
-        if game.owner_id != user_id && !is_admin {
+        if game.owner_id != user.id && !user.is_admin {
             forbidden!("Only game owners can delete games");
         }
         Game::delete_by_id(game.id, &conn)
@@ -93,16 +90,12 @@ async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, session: Session) -> s
 }
 
 #[get("/games/{id}/beverages")]
-async fn get_beverages(
-    game_id: Path<i64>,
-    pool: Data<db::Pool>,
-    session: Session,
-) -> server::Response {
-    let user_id = auth::get_user_id(&session)?;
+async fn get_beverages(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+    let user = auth::get_user(&id)?;
 
     let configs = web::block(move || {
         let conn = pool.get()?;
-        BeverageConfig::find(*game_id, user_id, &conn)
+        BeverageConfig::find(*game_id, user.id, &conn)
     })
     .await?;
 
@@ -114,18 +107,19 @@ async fn create_beverage_config(
     game_id: Path<i64>,
     config: Json<Validator<BeverageConfig>>,
     pool: Data<db::Pool>,
-    session: Session,
+    id: Identity,
 ) -> server::Response {
-    let user_id = auth::get_user_id(&session)?;
+    let user = auth::get_user(&id)?;
+
     let game_id = *game_id;
     let mut config = config.into_inner().validate()?;
 
-    config.user_id = user_id;
+    config.user_id = user.id;
     config.game_id = game_id;
 
     let config = web::block(move || {
         let conn = pool.get()?;
-        if !Game::verify_user(game_id, user_id, &conn)? {
+        if !Game::verify_user(game_id, user.id, &conn)? {
             forbidden!("you are not in this game");
         }
 

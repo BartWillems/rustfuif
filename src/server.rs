@@ -1,11 +1,10 @@
 use std::sync::mpsc;
 use std::thread;
-use url::Url;
 
 use actix_cors::Cors;
 use actix_files as fs;
-use actix_redis::RedisSession;
-use actix_web::{cookie, get, middleware, web, App, HttpResponse, HttpServer};
+use actix_identity::{CookieIdentityPolicy, IdentityService};
+use actix_web::{get, middleware, web, App, HttpResponse, HttpServer};
 
 use crate::auth;
 use crate::db;
@@ -22,11 +21,7 @@ async fn health() -> &'static str {
     "ok"
 }
 
-pub async fn launch(
-    db_pool: db::Pool,
-    redis_url: Url,
-    session_private_key: String,
-) -> std::io::Result<()> {
+pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::Result<()> {
     let metrics = web::Data::new(metrics::Metrics::new());
 
     // used to notify the clients when a purchase is made in your game
@@ -51,18 +46,11 @@ pub async fn launch(
             .wrap(middleware::NormalizePath)
             .wrap(metrics::Middleware::default())
             .wrap(Cors::new().supports_credentials().finish())
-            .wrap(
-                RedisSession::new(
-                    format!(
-                        "{}:{}",
-                        redis_url.host_str().expect("missing redis host"),
-                        redis_url.port().unwrap_or(6379),
-                    ),
-                    &session_private_key.as_bytes(),
-                )
-                .cookie_same_site(cookie::SameSite::Strict)
-                .cookie_http_only(false),
-            )
+            .wrap(IdentityService::new(
+                CookieIdentityPolicy::new(&session_private_key.as_bytes())
+                    .name("auth-cookie")
+                    .secure(false),
+            ))
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))
             .service(metrics::route)

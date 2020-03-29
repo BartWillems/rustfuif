@@ -4,7 +4,7 @@ use crate::server::Response;
 use crate::users::{User, UserMessage};
 use crate::validator::Validator;
 
-use actix_session::Session;
+use actix_identity::Identity;
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json};
 use actix_web::{post, web, HttpResponse};
@@ -22,7 +22,7 @@ async fn create_account(user: Json<Validator<UserMessage>>, pool: Data<db::Pool>
 }
 
 #[post("/login")]
-async fn login(credentials: Json<UserMessage>, session: Session, pool: Data<db::Pool>) -> Response {
+async fn login(credentials: Json<UserMessage>, id: Identity, pool: Data<db::Pool>) -> Response {
     let credentials = credentials.into_inner();
 
     // this can be removed once the web::block() is removed
@@ -40,26 +40,25 @@ async fn login(credentials: Json<UserMessage>, session: Session, pool: Data<db::
 
     let is_valid = user.verify_password(password.as_bytes())?;
 
-    if is_valid {
-        session.set("user_id", user.id)?;
-        session.set("is_admin", user.is_admin)?;
-        session.renew();
-    } else {
+    if !is_valid {
         return Err(ServiceError::Unauthorized);
     }
+
+    let user_string = serde_json::to_string(&user).or_else(|e| {
+        error!("unable to serialize the user struct: {}", e);
+        Err(ServiceError::InternalServerError)
+    })?;
+
+    id.remember(user_string);
+
     http_ok_json!(user);
 }
 
 #[post("/logout")]
-async fn logout(session: Session) -> Response {
-    let id: Option<i64> = session.get("user_id")?;
+async fn logout(id: Identity) -> Response {
+    id.forget();
 
-    if id.is_some() {
-        session.purge();
-        Ok(HttpResponse::Ok().json(json!({ "message": "Successfully signed out" })))
-    } else {
-        Err(ServiceError::Unauthorized)
-    }
+    Ok(HttpResponse::Ok().json(json!({ "message": "Successfully signed out" })))
 }
 
 pub fn register(cfg: &mut web::ServiceConfig) {
