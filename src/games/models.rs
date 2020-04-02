@@ -51,6 +51,15 @@ pub struct GameUser {
     pub invitation_state: String,
 }
 
+#[derive(Serialize, Queryable)]
+pub struct GameResponse {
+    pub id: i64,
+    pub name: String,
+    pub start_time: DateTime<Utc>,
+    pub close_time: DateTime<Utc>,
+    pub owner: crate::users::UserResponse,
+}
+
 /// minimum duration is 30 minutes
 const MIN_GAME_SECONDS: i64 = 60 * 30;
 /// maximum duration is 24 hours
@@ -108,8 +117,20 @@ impl Game {
         Ok(game)
     }
 
-    pub fn find_all(filter: GameFilter, conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
-        let mut query = games::table.into_boxed();
+    pub fn find_all(
+        filter: GameFilter,
+        conn: &db::Conn,
+    ) -> Result<Vec<GameResponse>, ServiceError> {
+        let mut query = games::table
+            .inner_join(users::table)
+            .select((
+                games::id,
+                games::name,
+                games::start_time,
+                games::close_time,
+                (users::id, users::username),
+            ))
+            .into_boxed();
 
         if !filter.completed.unwrap_or(true) {
             query = query.filter(games::close_time.gt(diesel::dsl::now));
@@ -123,7 +144,7 @@ impl Game {
             query = query.filter(games::name.ilike(format!("%{}%", name)));
         }
 
-        let games = query.load::<Game>(conn)?;
+        let games = query.load::<GameResponse>(conn)?;
         Ok(games)
     }
 
@@ -131,12 +152,22 @@ impl Game {
         user_id: i64,
         filter: GameFilter,
         conn: &db::Conn,
-    ) -> Result<Vec<Game>, ServiceError> {
+    ) -> Result<Vec<GameResponse>, ServiceError> {
         let invitations = invitations::table
             .filter(invitations::user_id.eq(user_id))
             .select(invitations::game_id);
 
-        let mut query = games::table.into_boxed();
+        let mut query = games::table
+            .inner_join(users::table)
+            .filter(users::id.eq(user_id))
+            .select((
+                games::id,
+                games::name,
+                games::start_time,
+                games::close_time,
+                (users::id, users::username),
+            ))
+            .into_boxed();
 
         use diesel::dsl::any;
 
@@ -154,7 +185,7 @@ impl Game {
 
         let games = query
             .filter(games::id.eq(any(invitations)))
-            .load::<Game>(conn)?;
+            .load::<GameResponse>(conn)?;
         Ok(games)
     }
 

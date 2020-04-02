@@ -26,6 +26,12 @@ pub struct User {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Serialize, Queryable)]
+pub struct UserResponse {
+    pub id: i64,
+    pub username: String,
+}
+
 impl User {
     pub fn find_all(conn: &db::Conn) -> Result<Vec<Self>, ServiceError> {
         let users = users::table.load::<User>(conn)?;
