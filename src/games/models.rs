@@ -157,9 +157,13 @@ impl Game {
             .filter(invitations::user_id.eq(user_id))
             .select(invitations::game_id);
 
+        // TODO
+        // Figure out if only accepted games should be shown
+        // OR
+        // also display the invitation state
+
         let mut query = games::table
             .inner_join(users::table)
-            .filter(users::id.eq(user_id))
             .select((
                 games::id,
                 games::name,
