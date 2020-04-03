@@ -261,6 +261,10 @@ impl Game {
 
 impl crate::validator::Validate<CreateGame> for CreateGame {
     fn validate(&self) -> Result<(), ServiceError> {
+        if self.start_time <= Utc::now() {
+            bad_request!("the game can't start in th past");
+        }
+
         let duration: Duration = self.close_time.signed_duration_since(self.start_time);
         if duration.num_seconds() <= MIN_GAME_SECONDS {
             bad_request!("this game has not gone on long enough, minimum duration is 30 minutes");
@@ -372,14 +376,12 @@ impl crate::validator::Validate<BeverageConfig> for BeverageConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDate;
     use std::ops::Add;
 
     #[test]
     fn invalid_game_duration() {
         use crate::validator::Validator;
-        let time: DateTime<Utc> =
-            DateTime::from_utc(NaiveDate::from_ymd(2020, 1, 1).and_hms(12, 0, 0), Utc);
+        let time: DateTime<Utc> = Utc::now().add(Duration::days(1));
 
         let smaller_time = time.add(Duration::hours(-1));
 
