@@ -21,7 +21,7 @@ pub struct Game {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize, Insertable)]
+#[derive(Debug, Clone, Deserialize, Insertable)]
 #[table_name = "games"]
 pub struct CreateGame {
     pub name: String,
@@ -274,18 +274,18 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
             bad_request!("the max duration of a game is 24 hours");
         }
 
-        let pattern: Regex = Regex::new(r"^[0-9A-Za-z-_]+$").unwrap();
+        let pattern: Regex = Regex::new(r"^[a-zA-Z0-9_-]+( [a-zA-Z0-9_]+)*$").unwrap();
 
         if self.name.trim().is_empty() {
             bad_request!("name is too short");
         }
 
-        if self.name.trim().len() > 20 {
-            bad_request!("name is too long, maximum 20 characters");
+        if self.name.trim().len() > 40 {
+            bad_request!("name is too long, maximum 40 characters");
         }
 
         if !pattern.is_match(&self.name) {
-            bad_request!("name can only contain letters, numbers, '-' and '_'");
+            bad_request!("name can only contain letters, numbers, spaces, '-' and '_'");
         }
 
         Ok(())
@@ -355,18 +355,18 @@ impl crate::validator::Validate<BeverageConfig> for BeverageConfig {
             }
         }
 
-        let pattern: Regex = Regex::new(r"^[0-9A-Za-z-_]+$").unwrap();
+        let pattern: Regex = Regex::new(r"^[a-zA-Z0-9_]+( [a-zA-Z0-9_]+)*$").unwrap();
 
         if self.name.trim().is_empty() {
             bad_request!("name is too short");
         }
 
-        if self.name.trim().len() > 20 {
-            bad_request!("name is too long, maximum 20 characters");
+        if self.name.trim().len() > 40 {
+            bad_request!("name is too long, maximum 40 characters");
         }
 
         if !pattern.is_match(&self.name) {
-            bad_request!("name can only contain letters, numbers, '-' and '_'");
+            bad_request!("name can only contain letters, numbers, spaces, '-' and '_'");
         }
 
         Ok(())
@@ -376,11 +376,11 @@ impl crate::validator::Validate<BeverageConfig> for BeverageConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::validator::Validator;
     use std::ops::Add;
 
     #[test]
     fn invalid_game_duration() {
-        use crate::validator::Validator;
         let time: DateTime<Utc> = Utc::now().add(Duration::days(1));
 
         let smaller_time = time.add(Duration::hours(-1));
@@ -414,5 +414,49 @@ mod tests {
         assert!(Validator::new(game_with_equal_bigger_end_time)
             .validate()
             .is_ok());
+    }
+
+    #[test]
+    fn valid_game_names() {
+        let start_time: DateTime<Utc> = Utc::now().add(Duration::days(1));
+        let close_time = start_time.add(Duration::hours(1));
+
+        let mut game = CreateGame {
+            name: String::from("some-game"),
+            owner_id: 1,
+            start_time: start_time,
+            close_time: close_time,
+        };
+
+        assert!(Validator::new(game.clone()).validate().is_ok());
+
+        game.name = String::from("name with spaces");
+        assert!(Validator::new(game.clone()).validate().is_ok());
+
+        game.name = String::from("n4m3 with numb3rs");
+        assert!(Validator::new(game.clone()).validate().is_ok());
+
+        game.name = String::from("name-with_special-characters");
+        assert!(Validator::new(game.clone()).validate().is_ok());
+    }
+
+    #[test]
+    fn invalid_game_names() {
+        let start_time: DateTime<Utc> = Utc::now().add(Duration::days(1));
+        let close_time = start_time.add(Duration::hours(1));
+        let mut game = CreateGame {
+            name: String::from("some-game@"),
+            owner_id: 1,
+            start_time: start_time,
+            close_time: close_time,
+        };
+
+        assert!(Validator::new(game.clone()).validate().is_err());
+
+        game.name = String::from("<html>");
+        assert!(Validator::new(game.clone()).validate().is_err());
+
+        game.name = String::from("('something')");
+        assert!(Validator::new(game.clone()).validate().is_err());
     }
 }
