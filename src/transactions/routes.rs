@@ -62,7 +62,8 @@ async fn create_sale(
 }
 
 #[get("/games/{id}/prices")]
-async fn prices(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
+async fn prices(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+    auth::get_user(&id)?;
     let game_id = game_id.into_inner();
 
     let sales = web::block(move || Transaction::get_sales(game_id, &pool.get()?)).await?;

@@ -24,7 +24,9 @@ async fn find_users(
     game_id: Path<i64>,
     query: Query<InvitationQuery>,
     pool: Data<db::Pool>,
+    id: Identity,
 ) -> server::Response {
+    auth::get_user(&id)?;
     let users =
         web::block(move || Game::find_users(*game_id, query.into_inner(), &pool.get()?)).await?;
 
