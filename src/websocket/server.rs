@@ -10,6 +10,7 @@ pub struct Message(pub String);
 #[rtype(usize)]
 pub struct Connect {
     pub addr: Recipient<Message>,
+    pub game_id: i64,
 }
 
 #[derive(Message)]
@@ -79,10 +80,7 @@ impl ChatServer {
 
     /// Send a message to a room, notifying them about a sale
     pub fn notify_players(&self, game_id: &i64) {
-        debug!("Game ID: {}", game_id);
-        debug!("self.games: {:?}", self.games);
         if let Some(sessions) = self.games.get(game_id) {
-            debug!("sessions: {:?}", sessions);
             for id in sessions {
                 if let Some(addr) = self.sessions.get(id) {
                     let _ = addr.do_send(Message("A sale has happened".to_owned()));
@@ -106,17 +104,15 @@ impl Handler<Connect> for ChatServer {
     type Result = usize;
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        println!("Someone joined");
-
         // notify all users in same room
-        self.send_message(&8, "Someone joined", 0);
+        self.send_message(&msg.game_id, "Someone joined", 0);
 
         // register session with random id
         let id = self.rng.gen::<usize>();
         self.sessions.insert(id, msg.addr);
 
-        // auto join session to Main room
-        self.games.get_mut(&8).unwrap().insert(id);
+        // join the games' notification channel
+        self.games.get_mut(&msg.game_id).unwrap().insert(id);
 
         // send id back
         id
@@ -134,7 +130,6 @@ impl Handler<Transaction> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, tx: Transaction, _: &mut Context<Self>) {
-        debug!("Transaction: {:?}", tx);
         self.notify_players(&tx.game_id);
     }
 }
@@ -144,8 +139,6 @@ impl Handler<Disconnect> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        println!("Someone disconnected");
-
         let mut games: Vec<i64> = Vec::new();
 
         // remove address

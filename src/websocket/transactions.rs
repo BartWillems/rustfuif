@@ -2,11 +2,14 @@ use std::time::{Duration, Instant};
 
 use actix::*;
 use actix_identity::Identity;
-use actix_web::web::Path;
+use actix_web::web::{Data, Path};
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 
 use crate::auth;
+use crate::db;
+use crate::games::Game;
+use crate::users::User;
 use crate::websocket::server;
 
 /// How often heartbeat pings are sent
@@ -18,27 +21,45 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 pub async fn route(
     req: HttpRequest,
     stream: web::Payload,
-    srv: web::Data<Addr<server::ChatServer>>,
+    srv: Data<Addr<server::ChatServer>>,
     game_id: Path<i64>,
     id: Identity,
+    pool: Data<db::Pool>,
 ) -> Result<HttpResponse, Error> {
-    // TODO: change the room to gameID
-    match auth::get_user(&id) {
-        Ok(user) => debug!("Found user with id: {}", user.id),
-        Err(e) => debug!("user is not authenticated: {}", e),
-    }
+    let user = match auth::get_user(&id) {
+        Ok(user) => user,
+        Err(e) => {
+            error!("User is not authenticated: {}", e);
+            User {
+                id: 5,
+                username: "test-user".to_owned(),
+                password: "hunter2".to_owned(),
+                is_admin: true,
+                created_at: None,
+                updated_at: None,
+            }
+        }
+    };
 
-    debug!(
-        "Connecting to transactions channel for game with id: {}",
-        game_id
-    );
+    let game_id = *game_id;
+
+    web::block(move || {
+        let conn = pool.get()?;
+        if !Game::verify_user(game_id, user.id, &conn)? {
+            debug!("user is NOT partaking in the game!");
+            forbidden!("you are not in this game");
+        } else {
+            debug!("the user is in the game");
+        }
+        Ok(())
+    })
+    .await?;
 
     ws::start(
         WsChatSession {
             id: 0,
             hb: Instant::now(),
-            game_id: *game_id,
-            name: None,
+            game_id: game_id,
             addr: srv.get_ref().clone(),
         },
         &req,
@@ -54,8 +75,6 @@ struct WsChatSession {
     hb: Instant,
     /// joined room
     game_id: i64,
-    /// peer name
-    name: Option<String>,
     /// Chat server
     addr: Addr<server::ChatServer>,
 }
@@ -78,6 +97,7 @@ impl Actor for WsChatSession {
         self.addr
             .send(server::Connect {
                 addr: addr.recipient(),
+                game_id: self.game_id,
             })
             .into_actor(self)
             .then(|res, act, ctx| {
@@ -119,6 +139,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
         };
 
         debug!("Websocket received message: {:?}", msg);
+        // msg.n
         match msg {
             ws::Message::Ping(msg) => {
                 self.hb = Instant::now();
