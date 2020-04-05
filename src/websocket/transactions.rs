@@ -9,7 +9,6 @@ use actix_web_actors::ws;
 use crate::auth;
 use crate::db;
 use crate::games::Game;
-use crate::users::User;
 use crate::websocket::server;
 
 /// How often heartbeat pings are sent
@@ -21,35 +20,19 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 pub async fn route(
     req: HttpRequest,
     stream: web::Payload,
-    srv: Data<Addr<server::ChatServer>>,
+    srv: Data<Addr<server::TransactionServer>>,
     game_id: Path<i64>,
     id: Identity,
     pool: Data<db::Pool>,
 ) -> Result<HttpResponse, Error> {
-    let user = match auth::get_user(&id) {
-        Ok(user) => user,
-        Err(e) => {
-            error!("User is not authenticated: {}", e);
-            User {
-                id: 5,
-                username: "test-user".to_owned(),
-                password: "hunter2".to_owned(),
-                is_admin: true,
-                created_at: None,
-                updated_at: None,
-            }
-        }
-    };
+    let user = auth::get_user(&id)?;
 
     let game_id = *game_id;
 
     web::block(move || {
         let conn = pool.get()?;
         if !Game::verify_user(game_id, user.id, &conn)? {
-            debug!("user is NOT partaking in the game!");
             forbidden!("you are not in this game");
-        } else {
-            debug!("the user is in the game");
         }
         Ok(())
     })
@@ -76,7 +59,7 @@ struct WsChatSession {
     /// joined room
     game_id: i64,
     /// Chat server
-    addr: Addr<server::ChatServer>,
+    addr: Addr<server::TransactionServer>,
 }
 
 impl Actor for WsChatSession {
@@ -138,8 +121,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
             Ok(msg) => msg,
         };
 
-        debug!("Websocket received message: {:?}", msg);
-        // msg.n
+        trace!("Websocket received message: {:?}", msg);
         match msg {
             ws::Message::Ping(msg) => {
                 self.hb = Instant::now();
@@ -151,7 +133,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
             ws::Message::Text(_) => {
                 debug!("ignoring incoming messages for now");
             }
-            ws::Message::Binary(_) => println!("Unexpected binary"),
+            ws::Message::Binary(_) => debug!("Unexpected binary"),
             ws::Message::Close(_) => {
                 ctx.stop();
             }
@@ -172,7 +154,7 @@ impl WsChatSession {
             // check client heartbeats
             if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
                 // heartbeat timed out
-                println!("Websocket Client heartbeat failed, disconnecting!");
+                error!("Websocket Client heartbeat failed, disconnecting!");
 
                 // notify chat server
                 act.addr.do_send(server::Disconnect { id: act.id });

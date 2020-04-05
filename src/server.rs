@@ -31,15 +31,14 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     // used to notify the clients when a purchase is made in your game
     let (tx, rx) = mpsc::channel::<i64>();
 
-    let transaction_server = Arc::new(websocket::server::ChatServer::default().start());
+    let transaction_server = Arc::new(websocket::server::TransactionServer::default().start());
 
     // TODO: move this over to the websockets module
     // TODO 2 ELECTRIC BOOGALOO: make the websockets module
-    let arc_transaction_server = transaction_server.clone();
+    let notify_transaction_server = transaction_server.clone();
     thread::spawn(move || {
         for received in rx {
-            arc_transaction_server.do_send(websocket::server::Transaction { game_id: received });
-            debug!("sale has been made in game: {}!", received);
+            notify_transaction_server.do_send(websocket::server::Transaction { game_id: received });
         }
     });
 
