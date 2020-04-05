@@ -1,6 +1,9 @@
+use std::ops::Deref;
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::thread;
 
+use actix::prelude::*;
 use actix_cors::Cors;
 use actix_files as fs;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
@@ -13,6 +16,7 @@ use crate::games;
 use crate::invitations;
 use crate::metrics;
 use crate::transactions;
+use crate::websocket;
 
 pub type Response = Result<HttpResponse, ServiceError>;
 
@@ -27,10 +31,14 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     // used to notify the clients when a purchase is made in your game
     let (tx, rx) = mpsc::channel::<i64>();
 
+    let transaction_server = Arc::new(websocket::server::ChatServer::default().start());
+
     // TODO: move this over to the websockets module
     // TODO 2 ELECTRIC BOOGALOO: make the websockets module
+    let arc_transaction_server = transaction_server.clone();
     thread::spawn(move || {
         for received in rx {
+            arc_transaction_server.do_send(websocket::server::Transaction { game_id: received });
             debug!("sale has been made in game: {}!", received);
         }
     });
@@ -39,6 +47,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
         App::new()
             .data(db_pool.clone())
             .data(tx.clone())
+            .data(transaction_server.deref().clone())
             .app_data(metrics.clone())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
             .wrap(middleware::Compress::default())
@@ -54,6 +63,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))
             .service(metrics::route)
+            .service(web::resource("/ws/{game_id}").to(websocket::transactions::route))
             .service(
                 web::scope("/api")
                     .configure(games::routes::register)

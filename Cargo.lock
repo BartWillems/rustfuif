@@ -26,6 +26,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "actix-broker"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "313a1cbb5f9977da1df12f1166dc38962463136fbbbddf1c902a228d74237c1d"
+dependencies = [
+ "actix",
+ "fnv",
+ "log",
+]
+
+[[package]]
 name = "actix-codec"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -316,6 +327,21 @@ dependencies = [
  "serde_urlencoded",
  "time",
  "url",
+]
+
+[[package]]
+name = "actix-web-actors"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc1bd41bd66c4e9b5274cec87aac30168e63d64e96fd19db38edef6b46ba2982"
+dependencies = [
+ "actix",
+ "actix-codec",
+ "actix-http",
+ "actix-web",
+ "bytes",
+ "futures",
+ "pin-project",
 ]
 
 [[package]]
@@ -1492,6 +1518,7 @@ name = "rustfuif"
 version = "0.1.0"
 dependencies = [
  "actix",
+ "actix-broker",
  "actix-cors",
  "actix-files",
  "actix-identity",
@@ -1499,6 +1526,7 @@ dependencies = [
  "actix-service",
  "actix-threadpool",
  "actix-web",
+ "actix-web-actors",
  "chrono",
  "derive_more",
  "diesel",

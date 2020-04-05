@@ -27,6 +27,7 @@ mod server;
 mod transactions;
 mod users;
 mod validator;
+mod websocket;
 
 #[actix_rt::main]
 async fn main() -> Result<(), Terminator> {
