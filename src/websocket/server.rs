@@ -19,8 +19,7 @@ pub struct Disconnect {
     pub id: usize,
 }
 
-/// `ChatServer` manages chat rooms and responsible for coordinating chat
-/// session. implementation is super primitive
+/// `TransactionServer` manages price updates/new sales
 pub struct TransactionServer {
     sessions: HashMap<usize, Recipient<Message>>,
     games: HashMap<i64, HashSet<usize>>,
@@ -39,8 +38,8 @@ impl Default for TransactionServer {
 
 impl TransactionServer {
     /// Send a message to a room, notifying them about a sale
-    pub fn notify_players(&self, game_id: &i64) {
-        if let Some(sessions) = self.games.get(game_id) {
+    pub fn notify_players(&self, game_id: i64) {
+        if let Some(sessions) = self.games.get(&game_id) {
             for id in sessions {
                 if let Some(addr) = self.sessions.get(id) {
                     let _ = addr.do_send(Message("A sale has happened".to_owned()));
@@ -68,12 +67,10 @@ impl Handler<Connect> for TransactionServer {
         let id = self.rng.gen::<usize>();
         self.sessions.insert(id, msg.addr);
 
-        debug!("Games before insert: {:?}", self.games);
-
-        let sessions = self.games.entry(msg.game_id).or_insert(HashSet::new());
-        sessions.insert(id);
-
-        debug!("Games after instert: {:?}", self.games);
+        self.games
+            .entry(msg.game_id)
+            .or_insert_with(HashSet::new)
+            .insert(id);
 
         id
     }
@@ -82,7 +79,6 @@ impl Handler<Connect> for TransactionServer {
 #[derive(Message, Debug)]
 #[rtype(result = "()")]
 pub struct Transaction {
-    /// Id of the client session
     pub game_id: i64,
 }
 
@@ -90,7 +86,7 @@ impl Handler<Transaction> for TransactionServer {
     type Result = ();
 
     fn handle(&mut self, tx: Transaction, _: &mut Context<Self>) {
-        self.notify_players(&tx.game_id);
+        self.notify_players(tx.game_id);
     }
 }
 
