@@ -42,7 +42,7 @@ pub async fn route(
         WsChatSession {
             id: 0,
             hb: Instant::now(),
-            game_id: game_id,
+            game_id,
             addr: srv.get_ref().clone(),
         },
         &req,

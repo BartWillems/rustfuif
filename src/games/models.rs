@@ -424,8 +424,8 @@ mod tests {
         let mut game = CreateGame {
             name: String::from("some-game"),
             owner_id: 1,
-            start_time: start_time,
-            close_time: close_time,
+            start_time,
+            close_time,
         };
 
         assert!(Validator::new(game.clone()).validate().is_ok());
@@ -447,8 +447,8 @@ mod tests {
         let mut game = CreateGame {
             name: String::from("some-game@"),
             owner_id: 1,
-            start_time: start_time,
-            close_time: close_time,
+            start_time,
+            close_time,
         };
 
         assert!(Validator::new(game.clone()).validate().is_err());

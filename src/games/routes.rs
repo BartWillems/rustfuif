@@ -22,10 +22,9 @@ async fn find_all(
     let games = web::block(move || {
         if user.is_admin {
             debug!("user is admin, showing all games");
-            return Game::find_all(query.into_inner(), &pool.get()?);
+            Game::find_all(query.into_inner(), &pool.get()?)
         } else {
-            debug!("find by user");
-            return Game::find_by_user(user.id, query.into_inner(), &pool.get()?);
+            Game::find_by_user(user.id, query.into_inner(), &pool.get()?)
         }
     })
     .await?;

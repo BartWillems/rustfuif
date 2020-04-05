@@ -8,6 +8,6 @@ pub fn get_user(id: &Identity) -> Result<User, ServiceError> {
 
     serde_json::from_str(&user_str).or_else(|e| {
         error!("unable to deserialize user: {}", e);
-        return Err(ServiceError::Unauthorized);
+        Err(ServiceError::Unauthorized)
     })
 }

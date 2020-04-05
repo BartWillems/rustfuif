@@ -42,7 +42,7 @@ async fn create_sale(
         let conn = pool.get()?;
         let sale = NewSale {
             user_id: user.id,
-            game_id: game_id,
+            game_id,
             slots: slots.into_inner(),
         };
 
