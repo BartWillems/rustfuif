@@ -6,7 +6,7 @@ use diesel::result::Error as DBError;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::schema::transactions;
+use crate::schema::{transactions, users};
 
 pub const MIN_SLOT_NO: i16 = 0;
 pub const MAX_SLOT_NO: i16 = 7;
@@ -45,6 +45,12 @@ pub struct NewSale {
 #[derive(Serialize, Queryable, Clone, Copy, Debug, Default)]
 pub struct SlotSale {
     pub slot_no: i16,
+    pub sales: i64,
+}
+
+#[derive(Serialize, Queryable)]
+pub struct UserSales {
+    pub username: String,
     pub sales: i64,
 }
 
@@ -115,6 +121,7 @@ impl Transaction {
         Ok(transactions)
     }
 
+    /// Get the amount of times each beverage has been sold in a game
     pub fn get_sales(game_id: i64, conn: &db::Conn) -> Result<Vec<SlotSale>, ServiceError> {
         use diesel::dsl::sql;
 
@@ -130,6 +137,26 @@ impl Transaction {
 
         let sales = Transaction::fill_gaps(sales);
         Ok(sales)
+    }
+
+    /// Get the amount of sales each user has made in a game
+    pub fn get_sales_per_user(
+        game_id: i64,
+        conn: &db::Conn,
+    ) -> Result<Vec<UserSales>, ServiceError> {
+        use diesel::dsl::sql;
+
+        let sale_count = transactions::table
+            .inner_join(users::table)
+            .select((
+                users::username,
+                sql::<diesel::sql_types::BigInt>("count(*)"),
+            ))
+            .filter(transactions::game_id.eq(game_id))
+            .group_by(users::username)
+            .load::<UserSales>(conn)?;
+
+        Ok(sale_count)
     }
 
     /// takes a vector of slotsales and fills in the missing slots
