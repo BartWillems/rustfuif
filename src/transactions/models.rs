@@ -182,6 +182,50 @@ impl Transaction {
 
         res
     }
+
+    /// Returns a hashmap contianing how much each beverage's sales
+    /// differs from the average amount of sales.
+    /// This can be used to calculate the price of a beverage
+    pub fn get_offsets(game_id: i64, conn: &db::Conn) -> Result<HashMap<i16, i64>, ServiceError> {
+        let sales: Vec<SlotSale> = Transaction::get_sales(game_id, conn)?;
+        let average = Transaction::average_sales(&sales);
+
+        debug!("Game({})'s average sales is {}", game_id, average);
+
+        let mut offsets: HashMap<i16, i64> = HashMap::new();
+
+        for slot in sales.iter() {
+            let offset = slot.sales - average;
+            trace!(
+                "beverage({})'s offset in game({}) is {} with {} sales",
+                slot.slot_no,
+                game_id,
+                offset,
+                slot.sales
+            );
+            let conflict = offsets.insert(slot.slot_no, offset).is_some();
+
+            if conflict {
+                error!(
+                    "unable to calculate offset for slot({}) in game({})",
+                    slot.slot_no, game_id
+                );
+                return Err(ServiceError::InternalServerError);
+            }
+        }
+
+        Ok(offsets)
+    }
+
+    fn average_sales(sales: &Vec<SlotSale>) -> i64 {
+        let mut total: i64 = 0;
+
+        for beverage in sales.iter() {
+            total += beverage.sales;
+        }
+
+        return (total as f64 / sales.len() as f64).ceil() as i64;
+    }
 }
 
 #[cfg(test)]

@@ -85,9 +85,24 @@ async fn user_sales(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> s
     http_created_json!(sales);
 }
 
+#[get("/games/{id}/stats/offsets")]
+async fn beverage_sales_offsets(
+    game_id: Path<i64>,
+    pool: Data<db::Pool>,
+    id: Identity,
+) -> server::Response {
+    auth::get_user(&id)?;
+    let game_id = game_id.into_inner();
+
+    let sales = web::block(move || Transaction::get_offsets(game_id, &pool.get()?)).await?;
+
+    http_created_json!(sales);
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(get_sales);
     cfg.service(create_sale);
     cfg.service(beverage_sales);
     cfg.service(user_sales);
+    cfg.service(beverage_sales_offsets);
 }
