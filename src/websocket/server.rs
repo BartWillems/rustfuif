@@ -1,6 +1,9 @@
+use std::collections::{HashMap, HashSet};
+use std::sync::{mpsc, Arc};
+use std::thread;
+
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
-use std::collections::{HashMap, HashSet};
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -9,7 +12,7 @@ pub struct Message(pub String);
 #[derive(Message)]
 #[rtype(usize)]
 pub struct Connect {
-    pub addr: Recipient<Message>,
+    pub addr: Recipient<Sale>,
     pub game_id: i64,
 }
 
@@ -21,7 +24,7 @@ pub struct Disconnect {
 
 /// `TransactionServer` manages price updates/new sales
 pub struct TransactionServer {
-    sessions: HashMap<usize, Recipient<Message>>,
+    sessions: HashMap<usize, Recipient<Sale>>,
     games: HashMap<i64, HashSet<usize>>,
     rng: ThreadRng,
 }
@@ -38,14 +41,26 @@ impl Default for TransactionServer {
 
 impl TransactionServer {
     /// Send a message to a room, notifying them about a sale
-    pub fn notify_players(&self, game_id: i64) {
-        if let Some(sessions) = self.games.get(&game_id) {
+    pub fn notify_players(&self, sale: Sale) {
+        if let Some(sessions) = self.games.get(&sale.game_id) {
             for id in sessions {
                 if let Some(addr) = self.sessions.get(id) {
-                    let _ = addr.do_send(Message("A sale has happened".to_owned()));
+                    let _ = addr.do_send(sale.clone());
                 }
             }
         }
+    }
+
+    /// Listener receives sales updates and sends price updates to the clients
+    pub fn listener(server: Arc<Addr<TransactionServer>>, rx: mpsc::Receiver<Sale>) {
+        thread::spawn(move || {
+            for received in rx {
+                server.do_send(Sale {
+                    game_id: received.game_id,
+                    offsets: received.offsets,
+                });
+            }
+        });
     }
 }
 
@@ -82,11 +97,18 @@ pub struct Transaction {
     pub game_id: i64,
 }
 
-impl Handler<Transaction> for TransactionServer {
+#[derive(Message, Debug, Serialize, Clone)]
+#[rtype(result = "()")]
+pub struct Sale {
+    pub game_id: i64,
+    pub offsets: HashMap<i16, i64>,
+}
+
+impl Handler<Sale> for TransactionServer {
     type Result = ();
 
-    fn handle(&mut self, tx: Transaction, _: &mut Context<Self>) {
-        self.notify_players(tx.game_id);
+    fn handle(&mut self, sale: Sale, _: &mut Context<Self>) {
+        self.notify_players(sale);
     }
 }
 

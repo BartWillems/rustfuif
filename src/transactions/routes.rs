@@ -11,6 +11,7 @@ use crate::db;
 use crate::games::Game;
 use crate::server;
 use crate::transactions::models::{NewSale, Transaction, TransactionFilter};
+use crate::websocket::server::Sale;
 
 #[get("/games/{id}/sales")]
 async fn get_sales(game_id: Path<i64>, id: Identity, pool: Data<db::Pool>) -> server::Response {
@@ -33,12 +34,12 @@ async fn create_sale(
     slots: Json<HashMap<i16, u8>>,
     id: Identity,
     pool: Data<db::Pool>,
-    tx: Data<mpsc::Sender<i64>>,
+    tx: Data<mpsc::Sender<Sale>>,
 ) -> server::Response {
     let user = auth::get_user(&id)?;
     let game_id = game_id.into_inner();
 
-    let transactions = web::block(move || {
+    let (transactions, sale) = web::block(move || {
         let conn = pool.get()?;
         let sale = NewSale {
             user_id: user.id,
@@ -50,11 +51,15 @@ async fn create_sale(
             forbidden!("game is not available for purchases");
         }
 
-        sale.save(&conn)
+        let transactions = sale.save(&conn)?;
+
+        let offsets = Transaction::get_offsets(game_id, &conn)?;
+
+        Ok((transactions, Sale { game_id, offsets }))
     })
     .await?;
 
-    if let Err(e) = tx.into_inner().send(game_id) {
+    if let Err(e) = tx.into_inner().send(sale) {
         error!("unable to notify users about transaction: {}", e);
     }
 

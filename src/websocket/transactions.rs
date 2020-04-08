@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use actix::*;
+use actix::prelude::*;
 use actix_identity::Identity;
 use actix_web::web::{Data, Path};
 use actix_web::{web, Error, HttpRequest, HttpResponse};
@@ -39,7 +39,7 @@ pub async fn route(
     .await?;
 
     ws::start(
-        WsChatSession {
+        SalesUpdates {
             id: 0,
             hb: Instant::now(),
             game_id,
@@ -50,7 +50,7 @@ pub async fn route(
     )
 }
 
-struct WsChatSession {
+struct SalesUpdates {
     /// unique session id
     id: usize,
     /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
@@ -62,7 +62,7 @@ struct WsChatSession {
     addr: Addr<server::TransactionServer>,
 }
 
-impl Actor for WsChatSession {
+impl Actor for SalesUpdates {
     type Context = ws::WebsocketContext<Self>;
 
     /// Method is called on actor start.
@@ -95,23 +95,23 @@ impl Actor for WsChatSession {
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        // notify chat server
+        // notify server
         self.addr.do_send(server::Disconnect { id: self.id });
         Running::Stop
     }
 }
 
-/// Handle messages from chat server, we simply send it to peer websocket
-impl Handler<server::Message> for WsChatSession {
+/// Handle messages from server, we simply send it to peer websocket
+impl Handler<server::Sale> for SalesUpdates {
     type Result = ();
 
-    fn handle(&mut self, msg: server::Message, ctx: &mut Self::Context) {
-        ctx.text(msg.0);
+    fn handle(&mut self, sale: server::Sale, ctx: &mut Self::Context) {
+        ctx.text(serde_json::to_string(&sale).unwrap_or_default());
     }
 }
 
 /// WebSocket message handler
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for SalesUpdates {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         let msg = match msg {
             Err(_) => {
@@ -145,7 +145,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
     }
 }
 
-impl WsChatSession {
+impl SalesUpdates {
     /// helper method that sends ping to client every second.
     ///
     /// also this method checks heartbeats from client

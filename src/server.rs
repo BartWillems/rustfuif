@@ -1,7 +1,6 @@
 use std::ops::Deref;
 use std::sync::mpsc;
 use std::sync::Arc;
-use std::thread;
 
 use actix::prelude::*;
 use actix_cors::Cors;
@@ -17,6 +16,7 @@ use crate::invitations;
 use crate::metrics;
 use crate::transactions;
 use crate::websocket;
+use crate::websocket::server::{Sale, TransactionServer};
 
 pub type Response = Result<HttpResponse, ServiceError>;
 
@@ -29,23 +29,16 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     let metrics = web::Data::new(metrics::Metrics::new());
 
     // used to notify the clients when a purchase is made in your game
-    let (tx, rx) = mpsc::channel::<i64>();
+    let (transmitter, receiver) = mpsc::channel::<Sale>();
 
-    let transaction_server = Arc::new(websocket::server::TransactionServer::default().start());
+    let transaction_server = Arc::new(TransactionServer::default().start());
 
-    // TODO: move this over to the websockets module
-    // TODO 2 ELECTRIC BOOGALOO: make the websockets module
-    let notify_transaction_server = transaction_server.clone();
-    thread::spawn(move || {
-        for received in rx {
-            notify_transaction_server.do_send(websocket::server::Transaction { game_id: received });
-        }
-    });
+    TransactionServer::listener(transaction_server.clone(), receiver);
 
     HttpServer::new(move || {
         App::new()
             .data(db_pool.clone())
-            .data(tx.clone())
+            .data(transmitter.clone())
             .data(transaction_server.deref().clone())
             .app_data(metrics.clone())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
