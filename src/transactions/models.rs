@@ -217,14 +217,14 @@ impl Transaction {
         Ok(offsets)
     }
 
-    fn average_sales(sales: &Vec<SlotSale>) -> i64 {
+    fn average_sales(sales: &[SlotSale]) -> i64 {
         let mut total: i64 = 0;
 
         for beverage in sales.iter() {
             total += beverage.sales;
         }
 
-        return (total as f64 / sales.len() as f64).ceil() as i64;
+        (total as f64 / sales.len() as f64).ceil() as i64
     }
 }
 
