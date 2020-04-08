@@ -72,7 +72,7 @@ async fn beverage_sales(
 
     let sales = web::block(move || Transaction::get_sales(game_id, &pool.get()?)).await?;
 
-    http_created_json!(sales);
+    http_ok_json!(sales);
 }
 
 #[get("/games/{id}/stats/users")]
@@ -82,7 +82,7 @@ async fn user_sales(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> s
 
     let sales = web::block(move || Transaction::get_sales_per_user(game_id, &pool.get()?)).await?;
 
-    http_created_json!(sales);
+    http_ok_json!(sales);
 }
 
 #[get("/games/{id}/stats/offsets")]
@@ -96,7 +96,7 @@ async fn beverage_sales_offsets(
 
     let sales = web::block(move || Transaction::get_offsets(game_id, &pool.get()?)).await?;
 
-    http_created_json!(sales);
+    http_ok_json!(sales);
 }
 
 pub fn register(cfg: &mut web::ServiceConfig) {
