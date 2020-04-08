@@ -6,10 +6,6 @@ use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 
 #[derive(Message)]
-#[rtype(result = "()")]
-pub struct Message(pub String);
-
-#[derive(Message)]
 #[rtype(usize)]
 pub struct Connect {
     pub addr: Recipient<Sale>,
