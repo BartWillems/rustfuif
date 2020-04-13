@@ -325,6 +325,7 @@ impl BeverageConfig {
         let configs = beverage_configs::table
             .filter(beverage_configs::user_id.eq(user_id))
             .filter(beverage_configs::game_id.eq(game_id))
+            .order(beverage_configs::slot_no)
             .load::<BeverageConfig>(conn)?;
 
         Ok(configs)
