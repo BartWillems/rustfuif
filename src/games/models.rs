@@ -266,7 +266,7 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
         }
 
         let duration: Duration = self.close_time.signed_duration_since(self.start_time);
-        if duration.num_seconds() <= MIN_GAME_SECONDS {
+        if duration.num_seconds() < MIN_GAME_SECONDS {
             bad_request!("this game has not gone on long enough, minimum duration is 30 minutes");
         }
 
