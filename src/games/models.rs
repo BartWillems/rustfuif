@@ -330,6 +330,25 @@ impl BeverageConfig {
 
         Ok(configs)
     }
+
+    pub fn update(&self, conn: &db::Conn) -> Result<BeverageConfig, ServiceError> {
+        use crate::schema::beverage_configs::dsl::*;
+
+        let config = diesel::update(beverage_configs)
+            .filter(slot_no.eq(self.slot_no))
+            .filter(game_id.eq(self.game_id))
+            .filter(user_id.eq(self.user_id))
+            .set((
+                name.eq(self.name.clone()),
+                image_url.eq(self.image_url.clone()),
+                min_price.eq(self.min_price),
+                max_price.eq(self.max_price),
+                starting_price.eq(self.starting_price),
+            ))
+            .get_result::<BeverageConfig>(conn)?;
+
+        Ok(config)
+    }
 }
 
 impl crate::validator::Validate<BeverageConfig> for BeverageConfig {

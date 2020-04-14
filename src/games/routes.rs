@@ -129,6 +129,34 @@ async fn create_beverage_config(
     http_created_json!(config);
 }
 
+#[put("/games/{id}/beverages")]
+async fn update_beverage_config(
+    game_id: Path<i64>,
+    config: Json<Validator<BeverageConfig>>,
+    pool: Data<db::Pool>,
+    id: Identity,
+) -> server::Response {
+    let user = auth::get_user(&id)?;
+
+    let game_id = *game_id;
+    let mut config = config.into_inner().validate()?;
+
+    config.user_id = user.id;
+    config.game_id = game_id;
+
+    let config = web::block(move || {
+        let conn = pool.get()?;
+        if !Game::verify_user(game_id, user.id, &conn)? {
+            forbidden!("you are not in this game");
+        }
+
+        config.update(&conn)
+    })
+    .await?;
+
+    http_created_json!(config);
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(find_all);
     cfg.service(find);
@@ -138,4 +166,5 @@ pub fn register(cfg: &mut web::ServiceConfig) {
 
     cfg.service(create_beverage_config);
     cfg.service(get_beverages);
+    cfg.service(update_beverage_config);
 }
