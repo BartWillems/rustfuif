@@ -262,7 +262,7 @@ impl Game {
 impl crate::validator::Validate<CreateGame> for CreateGame {
     fn validate(&self) -> Result<(), ServiceError> {
         if self.start_time <= Utc::now() {
-            bad_request!("the game can't start in th past");
+            bad_request!("the game can't start in the past");
         }
 
         let duration: Duration = self.close_time.signed_duration_since(self.start_time);
