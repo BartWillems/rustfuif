@@ -21,8 +21,6 @@ CREATE TABLE games (
     CHECK(close_time > start_time)
 );
 
-CREATE UNIQUE INDEX game_name_unique_case_insensitive_idx on games (LOWER(name));
-
 -- invitations are used to add users to a game
 CREATE TABLE invitations (
     user_id BIGSERIAL REFERENCES users(id),
