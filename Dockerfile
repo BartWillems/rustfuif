@@ -32,6 +32,7 @@ RUN apt-get update && \
 
 RUN mkdir api-spec
 
+COPY ./migrations ./migrations
 COPY --from=doc-builder /usr/src/rustfuif/index.html ./api-spec/index.html
 COPY --from=builder /usr/local/cargo/bin/diesel /usr/bin/diesel
 COPY --from=builder /usr/src/rustfuif/target/release/rustfuif /usr/bin/rustfuif
