@@ -12,7 +12,7 @@ CREATE UNIQUE INDEX username_unique_case_insensitive_idx on users (LOWER(usernam
 -- a game is an active rustfuif event, eg, people getting drunk
 CREATE TABLE games (
     id BIGSERIAL PRIMARY KEY,
-    name VARCHAR NOT NULL UNIQUE,
+    name VARCHAR NOT NULL,
     owner_id BIGSERIAL REFERENCES users(id),
     start_time TIMESTAMP WITH TIME ZONE NOT NULL,
     close_time TIMESTAMP WITH TIME ZONE NOT NULL,
