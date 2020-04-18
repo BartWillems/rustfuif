@@ -130,6 +130,7 @@ impl Game {
                 games::close_time,
                 (users::id, users::username),
             ))
+            .order(games::start_time)
             .into_boxed();
 
         if !filter.completed.unwrap_or(true) {
