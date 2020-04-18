@@ -36,18 +36,19 @@ pub struct UserResponse {
 pub struct Filter {
     /// filter users by %name%
     pub username: Option<String>,
+    /// skips users why are invited for game by ID
+    pub not_in_game: Option<i64>,
 }
 
 impl User {
     pub fn find_all(filter: Filter, conn: &db::Conn) -> Result<Vec<Self>, ServiceError> {
+        let mut query = users::table.into_boxed();
+
         if let Some(username) = filter.username {
-            let users = users::table
-                .filter(users::username.ilike(format!("%{}%", username)))
-                .load::<User>(conn)?;
-            return Ok(users);
+            query = query.filter(users::username.ilike(format!("%{}%", username)));
         }
 
-        let users = users::table.load::<User>(conn)?;
+        let users = query.load::<User>(conn)?;
 
         Ok(users)
     }
