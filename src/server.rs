@@ -15,6 +15,7 @@ use crate::games;
 use crate::invitations;
 use crate::metrics;
 use crate::transactions;
+use crate::users;
 use crate::websocket;
 use crate::websocket::server::{Sale, TransactionServer};
 
@@ -62,6 +63,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
                     .configure(invitations::routes::register)
                     .configure(auth::routes::register)
                     .configure(transactions::routes::register)
+                    .configure(users::routes::register)
                     .service(health)
                     .service(fs::Files::new("/spec", "./api-spec").index_file("index.html")),
             )

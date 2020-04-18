@@ -1,3 +1,4 @@
 mod models;
+pub mod routes;
 
-pub use models::{User, UserMessage, UserResponse};
+pub use models::{Filter, User, UserMessage, UserResponse};

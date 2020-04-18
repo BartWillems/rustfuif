@@ -32,8 +32,21 @@ pub struct UserResponse {
     pub username: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct Filter {
+    /// filter users by %name%
+    pub username: Option<String>,
+}
+
 impl User {
-    pub fn find_all(conn: &db::Conn) -> Result<Vec<Self>, ServiceError> {
+    pub fn find_all(filter: Filter, conn: &db::Conn) -> Result<Vec<Self>, ServiceError> {
+        if let Some(username) = filter.username {
+            let users = users::table
+                .filter(users::username.ilike(format!("%{}%", username)))
+                .load::<User>(conn)?;
+            return Ok(users);
+        }
+
         let users = users::table.load::<User>(conn)?;
 
         Ok(users)
