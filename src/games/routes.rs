@@ -33,8 +33,19 @@ async fn find_all(
 }
 
 #[get("/games/{id}")]
-async fn find(game_id: Path<i64>, pool: Data<db::Pool>) -> server::Response {
-    let game = web::block(move || Game::find_by_id(*game_id, &pool.get()?)).await?;
+async fn find(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+    let user = auth::get_user(&id)?;
+
+    let game = web::block(move || {
+        let conn = pool.get()?;
+        if !user.is_admin {
+            if !Game::verify_user(*game_id, user.id, &conn)? {
+                forbidden!("user is not in game");
+            }
+        }
+        Game::find_by_id(*game_id, &conn)
+    })
+    .await?;
 
     http_ok_json!(game);
 }

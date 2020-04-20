@@ -5,7 +5,8 @@ use diesel::result::Error as DBError;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::schema::invitations;
+use crate::games::GameResponse;
+use crate::schema::{games, invitations, users};
 
 /// The state shows wether a user has accepted, declined or not yet
 /// responded to an invitation.
@@ -40,6 +41,12 @@ pub struct Invitation {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Serialize, Queryable)]
+pub struct InvitationResponse {
+    pub game: GameResponse,
+    pub state: String,
+}
+
 impl Invitation {
     pub fn new(game_id: i64, user_id: i64) -> Invitation {
         Invitation {
@@ -68,10 +75,25 @@ impl Invitation {
     }
 
     /// get your game invites
-    pub fn find(user_id: i64, conn: &db::Conn) -> Result<Vec<Invitation>, ServiceError> {
+    pub fn find(user_id: i64, conn: &db::Conn) -> Result<Vec<InvitationResponse>, ServiceError> {
         let invitations = invitations::table
+            .inner_join(users::table)
+            .inner_join(games::table)
+            .select((
+                (
+                    games::id,
+                    games::name,
+                    games::start_time,
+                    games::close_time,
+                    (users::id, users::username),
+                ),
+                invitations::state,
+            ))
             .filter(invitations::user_id.eq(user_id))
-            .load::<Invitation>(conn)?;
+            .filter(games::close_time.gt(diesel::dsl::now))
+            .order(games::start_time)
+            .load::<InvitationResponse>(conn)?;
+
         Ok(invitations)
     }
 
