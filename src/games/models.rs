@@ -9,6 +9,7 @@ use crate::db;
 use crate::errors::ServiceError;
 use crate::invitations::{Invitation, InvitationQuery, State};
 use crate::schema::{beverage_configs, games, invitations, users};
+use crate::users::UserResponse;
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
 pub struct Game {
@@ -213,6 +214,23 @@ impl Game {
         let users = query
             .select((users::id, users::username, invitations::state))
             .load::<GameUser>(conn)?;
+
+        Ok(users)
+    }
+
+    /// show users who are not yet invited in a game
+    pub fn find_available_users(
+        game_id: i64,
+        conn: &db::Conn,
+    ) -> Result<Vec<UserResponse>, ServiceError> {
+        let participants = invitations::table
+            .select(invitations::user_id)
+            .filter(invitations::game_id.eq(game_id));
+
+        let users = users::table
+            .select((users::id, users::username))
+            .filter(users::id.ne_all(participants))
+            .load::<UserResponse>(conn)?;
 
         Ok(users)
     }

@@ -33,6 +33,19 @@ async fn find_users(
     http_ok_json!(users);
 }
 
+#[get("/games/{id}/available-users")]
+async fn find_available_users(
+    game_id: Path<i64>,
+    pool: Data<db::Pool>,
+    id: Identity,
+) -> server::Response {
+    auth::get_user(&id)?;
+
+    let users = web::block(move || Game::find_available_users(*game_id, &pool.get()?)).await?;
+
+    http_ok_json!(users);
+}
+
 /// Invite a user to a game
 #[post("/games/{id}/invitations")]
 async fn invite_user(
@@ -63,4 +76,5 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(my_invitations);
     cfg.service(invite_user);
     cfg.service(find_users);
+    cfg.service(find_available_users);
 }
