@@ -157,6 +157,7 @@ impl Game {
     ) -> Result<Vec<GameResponse>, ServiceError> {
         let invitations = invitations::table
             .filter(invitations::user_id.eq(user_id))
+            .filter(invitations::state.eq(State::ACCEPTED.to_string()))
             .select(invitations::game_id);
 
         // TODO
