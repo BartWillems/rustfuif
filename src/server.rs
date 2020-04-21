@@ -6,6 +6,7 @@ use actix::prelude::*;
 use actix_cors::Cors;
 use actix_files as fs;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
+use actix_web::cookie::SameSite;
 use actix_web::{get, middleware, web, App, HttpResponse, HttpServer};
 
 use crate::auth;
@@ -51,6 +52,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             .wrap(IdentityService::new(
                 CookieIdentityPolicy::new(&session_private_key.as_bytes())
                     .name("auth-cookie")
+                    .same_site(SameSite::Strict)
                     .secure(false),
             ))
             .data(web::JsonConfig::default().limit(262_144))
