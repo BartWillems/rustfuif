@@ -77,8 +77,7 @@ impl Invitation {
     /// get your game invites
     pub fn find(user_id: i64, conn: &db::Conn) -> Result<Vec<InvitationResponse>, ServiceError> {
         let invitations = invitations::table
-            .inner_join(users::table)
-            .inner_join(games::table)
+            .inner_join(games::table.inner_join(users::table))
             .select((
                 (
                     games::id,
@@ -91,6 +90,8 @@ impl Invitation {
             ))
             .filter(invitations::user_id.eq(user_id))
             .filter(games::close_time.gt(diesel::dsl::now))
+            // do not show your own created games as invites
+            .filter(games::owner_id.ne(user_id))
             .order(games::start_time)
             .load::<InvitationResponse>(conn)?;
 
