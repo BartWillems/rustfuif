@@ -100,6 +100,11 @@ impl Invitation {
         Ok(invitation)
     }
 
+    pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Invitation, ServiceError> {
+        let invitation = invitations::table.find(id).first(conn)?;
+        Ok(invitation)
+    }
+
     /// get your game invites
     pub fn find(user_id: i64, conn: &db::Conn) -> Result<Vec<InvitationResponse>, ServiceError> {
         let invitations = invitations::table

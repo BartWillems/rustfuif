@@ -6,7 +6,7 @@ use actix_web::{get, post, web};
 use crate::auth;
 use crate::db;
 use crate::games::Game;
-use crate::invitations::{Invitation, InvitationQuery, UserInvite};
+use crate::invitations::{Invitation, InvitationQuery, State, UserInvite};
 use crate::server;
 
 #[get("/invitations")]
@@ -72,9 +72,39 @@ async fn invite_user(
     Ok(HttpResponse::new(StatusCode::CREATED))
 }
 
+#[post("/invitations/{id}/{response}")]
+async fn respond(info: Path<(i64, State)>, id: Identity, pool: Data<db::Pool>) -> server::Response {
+    let user = auth::get_user(&id)?;
+
+    let invite = web::block(move || {
+        let conn = pool.get()?;
+        let invite_id = &info.0;
+        let response = &info.1;
+
+        let mut invite = Invitation::find_by_id(*invite_id, &conn)?;
+
+        if user.id != invite.user_id && !user.is_admin {
+            forbidden!("this is not the invite you're looking for");
+        }
+
+        match response {
+            State::ACCEPTED => invite.accept(),
+            State::DECLINED => invite.decline(),
+            _ => bad_request!("you can only accept or decline an invite"),
+        };
+
+        let invite = invite.update(&conn)?;
+        Ok(invite)
+    })
+    .await?;
+
+    http_ok_json!(invite);
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(my_invitations);
     cfg.service(invite_user);
     cfg.service(find_users);
     cfg.service(find_available_users);
+    cfg.service(respond);
 }

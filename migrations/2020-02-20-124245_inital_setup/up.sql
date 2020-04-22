@@ -24,8 +24,8 @@ CREATE TABLE games (
 -- invitations are used to add users to a game
 CREATE TABLE invitations (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGSERIAL REFERENCES users(id),
     game_id BIGSERIAL REFERENCES games(id),
+    user_id BIGSERIAL REFERENCES users(id),
     state VARCHAR NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
     updated_at TIMESTAMP WITH TIME ZONE,
