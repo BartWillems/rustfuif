@@ -10,10 +10,15 @@ use crate::invitations::{Invitation, InvitationQuery, State, UserInvite};
 use crate::server;
 
 #[get("/invitations")]
-async fn my_invitations(id: Identity, pool: Data<db::Pool>) -> server::Response {
+async fn my_invitations(
+    id: Identity,
+    query: Query<InvitationQuery>,
+    pool: Data<db::Pool>,
+) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    let invitations = web::block(move || Invitation::find(user.id, &pool.get()?)).await?;
+    let invitations =
+        web::block(move || Invitation::find(user.id, query.into_inner(), &pool.get()?)).await?;
 
     http_ok_json!(invitations);
 }
