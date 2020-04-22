@@ -7,9 +7,9 @@ use url::Url;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::invitations::{Invitation, InvitationQuery, State};
+use crate::invitations::{InvitationQuery, NewInvitation, State};
 use crate::schema::{beverage_configs, games, invitations, users};
-use crate::users::UserResponse;
+use crate::users::{User, UserResponse};
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
 pub struct Game {
@@ -78,7 +78,7 @@ impl Game {
                 .values(&new_game)
                 .get_result(conn)?;
 
-            Invitation::new(game.id, game.owner_id)
+            NewInvitation::new(game.id, game.owner_id)
                 .accept()
                 .save(conn)?;
 
@@ -106,7 +106,7 @@ impl Game {
     }
 
     pub fn invite_user(&self, user_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
-        let invite = Invitation::new(self.id, user_id);
+        let invite = NewInvitation::new(self.id, user_id);
         invite.save(conn)?;
         Ok(())
     }
@@ -247,6 +247,11 @@ impl Game {
             .optional()?;
 
         Ok(res.is_some())
+    }
+
+    /// returns true if a user is an admin or created the game
+    pub fn is_owner(&self, user: &User) -> bool {
+        return user.is_admin || user.id == self.owner_id;
     }
 
     pub fn update(&self, conn: &db::Conn) -> Result<Game, ServiceError> {

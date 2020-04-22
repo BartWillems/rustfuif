@@ -17,6 +17,12 @@ pub enum State {
     DECLINED,
 }
 
+impl Default for State {
+    fn default() -> Self {
+        State::PENDING
+    }
+}
+
 /// InvitationQuery is used to filter invited users
 #[derive(Debug, Deserialize)]
 pub struct InvitationQuery {
@@ -32,8 +38,8 @@ impl std::fmt::Display for State {
 /// Game invite for a user.
 /// When you create a game, you're also instantly invited and accepted
 #[derive(Debug, Serialize, Insertable, Queryable, Identifiable, AsChangeset)]
-#[primary_key(game_id, user_id)]
 pub struct Invitation {
+    pub id: i64,
     pub game_id: i64,
     pub user_id: i64,
     pub state: String,
@@ -41,23 +47,43 @@ pub struct Invitation {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, Deserialize, Insertable)]
+#[table_name = "invitations"]
+pub struct NewInvitation {
+    game_id: i64,
+    user_id: i64,
+    state: String,
+}
+
+impl NewInvitation {
+    pub fn new(game_id: i64, user_id: i64) -> Self {
+        NewInvitation {
+            game_id,
+            user_id,
+            state: State::PENDING.to_string(),
+        }
+    }
+
+    pub fn save(&self, conn: &db::Conn) -> Result<Invitation, DBError> {
+        diesel::insert_into(invitations::table)
+            .values(self)
+            .get_result::<Invitation>(conn)
+    }
+
+    pub fn accept(&mut self) -> &mut NewInvitation {
+        self.state = State::ACCEPTED.to_string();
+        self
+    }
+}
+
 #[derive(Serialize, Queryable)]
 pub struct InvitationResponse {
+    pub id: i64,
     pub game: GameResponse,
     pub state: String,
 }
 
 impl Invitation {
-    pub fn new(game_id: i64, user_id: i64) -> Invitation {
-        Invitation {
-            game_id,
-            user_id,
-            state: State::PENDING.to_string(),
-            created_at: None,
-            updated_at: None,
-        }
-    }
-
     /// Store an invitation in the database, returns the persisted invitation, or a database error
     pub fn save(&self, conn: &db::Conn) -> Result<Invitation, DBError> {
         // This has to return the actual database error, because it's used in transactions.
@@ -79,6 +105,7 @@ impl Invitation {
         let invitations = invitations::table
             .inner_join(games::table.inner_join(users::table))
             .select((
+                invitations::id,
                 (
                     games::id,
                     games::name,

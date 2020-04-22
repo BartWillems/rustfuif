@@ -23,12 +23,13 @@ CREATE TABLE games (
 
 -- invitations are used to add users to a game
 CREATE TABLE invitations (
+    id BIGSERIAL PRIMARY KEY,
     user_id BIGSERIAL REFERENCES users(id),
     game_id BIGSERIAL REFERENCES games(id),
     state VARCHAR NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
     updated_at TIMESTAMP WITH TIME ZONE,
-    CONSTRAINT user_game_pkey PRIMARY KEY (user_id, game_id),
+    UNIQUE (user_id, game_id),
     CHECK(state = 'PENDING' OR state = 'ACCEPTED' OR state = 'DECLINED')
 );
 

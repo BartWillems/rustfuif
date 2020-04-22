@@ -61,7 +61,7 @@ async fn invite_user(
     web::block(move || {
         let conn = pool.get()?;
         let game = Game::find_by_id(*game_id, &conn)?;
-        if game.owner_id != user.id {
+        if !game.is_owner(&user) {
             forbidden!("Only the game owner can invite users");
         }
 
