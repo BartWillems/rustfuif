@@ -5,20 +5,19 @@ use crate::users::{User, UserMessage};
 use crate::validator::Validator;
 
 use actix_identity::Identity;
-use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json};
 use actix_web::{post, web, HttpResponse};
 use serde_json::json;
 
 #[post("/register")]
 async fn create_account(user: Json<Validator<UserMessage>>, pool: Data<db::Pool>) -> Response {
-    web::block(move || {
+    let user: User = web::block(move || {
         let conn = pool.get()?;
         User::create(&mut user.into_inner().validate()?, &conn)
     })
     .await?;
 
-    Ok(HttpResponse::new(StatusCode::OK))
+    http_created_json!(user);
 }
 
 #[post("/login")]
