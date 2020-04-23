@@ -2,7 +2,8 @@ FROM node:alpine as doc-builder
 
 WORKDIR /usr/src/rustfuif
 
-RUN npm install -g redoc-cli
+# dompurify is a workaround for https://github.com/Redocly/redoc/issues/1242
+RUN npm install -g --save dompurify@2.0.8 redoc-cli
 
 COPY api-spec/spec.yaml .
 
