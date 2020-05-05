@@ -99,10 +99,12 @@ where
     E: Into<ServiceError>,
 {
     fn from(error: actix_threadpool::BlockingError<E>) -> ServiceError {
-        error!("actix threadpool pool error: {}", error);
         match error {
             actix_threadpool::BlockingError::Error(e) => e.into(),
-            actix_threadpool::BlockingError::Canceled => ServiceError::InternalServerError,
+            actix_threadpool::BlockingError::Canceled => {
+                error!("actix thread canceled");
+                ServiceError::InternalServerError
+            }
         }
     }
 }

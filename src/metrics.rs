@@ -25,7 +25,6 @@ use crate::server::Response;
 ///     "requests": 9872
 /// }
 /// ```
-#[derive(Serialize)]
 pub struct Metrics {
     pub requests: AtomicU32,
 }
@@ -106,17 +105,13 @@ where
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let metrics: Option<Data<Metrics>> = req.app_data();
 
-        // TODO: add counters for good & bad requests
-        match metrics {
-            Some(metrics) => metrics
+        // TODO: add counter bad requests
+        if let Some(metrics) = metrics {
+            metrics
                 .into_inner()
                 .requests
-                .fetch_add(1, Ordering::Relaxed),
-            None => {
-                error!("Metrics not found");
-                0
-            }
-        };
+                .fetch_add(1, Ordering::Relaxed);
+        }
 
         // TODO: figure out how to fix this
         Either::Left(self.service.call(req))
