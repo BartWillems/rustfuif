@@ -15,7 +15,7 @@ pub struct UserMessage {
     pub password: String,
 }
 
-#[derive(Serialize, Deserialize, Queryable, Insertable)]
+#[derive(Serialize, Deserialize, Queryable, AsChangeset, Insertable, Debug)]
 pub struct User {
     pub id: i64,
     pub username: String,
@@ -77,16 +77,15 @@ impl User {
         Ok(user)
     }
 
-    pub fn update(id: i64, user: &mut UserMessage, conn: &db::Conn) -> Result<Self, ServiceError> {
-        // this might be removed if I separate this with a "change_credentials" function dink
-        user.hash_password()?;
-
-        let user = diesel::update(users::table)
-            .filter(users::id.eq(id))
-            .set(&*user)
-            .get_result(conn)?;
+    pub fn update(&self, conn: &db::Conn) -> Result<Self, ServiceError> {
+        let user = diesel::update(users::table).set(&*self).get_result(conn)?;
 
         Ok(user)
+    }
+
+    pub fn update_password(&mut self, conn: &db::Conn) -> Result<Self, ServiceError> {
+        self.hash_password()?;
+        self.update(conn)
     }
 
     pub fn delete(id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
@@ -104,10 +103,14 @@ impl User {
         Ok(())
     }
 
-    pub fn verify_password(&self, password: &[u8]) -> Result<bool, ServiceError> {
+    pub fn verify_password(&self, password: &[u8]) -> Result<(), ServiceError> {
         let is_match = argon2::verify_encoded(&self.password, password)?;
 
-        Ok(is_match)
+        if !is_match {
+            return Err(ServiceError::Unauthorized);
+        }
+
+        Ok(())
     }
 }
 
@@ -137,7 +140,7 @@ impl crate::validator::Validate<UserMessage> for UserMessage {
             bad_request!("username can only contain letters, numbers, '-' and '_'");
         }
 
-        if self.password.trim().len() < 8 {
+        if self.password.len() < 8 {
             bad_request!("your password should at least be 8 characters long");
         }
 
@@ -206,5 +209,22 @@ mod tests {
         };
 
         assert!(Validator::new(user).validate().is_ok());
+    }
+
+    #[test]
+    fn incorrect_password() {
+        let mut user = User {
+            id: 1,
+            is_admin: true,
+            username: String::from("admin"),
+            password: String::from("admin"),
+            created_at: None,
+            updated_at: None,
+        };
+
+        user.hash_password().unwrap();
+
+        assert!(user.verify_password(b"admin").is_ok());
+        assert!(user.verify_password(b"not-admin").is_err());
     }
 }

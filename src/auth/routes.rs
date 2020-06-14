@@ -1,3 +1,4 @@
+use crate::auth;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::server::Response;
@@ -37,11 +38,7 @@ async fn login(credentials: Json<UserMessage>, id: Identity, pool: Data<db::Pool
     })
     .await?;
 
-    let is_valid = user.verify_password(password.as_bytes())?;
-
-    if !is_valid {
-        return Err(ServiceError::Unauthorized);
-    }
+    user.verify_password(password.as_bytes())?;
 
     let user_string = serde_json::to_string(&user).or_else(|e| {
         error!("unable to serialize the user struct: {}", e);
@@ -60,8 +57,36 @@ async fn logout(id: Identity) -> Response {
     Ok(HttpResponse::Ok().json(json!({ "message": "Successfully signed out" })))
 }
 
+#[post("/change-password")]
+async fn change_password(
+    password_change: Json<Validator<auth::PasswordChange>>,
+    pool: Data<db::Pool>,
+    id: Identity,
+) -> Response {
+    let session_user = auth::get_user(&id)?;
+
+    web::block(move || {
+        let conn = pool.get()?;
+
+        let password_change = password_change.into_inner().validate()?;
+
+        let mut user = User::find(session_user.id, &conn)?;
+
+        // old password matches
+        user.verify_password(password_change.old.as_bytes())?;
+
+        user.password = password_change.new;
+
+        user.update_password(&conn)
+    })
+    .await?;
+
+    http_ok_json!("password succesfully updated")
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(create_account);
     cfg.service(login);
     cfg.service(logout);
+    cfg.service(change_password);
 }
