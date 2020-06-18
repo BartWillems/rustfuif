@@ -153,7 +153,7 @@ impl Transaction {
             .inner_join(users::table)
             .select((
                 users::username,
-                sql::<diesel::sql_types::BigInt>("count(*)"),
+                sql::<diesel::sql_types::BigInt>("SUM(amount)"),
             ))
             .filter(transactions::game_id.eq(game_id))
             .group_by(users::username)
