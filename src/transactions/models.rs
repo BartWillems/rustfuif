@@ -18,6 +18,7 @@ pub struct Transaction {
     pub game_id: i64,
     pub slot_no: i16,
     pub created_at: Option<DateTime<Utc>>,
+    pub amount: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,13 +33,14 @@ pub struct Sale {
     pub user_id: i64,
     pub game_id: i64,
     pub slot_no: i16,
+    pub amount: i32,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct NewSale {
     pub user_id: i64,
     pub game_id: i64,
-    pub slots: HashMap<i16, u8>,
+    pub slots: HashMap<i16, i32>,
 }
 
 /// contains how many sales have been made for a given slot
@@ -73,14 +75,15 @@ impl NewSale {
             if slot_no < &MIN_SLOT_NO || slot_no > &MAX_SLOT_NO {
                 bad_request!("the slot number should be within [0-7]");
             }
-            for _ in 0..*amount {
-                let sale = Sale {
-                    user_id: self.user_id,
-                    game_id: self.game_id,
-                    slot_no: *slot_no,
-                };
-                sales.push(sale);
-            }
+
+            let sale = Sale {
+                user_id: self.user_id,
+                game_id: self.game_id,
+                slot_no: *slot_no,
+                amount: *amount,
+            };
+
+            sales.push(sale);
         }
 
         Ok(sales)
@@ -128,7 +131,7 @@ impl Transaction {
         let sales: Vec<SlotSale> = transactions::table
             .select((
                 transactions::slot_no,
-                sql::<diesel::sql_types::BigInt>("count(*)"),
+                sql::<diesel::sql_types::BigInt>("SUM(amount)"),
             ))
             .filter(transactions::game_id.eq(game_id))
             .group_by(transactions::slot_no)

@@ -31,7 +31,7 @@ async fn get_sales(game_id: Path<i64>, id: Identity, pool: Data<db::Pool>) -> se
 #[post("/games/{id}/sales")]
 async fn create_sale(
     game_id: Path<i64>,
-    slots: Json<HashMap<i16, u8>>,
+    slots: Json<HashMap<i16, i32>>,
     id: Identity,
     pool: Data<db::Pool>,
     tx: Data<mpsc::Sender<Sale>>,
