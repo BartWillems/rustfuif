@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::task::{Context, Poll};
 
+use actix::Addr;
 use actix_service::{Service, Transform};
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::web::Data;
@@ -10,6 +11,7 @@ use futures::future::{ok, Either, Ready};
 
 use crate::db;
 use crate::server::Response;
+use crate::websocket::server::{Query, TransactionServer};
 
 /// the Metrics struct holds the request count
 ///
@@ -40,18 +42,24 @@ impl Metrics {
 #[derive(Serialize)]
 pub struct MetricsResponse {
     pub requests: u32,
+    pub active_ws_sessions: usize,
     pub active_db_connections: u32,
     pub idle_db_connections: u32,
 }
 
 #[get("/metrics")]
-pub async fn route(metrics: Data<Metrics>, pool: Data<db::Pool>) -> Response {
+pub async fn route(
+    metrics: Data<Metrics>,
+    sessions: Data<Addr<TransactionServer>>,
+    pool: Data<db::Pool>,
+) -> Response {
     let state = pool.into_inner().state();
 
     let metrics = metrics.into_inner();
 
     let resp = MetricsResponse {
         requests: metrics.requests.load(Ordering::Relaxed),
+        active_ws_sessions: sessions.get_ref().send(Query::ActiveSessions).await?,
         active_db_connections: state.connections,
         idle_db_connections: state.idle_connections,
     };

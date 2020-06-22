@@ -18,6 +18,12 @@ pub struct Disconnect {
     pub id: usize,
 }
 
+#[derive(Message)]
+#[rtype(usize)]
+pub enum Query {
+    ActiveSessions,
+}
+
 /// `TransactionServer` manages price updates/new sales
 pub struct TransactionServer {
     sessions: HashMap<usize, Recipient<Sale>>,
@@ -58,6 +64,10 @@ impl TransactionServer {
             }
         });
     }
+
+    pub fn session_count(&self) -> usize {
+        self.sessions.len()
+    }
 }
 
 /// Make actor from `ChatServer`
@@ -84,6 +94,16 @@ impl Handler<Connect> for TransactionServer {
             .insert(id);
 
         id
+    }
+}
+
+impl Handler<Query> for TransactionServer {
+    type Result = usize;
+
+    fn handle(&mut self, msg: Query, _: &mut Context<Self>) -> Self::Result {
+        match msg {
+            Query::ActiveSessions => self.session_count(),
+        }
     }
 }
 

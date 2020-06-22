@@ -48,6 +48,13 @@ impl From<ActixError> for ServiceError {
     }
 }
 
+impl From<actix::MailboxError> for ServiceError {
+    fn from(error: actix::MailboxError) -> ServiceError {
+        error!("actix mailbox error: {}", error);
+        ServiceError::InternalServerError
+    }
+}
+
 impl From<DBError> for ServiceError {
     fn from(error: DBError) -> ServiceError {
         error!("db error: {}", error);
