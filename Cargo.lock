@@ -26,17 +26,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-broker"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "313a1cbb5f9977da1df12f1166dc38962463136fbbbddf1c902a228d74237c1d"
-dependencies = [
- "actix",
- "fnv",
- "log",
-]
-
-[[package]]
 name = "actix-codec"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1504,7 +1493,6 @@ name = "rustfuif"
 version = "0.1.0"
 dependencies = [
  "actix",
- "actix-broker",
  "actix-cors",
  "actix-files",
  "actix-identity",
