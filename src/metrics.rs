@@ -4,9 +4,9 @@ use std::task::{Context, Poll};
 use actix::Addr;
 use actix_service::{Service, Transform};
 use actix_web::dev::{ServiceRequest, ServiceResponse};
-use actix_web::get;
 use actix_web::web::Data;
 use actix_web::Error;
+use actix_web::{get, web};
 use futures::future::{ok, Either, Ready};
 
 use crate::db;
@@ -57,10 +57,16 @@ pub async fn route(
     let state = pool.clone().into_inner().state();
     let metrics = metrics.into_inner();
 
+    let active_games = web::block(move || {
+        let conn = pool.get()?;
+        crate::games::Game::active_games(&conn)
+    })
+    .await?;
+
     http_ok_json!(MetricsResponse {
         requests: metrics.requests.load(Ordering::Relaxed),
         active_ws_sessions: sessions.get_ref().send(Query::ActiveSessions).await?,
-        active_games: crate::games::Game::active_games(&pool.get()?)?,
+        active_games,
         active_db_connections: state.connections,
         idle_db_connections: state.idle_connections,
     });
