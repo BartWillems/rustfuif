@@ -4,9 +4,9 @@ use std::task::{Context, Poll};
 use actix::Addr;
 use actix_service::{Service, Transform};
 use actix_web::dev::{ServiceRequest, ServiceResponse};
+use actix_web::get;
 use actix_web::web::Data;
 use actix_web::Error;
-use actix_web::{get, HttpResponse};
 use futures::future::{ok, Either, Ready};
 
 use crate::db;
@@ -43,6 +43,7 @@ impl Metrics {
 pub struct MetricsResponse {
     pub requests: u32,
     pub active_ws_sessions: usize,
+    pub active_games: i64,
     pub active_db_connections: u32,
     pub idle_db_connections: u32,
 }
@@ -53,18 +54,16 @@ pub async fn route(
     sessions: Data<Addr<TransactionServer>>,
     pool: Data<db::Pool>,
 ) -> Response {
-    let state = pool.into_inner().state();
-
+    let state = pool.clone().into_inner().state();
     let metrics = metrics.into_inner();
 
-    let resp = MetricsResponse {
+    http_ok_json!(MetricsResponse {
         requests: metrics.requests.load(Ordering::Relaxed),
         active_ws_sessions: sessions.get_ref().send(Query::ActiveSessions).await?,
+        active_games: crate::games::Game::active_games(&pool.get()?)?,
         active_db_connections: state.connections,
         idle_db_connections: state.idle_connections,
-    };
-
-    Ok(HttpResponse::Ok().json(resp))
+    });
 }
 
 pub struct Middleware;

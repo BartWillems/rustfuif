@@ -105,6 +105,19 @@ impl Game {
         Ok(game_id.is_some())
     }
 
+    /// return the amount of active games at the moment
+    pub fn active_games(conn: &db::Conn) -> Result<i64, ServiceError> {
+        use diesel::dsl::{now, sql};
+
+        let count = games::table
+            .filter(games::start_time.lt(now))
+            .filter(games::close_time.gt(now))
+            .select(sql::<diesel::sql_types::BigInt>("COUNT(*)"))
+            .first::<i64>(conn)?;
+
+        Ok(count)
+    }
+
     pub fn invite_user(&self, user_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
         let invite = NewInvitation::new(self.id, user_id);
         invite.save(conn)?;
