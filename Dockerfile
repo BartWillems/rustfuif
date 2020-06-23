@@ -9,7 +9,7 @@ COPY api-spec/spec.yaml .
 
 RUN redoc-cli bundle spec.yaml -o index.html
 
-FROM rust:1.41 as builder
+FROM rust:1.44 as builder
 
 WORKDIR /usr/src/rustfuif
 
