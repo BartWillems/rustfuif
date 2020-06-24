@@ -136,6 +136,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for SalesUpdates {
             ws::Message::Binary(_) => debug!("Unexpected binary"),
             ws::Message::Close(reason) => {
                 ctx.close(reason);
+                ctx.stop();
             }
             ws::Message::Continuation(_) => {
                 ctx.stop();
