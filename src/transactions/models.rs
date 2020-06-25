@@ -170,7 +170,9 @@ impl Transaction {
             query = query.filter(transactions::user_id.eq(user_id));
         }
 
-        let transactions = query.load::<Transaction>(conn)?;
+        let transactions = query
+            .order(transactions::created_at.desc())
+            .load::<Transaction>(conn)?;
         Ok(transactions)
     }
 
