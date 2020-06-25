@@ -341,9 +341,9 @@ pub struct BeverageConfig {
     pub slot_no: i16,
     pub name: String,
     pub image_url: Option<String>,
-    pub min_price: i32,
-    pub max_price: i32,
-    pub starting_price: i32,
+    pub min_price: i64,
+    pub max_price: i64,
+    pub starting_price: i64,
 }
 
 impl BeverageConfig {

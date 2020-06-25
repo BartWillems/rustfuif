@@ -6,7 +6,8 @@ use diesel::result::Error as DBError;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::schema::{transactions, users};
+use crate::games::BeverageConfig;
+use crate::schema::{beverage_configs, transactions, users};
 
 pub const MIN_SLOT_NO: i16 = 0;
 pub const MAX_SLOT_NO: i16 = 7;
@@ -19,6 +20,7 @@ pub struct Transaction {
     pub slot_no: i16,
     pub created_at: Option<DateTime<Utc>>,
     pub amount: i32,
+    pub price: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -27,13 +29,14 @@ pub struct TransactionFilter {
     pub game_id: Option<i64>,
 }
 
-#[derive(Debug, Deserialize, Insertable)]
+#[derive(Debug, Deserialize, Insertable, Clone, Copy)]
 #[table_name = "transactions"]
 pub struct Sale {
     pub user_id: i64,
     pub game_id: i64,
     pub slot_no: i16,
     pub amount: i32,
+    pub price: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,18 +61,55 @@ pub struct UserSales {
 
 impl NewSale {
     pub fn save(&self, conn: &db::Conn) -> Result<Vec<Transaction>, ServiceError> {
-        let sales = self.unroll()?;
+        let mut sales: HashMap<i16, Sale> = self.unroll()?;
+        use diesel::dsl::any;
 
-        let transactions = diesel::insert_into(transactions::table)
-            .values(sales)
-            .get_results::<Transaction>(conn)?;
+        let keys: Vec<&i16> = sales.keys().collect();
+
+        let beverage_configs = beverage_configs::table
+            .filter(beverage_configs::user_id.eq(self.user_id))
+            .filter(beverage_configs::game_id.eq(self.game_id))
+            .filter(beverage_configs::slot_no.eq(any(keys)))
+            .load::<BeverageConfig>(conn)?;
+
+        debug!("received beverage configs");
+
+        let transactions =
+            conn.transaction::<Vec<Transaction>, diesel::result::Error, _>(|| {
+                debug!("transaction start");
+                diesel::dsl::sql_query("LOCK TABLE transactions IN ACCESS EXCLUSIVE MODE")
+                    .execute(conn)?;
+
+                debug!("table locked");
+
+                let offsets = Transaction::get_offsets(self.game_id, conn).unwrap();
+
+                debug!("received offset");
+
+                for cfg in beverage_configs {
+                    let sale = sales.get_mut(&cfg.slot_no).unwrap();
+                    sale.calculate_price(&cfg, offsets.get(&cfg.slot_no).unwrap());
+                }
+
+                debug!("calculated all prices");
+
+                let sales: Vec<&Sale> = sales.values().collect();
+
+                let transactions = diesel::insert_into(transactions::table)
+                    .values(sales)
+                    .get_results::<Transaction>(conn)?;
+
+                debug!("inserted transactions");
+
+                Ok(transactions)
+            })?;
 
         Ok(transactions)
     }
 
     /// turn the map of slots to a list of sales
-    fn unroll(&self) -> Result<Vec<Sale>, ServiceError> {
-        let mut sales: Vec<Sale> = Vec::new();
+    fn unroll(&self) -> Result<HashMap<i16, Sale>, ServiceError> {
+        let mut sales: HashMap<i16, Sale> = HashMap::new();
 
         for (slot_no, amount) in &self.slots {
             if slot_no < &MIN_SLOT_NO || slot_no > &MAX_SLOT_NO {
@@ -81,9 +121,10 @@ impl NewSale {
                 game_id: self.game_id,
                 slot_no: *slot_no,
                 amount: *amount,
+                price: 0,
             };
 
-            sales.push(sale);
+            sales.insert(*slot_no, sale);
         }
 
         Ok(sales)
@@ -96,6 +137,15 @@ impl Sale {
             bad_request!("the slot number should be within [0-7]");
         }
         Ok(())
+    }
+
+    fn calculate_price(&mut self, cfg: &BeverageConfig, offset: &i64) {
+        let price = cfg.starting_price + offset * 5;
+        if price > cfg.max_price {
+            self.price = cfg.max_price;
+        } else {
+            self.price = price;
+        }
     }
 }
 
@@ -127,6 +177,8 @@ impl Transaction {
     /// Get the amount of times each beverage has been sold in a game
     pub fn get_sales(game_id: i64, conn: &db::Conn) -> Result<Vec<SlotSale>, ServiceError> {
         use diesel::dsl::sql;
+
+        debug!("in get sales");
 
         let sales: Vec<SlotSale> = transactions::table
             .select((
@@ -190,7 +242,9 @@ impl Transaction {
     /// differs from the average amount of sales.
     /// This can be used to calculate the price of a beverage
     pub fn get_offsets(game_id: i64, conn: &db::Conn) -> Result<HashMap<i16, i64>, ServiceError> {
+        debug!("in offset function");
         let sales: Vec<SlotSale> = Transaction::get_sales(game_id, conn)?;
+        debug!("received sales");
         let average = Transaction::average_sales(&sales);
 
         debug!("Game({})'s average sales is {}", game_id, average);

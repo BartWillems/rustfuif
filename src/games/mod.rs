@@ -1,3 +1,3 @@
 mod models;
 pub mod routes;
-pub use models::{Game, GameResponse};
+pub use models::{BeverageConfig, Game, GameResponse};
