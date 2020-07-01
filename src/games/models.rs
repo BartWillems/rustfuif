@@ -264,7 +264,7 @@ impl Game {
 
     /// returns true if a user is an admin or created the game
     pub fn is_owner(&self, user: &User) -> bool {
-        return user.is_admin || user.id == self.owner_id;
+        user.is_admin || user.id == self.owner_id
     }
 
     pub fn update(&self, conn: &db::Conn) -> Result<Game, ServiceError> {

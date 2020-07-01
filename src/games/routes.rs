@@ -38,10 +38,8 @@ async fn find(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server:
 
     let game = web::block(move || {
         let conn = pool.get()?;
-        if !user.is_admin {
-            if !Game::verify_user(*game_id, user.id, &conn)? {
-                forbidden!("user is not in game");
-            }
+        if !user.is_admin && !Game::verify_user(*game_id, user.id, &conn)? {
+            forbidden!("user is not in game");
         }
         Game::find_by_id(*game_id, &conn)
     })
