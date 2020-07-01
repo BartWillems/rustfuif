@@ -74,35 +74,50 @@ impl NewSale {
 
         debug!("received beverage configs");
 
-        let transactions =
-            conn.transaction::<Vec<Transaction>, diesel::result::Error, _>(|| {
-                debug!("transaction start");
-                diesel::dsl::sql_query("LOCK TABLE transactions IN ACCESS EXCLUSIVE MODE")
-                    .execute(conn)?;
+        let transactions = conn.transaction::<Vec<Transaction>, ServiceError, _>(|| {
+            debug!("transaction start");
+            diesel::dsl::sql_query("LOCK TABLE transactions IN ACCESS EXCLUSIVE MODE")
+                .execute(conn)?;
 
-                debug!("table locked");
+            debug!("table locked");
 
-                let offsets = Transaction::get_offsets(self.game_id, conn).unwrap();
+            let offsets = Transaction::get_offsets(self.game_id, conn)?;
 
-                debug!("received offset");
+            debug!("received offset");
 
-                for cfg in beverage_configs {
-                    let sale = sales.get_mut(&cfg.slot_no).unwrap();
-                    sale.calculate_price(&cfg, offsets.get(&cfg.slot_no).unwrap());
-                }
+            for cfg in beverage_configs {
+                // sales.get_mut(&cfg.slot_no).ok_or(ServiceError::InternalServerError).map(op: F)
+                let sale = sales
+                    .get_mut(&cfg.slot_no)
+                    .ok_or(ServiceError::InternalServerError)
+                    .map_err(|err| {
+                        error!("beverage config({:?}) not found in sales map", cfg);
+                        err
+                    })?;
+                sale.calculate_price(
+                    &cfg,
+                    offsets
+                        .get(&cfg.slot_no)
+                        .ok_or(ServiceError::InternalServerError)
+                        .map_err(|err| {
+                            error!("beverage config({:?}) not found in offsets array", cfg);
+                            err
+                        })?,
+                );
+            }
 
-                debug!("calculated all prices");
+            debug!("calculated all prices");
 
-                let sales: Vec<&Sale> = sales.values().collect();
+            let sales: Vec<&Sale> = sales.values().collect();
 
-                let transactions = diesel::insert_into(transactions::table)
-                    .values(sales)
-                    .get_results::<Transaction>(conn)?;
+            let transactions = diesel::insert_into(transactions::table)
+                .values(sales)
+                .get_results::<Transaction>(conn)?;
 
-                debug!("inserted transactions");
+            debug!("inserted transactions");
 
-                Ok(transactions)
-            })?;
+            Ok(transactions)
+        })?;
 
         Ok(transactions)
     }

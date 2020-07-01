@@ -330,7 +330,7 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
     }
 }
 
-#[derive(Insertable, Deserialize, Serialize, Queryable)]
+#[derive(Insertable, Deserialize, Serialize, Queryable, Debug)]
 pub struct BeverageConfig {
     #[serde(skip_deserializing)]
     pub game_id: i64,
