@@ -13,34 +13,20 @@ use crate::db;
 use crate::server::Response;
 use crate::websocket::server::{Query, TransactionServer};
 
-/// the Metrics struct holds the request count
-///
-/// **GET /metrics**
-///
-/// exposes the amount of requests that this server has handled
-///
-/// Example:
-///
-/// ``` shell
-/// curl localhost:8080/metrics
-/// {
-///     "requests": 9872
-/// }
-/// ```
-pub struct Metrics {
+pub struct Stats {
     pub requests: AtomicU32,
 }
 
-impl Metrics {
-    pub fn new() -> Metrics {
-        Metrics {
+impl Stats {
+    pub fn new() -> Stats {
+        Stats {
             requests: AtomicU32::new(0u32),
         }
     }
 }
 
 #[derive(Serialize)]
-pub struct MetricsResponse {
+pub struct StatsResponse {
     pub requests: u32,
     pub active_ws_sessions: usize,
     pub active_games: i64,
@@ -48,14 +34,14 @@ pub struct MetricsResponse {
     pub idle_db_connections: u32,
 }
 
-#[get("/metrics")]
+#[get("/stats")]
 pub async fn route(
-    metrics: Data<Metrics>,
+    stats: Data<Stats>,
     sessions: Data<Addr<TransactionServer>>,
     pool: Data<db::Pool>,
 ) -> Response {
     let state = pool.clone().into_inner().state();
-    let metrics = metrics.into_inner();
+    let stats = stats.into_inner();
 
     let active_games = web::block(move || {
         let conn = pool.get()?;
@@ -63,8 +49,8 @@ pub async fn route(
     })
     .await?;
 
-    http_ok_json!(MetricsResponse {
-        requests: metrics.requests.load(Ordering::Relaxed),
+    http_ok_json!(StatsResponse {
+        requests: stats.requests.load(Ordering::Relaxed),
         active_ws_sessions: sessions.get_ref().send(Query::ActiveSessions).await?,
         active_games,
         active_db_connections: state.connections,
@@ -116,14 +102,11 @@ where
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        let metrics: Option<Data<Metrics>> = req.app_data();
+        let stats: Option<Data<Stats>> = req.app_data();
 
         // TODO: add counter bad requests
-        if let Some(metrics) = metrics {
-            metrics
-                .into_inner()
-                .requests
-                .fetch_add(1, Ordering::Relaxed);
+        if let Some(stats) = stats {
+            stats.into_inner().requests.fetch_add(1, Ordering::Relaxed);
         }
 
         // TODO: figure out how to fix this

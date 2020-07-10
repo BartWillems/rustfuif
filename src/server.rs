@@ -7,14 +7,17 @@ use actix_cors::Cors;
 use actix_files as fs;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::cookie::SameSite;
-use actix_web::{get, middleware, web, App, HttpResponse, HttpServer};
+use actix_web::{dev, get, http, middleware, web, App, HttpResponse, HttpServer};
+use actix_web_opentelemetry::{RequestMetrics, RequestTracing, UuidWildcardFormatter};
+use opentelemetry::{api::KeyValue, global, sdk};
+use opentelemetry_jaeger;
 
 use crate::auth;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::games;
 use crate::invitations;
-use crate::metrics;
+use crate::stats;
 use crate::transactions;
 use crate::users;
 use crate::websocket;
@@ -28,7 +31,16 @@ async fn health() -> &'static str {
 }
 
 pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::Result<()> {
-    let metrics = web::Data::new(metrics::Metrics::new());
+    let stats = web::Data::new(stats::Stats::new());
+
+    let meter = sdk::Meter::new("rustfuif_api");
+    let request_metrics = RequestMetrics::new(
+        meter,
+        UuidWildcardFormatter::new(),
+        Some(|req: &dev::ServiceRequest| {
+            req.path() == "/metrics" && req.method() == http::Method::GET
+        }),
+    );
 
     // used to notify the clients when a purchase is made in your game
     let (transmitter, receiver) = mpsc::channel::<Sale>();
@@ -42,12 +54,14 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             .data(db_pool.clone())
             .data(transmitter.clone())
             .data(transaction_server.deref().clone())
-            .app_data(metrics.clone())
+            .app_data(stats.clone())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
             .wrap(middleware::NormalizePath)
-            .wrap(metrics::Middleware::default())
+            .wrap(stats::Middleware::default())
+            .wrap(request_metrics.clone())
+            .wrap(RequestTracing::default())
             .wrap(Cors::new().supports_credentials().finish())
             .wrap(IdentityService::new(
                 CookieIdentityPolicy::new(&session_private_key.as_bytes())
@@ -57,7 +71,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             ))
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))
-            .service(metrics::route)
+            .service(stats::route)
             .service(web::resource("/ws/{game_id}").to(websocket::transactions::route))
             .service(
                 web::scope("/api")
@@ -78,4 +92,35 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     ))?
     .run()
     .await
+}
+
+pub fn init_tracer(agent_endpoint: &str) -> std::io::Result<()> {
+    let exporter: opentelemetry_jaeger::Exporter = opentelemetry_jaeger::Exporter::builder()
+        .with_agent_endpoint(
+            agent_endpoint
+                .parse()
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
+        )
+        .with_process(opentelemetry_jaeger::Process {
+            service_name: "rustfuif".to_string(),
+            tags: Vec::new(),
+        })
+        .init()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let provider = sdk::Provider::builder()
+        .with_simple_exporter(exporter)
+        .with_config(sdk::Config {
+            default_sampler: Box::new(sdk::Sampler::Always),
+            resource: Arc::new(sdk::Resource::new(vec![
+                KeyValue::new("service.name", "rustfuif-api"),
+                KeyValue::new("service.namespace", "rustfuif"),
+                KeyValue::new("service.instance.id", "1"),
+                KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+            ])),
+            ..Default::default()
+        })
+        .build();
+    global::set_provider(provider);
+
+    Ok(())
 }

@@ -21,9 +21,9 @@ mod db;
 mod errors;
 mod games;
 mod invitations;
-mod metrics;
 mod schema;
 mod server;
+mod stats;
 mod transactions;
 mod users;
 mod validator;
@@ -49,12 +49,19 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
         )));
     }
 
+    match server::init_tracer(&get_env("OPENTELEMETRY_AGENT")?) {
+        Err(e) => error!("Error: {}, no jaeger traces will be sent", e),
+        _ => {
+            info!("jaeger tracing enabled");
+        }
+    }
+
     let database_url = get_env("DATABASE_URL")?;
 
     debug!("building database connection pool");
     let pool = db::build_connection_pool(&database_url)?;
 
-    debug!("running database migrations");
+    info!("running database migrations");
     db::migrate(&pool)?;
 
     debug!("launching the actix webserver");
