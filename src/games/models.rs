@@ -9,6 +9,7 @@ use crate::db;
 use crate::errors::ServiceError;
 use crate::invitations::{InvitationQuery, NewInvitation, State};
 use crate::schema::{beverage_configs, games, invitations, users};
+use crate::transactions::models::SalesCount;
 use crate::users::{User, UserResponse};
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
@@ -81,6 +82,8 @@ impl Game {
             NewInvitation::new(game.id, game.owner_id)
                 .accept()
                 .save(conn)?;
+
+            SalesCount::new_slots(game.id, conn)?;
 
             Ok(game)
         })?;

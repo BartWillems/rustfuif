@@ -10,7 +10,7 @@ use crate::auth;
 use crate::db;
 use crate::games::Game;
 use crate::server;
-use crate::transactions::models::{NewSale, Transaction, TransactionFilter};
+use crate::transactions::models::{NewSale, SalesCount, Transaction, TransactionFilter};
 use crate::websocket::server::Sale;
 
 #[get("/games/{id}/sales")]
@@ -53,7 +53,7 @@ async fn create_sale(
 
         let transactions = sale.save(&conn)?;
 
-        let offsets = Transaction::get_offsets(game_id, &conn)?;
+        let offsets = SalesCount::get_price_offsets(game_id, &conn)?;
 
         Ok((transactions, Sale { game_id, offsets }))
     })
@@ -99,7 +99,7 @@ async fn beverage_sales_offsets(
     auth::get_user(&id)?;
     let game_id = game_id.into_inner();
 
-    let sales = web::block(move || Transaction::get_offsets(game_id, &pool.get()?)).await?;
+    let sales = web::block(move || SalesCount::get_price_offsets(game_id, &pool.get()?)).await?;
 
     http_ok_json!(sales);
 }

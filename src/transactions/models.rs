@@ -7,7 +7,7 @@ use diesel::result::Error as DBError;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::games::BeverageConfig;
-use crate::schema::{beverage_configs, transactions, users};
+use crate::schema::{beverage_configs, sales_counts, transactions, users};
 
 pub const MIN_SLOT_NO: i16 = 0;
 pub const MAX_SLOT_NO: i16 = 7;
@@ -59,62 +59,92 @@ pub struct UserSales {
     pub sales: i64,
 }
 
+#[derive(Debug, Serialize, Deserialize, Insertable, Queryable)]
+pub struct SalesCount {
+    pub game_id: i64,
+    pub slot_no: i16,
+    pub sales: i64,
+}
+
 impl NewSale {
     pub fn save(&self, conn: &db::Conn) -> Result<Vec<Transaction>, ServiceError> {
-        let mut sales: HashMap<i16, Sale> = self.unroll()?;
-        use diesel::dsl::any;
-
-        let keys: Vec<&i16> = sales.keys().collect();
-
-        let beverage_configs = beverage_configs::table
-            .filter(beverage_configs::user_id.eq(self.user_id))
-            .filter(beverage_configs::game_id.eq(self.game_id))
-            .filter(beverage_configs::slot_no.eq(any(keys)))
-            .load::<BeverageConfig>(conn)?;
-
-        debug!("received beverage configs");
-
         let transactions = conn.transaction::<Vec<Transaction>, ServiceError, _>(|| {
-            debug!("transaction start");
-            diesel::dsl::sql_query("LOCK TABLE transactions IN ACCESS EXCLUSIVE MODE")
-                .execute(conn)?;
+            // NEW SALES ORDER
+            // 1. Fetch beverage configs FOR UPDATE
+            // 2. Fetch current sales_counts FOR UPDATE
+            // 3. Calculate the prices for each beverage in the new sale
+            //    - loop over sales
+            //    - fetch beverage config based on slot_no by looping
+            //    - get price
+            //    - create new transaction struct dink
+            // 4. insert in transactions with the current count
+            // 5. update sales_counts
 
-            debug!("table locked");
+            let mut sales: HashMap<i16, Sale> = self.unroll()?;
+            use diesel::dsl::any;
 
-            let offsets = Transaction::get_offsets(self.game_id, conn)?;
+            let keys: Vec<&i16> = sales.keys().collect();
+            // 1
+            let beverage_configs = beverage_configs::table
+                .filter(beverage_configs::user_id.eq(self.user_id))
+                .filter(beverage_configs::game_id.eq(self.game_id))
+                .filter(beverage_configs::slot_no.eq(any(keys)))
+                .for_update()
+                .load::<BeverageConfig>(conn)?;
 
-            debug!("received offset");
+            // 2
+            let mut sales_counts = SalesCount::find_by_game(self.game_id, conn)?;
 
-            for cfg in beverage_configs {
-                // sales.get_mut(&cfg.slot_no).ok_or(ServiceError::InternalServerError).map(op: F)
-                let sale = sales
-                    .get_mut(&cfg.slot_no)
-                    .ok_or(ServiceError::InternalServerError)
-                    .map_err(|err| {
-                        error!("beverage config({:?}) not found in sales map", cfg);
-                        err
-                    })?;
+            let average_sales = SalesCount::average_sales(&sales_counts);
+
+            // 3
+            for (_, sale) in sales.iter_mut() {
+                let mut beverage_config: Option<&BeverageConfig> = None;
+                let mut sale_count: Option<&SalesCount> = None;
+                for cfg in &beverage_configs {
+                    if cfg.slot_no == sale.slot_no {
+                        beverage_config = Some(cfg);
+                        break;
+                    }
+                }
+
+                for count in &sales_counts {
+                    if count.slot_no == sale.slot_no {
+                        sale_count = Some(count);
+                    }
+                }
+
                 sale.calculate_price(
-                    &cfg,
-                    offsets
-                        .get(&cfg.slot_no)
+                    beverage_config
                         .ok_or(ServiceError::InternalServerError)
                         .map_err(|err| {
-                            error!("beverage config({:?}) not found in offsets array", cfg);
+                            error!("beverage config not found in sales array");
                             err
                         })?,
+                    &sale_count
+                        .ok_or(ServiceError::InternalServerError)
+                        .map_err(|err| {
+                            error!("sale count not found in sales array");
+                            err
+                        })?
+                        .get_offset(average_sales),
                 );
             }
 
-            debug!("calculated all prices");
+            // 5.
+            for sale_count in sales_counts.iter_mut() {
+                if let Some(sale) = sales.get(&sale_count.slot_no) {
+                    sale_count.sales += sale.amount as i64;
+                    sale_count.update(conn)?;
+                }
+            }
 
+            // 4
             let sales: Vec<&Sale> = sales.values().collect();
 
             let transactions = diesel::insert_into(transactions::table)
                 .values(sales)
                 .get_results::<Transaction>(conn)?;
-
-            debug!("inserted transactions");
 
             Ok(transactions)
         })?;
@@ -254,17 +284,69 @@ impl Transaction {
 
         res
     }
+}
+
+impl SalesCount {
+    pub fn new_slots(game_id: i64, conn: &db::Conn) -> Result<(), DBError> {
+        let mut empty_sales: Vec<SalesCount> = Vec::new();
+        for slot_no in MIN_SLOT_NO..MAX_SLOT_NO + 1 {
+            empty_sales.push(SalesCount {
+                game_id: game_id,
+                slot_no,
+                sales: 0,
+            });
+        }
+
+        diesel::insert_into(sales_counts::table)
+            .values(&empty_sales)
+            .execute(conn)?;
+
+        Ok(())
+    }
+
+    fn find_by_game(game_id: i64, conn: &db::Conn) -> Result<Vec<SalesCount>, DBError> {
+        let res = sales_counts::table
+            .filter(sales_counts::game_id.eq(game_id))
+            .for_update()
+            .order_by(sales_counts::slot_no)
+            .load::<SalesCount>(conn)?;
+
+        Ok(res)
+    }
+
+    fn update(&self, conn: &db::Conn) -> Result<SalesCount, DBError> {
+        diesel::update(
+            sales_counts::table
+                .filter(sales_counts::game_id.eq(self.game_id))
+                .filter(sales_counts::slot_no.eq(self.slot_no)),
+        )
+        .set(sales_counts::sales.eq(self.sales))
+        .get_result(conn)
+    }
+
+    fn average_sales(sales: &Vec<SalesCount>) -> i64 {
+        let mut total: i64 = 0;
+
+        for beverage in sales {
+            total += beverage.sales;
+        }
+
+        (total as f64 / sales.len() as f64).ceil() as i64
+    }
+
+    fn get_offset(&self, average: i64) -> i64 {
+        self.sales - average
+    }
 
     /// Returns a hashmap contianing how much each beverage's sales
     /// differs from the average amount of sales.
     /// This can be used to calculate the price of a beverage
-    pub fn get_offsets(game_id: i64, conn: &db::Conn) -> Result<HashMap<i16, i64>, ServiceError> {
-        debug!("in offset function");
-        let sales: Vec<SlotSale> = Transaction::get_sales(game_id, conn)?;
-        debug!("received sales");
-        let average = Transaction::average_sales(&sales);
-
-        debug!("Game({})'s average sales is {}", game_id, average);
+    pub fn get_price_offsets(
+        game_id: i64,
+        conn: &db::Conn,
+    ) -> Result<HashMap<i16, i64>, ServiceError> {
+        let sales = SalesCount::find_by_game(game_id, conn)?;
+        let average = SalesCount::average_sales(&sales);
 
         let mut offsets: HashMap<i16, i64> = HashMap::new();
 
@@ -289,16 +371,6 @@ impl Transaction {
         }
 
         Ok(offsets)
-    }
-
-    fn average_sales(sales: &[SlotSale]) -> i64 {
-        let mut total: i64 = 0;
-
-        for beverage in sales.iter() {
-            total += beverage.sales;
-        }
-
-        (total as f64 / sales.len() as f64).ceil() as i64
     }
 }
 
