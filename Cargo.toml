@@ -3,6 +3,7 @@ name = "rustfuif"
 version = "0.1.0"
 authors = ["bart <bwillems@protonmail.com>"]
 edition = "2018"
+repository = "https://github.com/bartwillems/rustfuif"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
