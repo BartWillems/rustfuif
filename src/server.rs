@@ -114,7 +114,6 @@ pub fn init_tracer(agent_endpoint: &str) -> std::io::Result<()> {
             resource: Arc::new(sdk::Resource::new(vec![
                 KeyValue::new("service.name", "rustfuif-api"),
                 KeyValue::new("service.namespace", "rustfuif"),
-                KeyValue::new("service.instance.id", "1"),
                 KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
             ])),
             ..Default::default()
