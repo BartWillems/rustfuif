@@ -111,24 +111,26 @@ impl NewSale {
                 for count in &sales_counts {
                     if count.slot_no == sale.slot_no {
                         sale_count = Some(count);
+                        break;
                     }
                 }
 
-                sale.calculate_price(
-                    beverage_config
-                        .ok_or(ServiceError::InternalServerError)
-                        .map_err(|err| {
-                            error!("beverage config not found in sales array");
-                            err
-                        })?,
-                    &sale_count
-                        .ok_or(ServiceError::InternalServerError)
-                        .map_err(|err| {
-                            error!("sale count not found in sales array");
-                            err
-                        })?
-                        .get_offset(average_sales),
-                );
+                match (beverage_config, sale_count) {
+                    (None, _) => {
+                        error!("a sale was attempted without a pre-existing beverage config");
+                        return Err(ServiceError::BadRequest(String::from("unable to create purchase for beverage without a config")));
+                    },
+                    (_, None) => {
+                        error!("a sale with slot({}) was made for game:({}) but no count was found in the database", sale.slot_no, sale.game_id);
+                        return Err(ServiceError::InternalServerError);
+                    },
+                    (Some(cfg), Some(salescount)) => {
+                        sale.calculate_price(
+                            cfg,
+                            &salescount.get_offset(average_sales),
+                        );
+                    }
+                }
             }
 
             // 5.
