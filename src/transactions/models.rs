@@ -93,7 +93,7 @@ impl NewSale {
                 .load::<BeverageConfig>(conn)?;
 
             // 2
-            let mut sales_counts = SalesCount::find_by_game(self.game_id, conn)?;
+            let mut sales_counts = SalesCount::find_by_game_for_update(self.game_id, conn)?;
 
             let average_sales = SalesCount::average_sales(&sales_counts);
 
@@ -223,26 +223,6 @@ impl Transaction {
         Ok(transactions)
     }
 
-    /// Get the amount of times each beverage has been sold in a game
-    pub fn get_sales(game_id: i64, conn: &db::Conn) -> Result<Vec<SlotSale>, ServiceError> {
-        use diesel::dsl::sql;
-
-        debug!("in get sales");
-
-        let sales: Vec<SlotSale> = transactions::table
-            .select((
-                transactions::slot_no,
-                sql::<diesel::sql_types::BigInt>("SUM(amount)"),
-            ))
-            .filter(transactions::game_id.eq(game_id))
-            .group_by(transactions::slot_no)
-            .order(transactions::slot_no)
-            .load::<SlotSale>(conn)?;
-
-        let sales = Transaction::fill_gaps(sales);
-        Ok(sales)
-    }
-
     /// Get the amount of sales each user has made in a game
     pub fn get_sales_per_user(
         game_id: i64,
@@ -254,7 +234,7 @@ impl Transaction {
             .inner_join(users::table)
             .select((
                 users::username,
-                sql::<diesel::sql_types::BigInt>("SUM(amount)"),
+                sql::<diesel::sql_types::BigInt>("CAST (SUM(amount) AS BIGINT)"),
             ))
             .filter(transactions::game_id.eq(game_id))
             .group_by(users::username)
@@ -263,28 +243,17 @@ impl Transaction {
         Ok(sale_count)
     }
 
-    /// takes a vector of slotsales and fills in the missing slots
-    fn fill_gaps(sales: Vec<SlotSale>) -> Vec<SlotSale> {
-        let mut sales_counter: i16 = 0;
-        let mut res: Vec<SlotSale> = Vec::with_capacity(MAX_SLOT_NO as usize);
-        for i in MIN_SLOT_NO..MAX_SLOT_NO + 1 {
-            let sale: SlotSale = sales
-                .get(sales_counter as usize)
-                .copied()
-                .unwrap_or_default();
+    /// show the totaol money spend for everyone in a game
+    pub fn total_income(game_id: i64, conn: &db::Conn) -> Result<i64, ServiceError> {
+        use diesel::dsl::sql;
+        let res = transactions::table
+            .select(sql::<diesel::sql_types::BigInt>(
+                "CAST (SUM(price) AS BIGINT)",
+            ))
+            .filter(transactions::game_id.eq(game_id))
+            .first(conn)?;
 
-            if sale.slot_no == i {
-                res.push(sale);
-                sales_counter += 1;
-            } else {
-                res.push(SlotSale {
-                    slot_no: i,
-                    sales: 0,
-                });
-            }
-        }
-
-        res
+        Ok(res)
     }
 }
 
@@ -306,10 +275,20 @@ impl SalesCount {
         Ok(())
     }
 
-    fn find_by_game(game_id: i64, conn: &db::Conn) -> Result<Vec<SalesCount>, DBError> {
+    /// get salescount for a game while locking the rows during a transaction
+    fn find_by_game_for_update(game_id: i64, conn: &db::Conn) -> Result<Vec<SalesCount>, DBError> {
         let res = sales_counts::table
             .filter(sales_counts::game_id.eq(game_id))
             .for_update()
+            .order_by(sales_counts::slot_no)
+            .load::<SalesCount>(conn)?;
+
+        Ok(res)
+    }
+
+    pub fn find_by_game(game_id: i64, conn: &db::Conn) -> Result<Vec<SalesCount>, DBError> {
+        let res = sales_counts::table
+            .filter(sales_counts::game_id.eq(game_id))
             .order_by(sales_counts::slot_no)
             .load::<SalesCount>(conn)?;
 
@@ -420,27 +399,5 @@ mod tests {
         };
 
         assert_eq!(sale.unroll().is_err(), true);
-    }
-
-    #[test]
-    fn fill_gaps_with_empty_slot_sales() {
-        let mut slot_sales = Vec::new();
-        slot_sales.push(SlotSale {
-            slot_no: 0,
-            sales: 5,
-        });
-
-        slot_sales.push(SlotSale {
-            slot_no: 7,
-            sales: 1,
-        });
-
-        slot_sales = Transaction::fill_gaps(slot_sales);
-
-        assert_eq!(slot_sales.len(), (MAX_SLOT_NO + 1) as usize);
-
-        for i in MIN_SLOT_NO..MAX_SLOT_NO + 1 {
-            assert_eq!(slot_sales.get(i as usize).unwrap().slot_no, i);
-        }
     }
 }

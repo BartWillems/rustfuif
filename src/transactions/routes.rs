@@ -75,7 +75,11 @@ async fn beverage_sales(
     auth::get_user(&id)?;
     let game_id = game_id.into_inner();
 
-    let sales = web::block(move || Transaction::get_sales(game_id, &pool.get()?)).await?;
+    let sales = web::block(move || {
+        let conn = &pool.get()?;
+        SalesCount::find_by_game(game_id, &conn).map_err(|e| crate::errors::ServiceError::from(e))
+    })
+    .await?;
 
     http_ok_json!(sales);
 }
@@ -127,6 +131,16 @@ async fn get_transactions(
     http_ok_json!(transactions);
 }
 
+#[get("/games/{id}/stats/income")]
+async fn total_income(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+    auth::get_user(&id)?;
+    let game_id = game_id.into_inner();
+
+    let sales = web::block(move || Transaction::total_income(game_id, &pool.get()?)).await?;
+
+    http_ok_json!(sales);
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(get_sales);
     cfg.service(create_sale);
@@ -134,4 +148,5 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(user_sales);
     cfg.service(beverage_sales_offsets);
     cfg.service(get_transactions);
+    cfg.service(total_income);
 }
