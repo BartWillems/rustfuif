@@ -10,7 +10,6 @@ use actix_web::cookie::SameSite;
 use actix_web::{dev, get, http, middleware, web, App, HttpResponse, HttpServer};
 use actix_web_opentelemetry::{RequestMetrics, RequestTracing, UuidWildcardFormatter};
 use opentelemetry::{api::KeyValue, global, sdk};
-use opentelemetry_jaeger;
 
 use crate::auth;
 use crate::db;

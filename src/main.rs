@@ -71,6 +71,6 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn get_env(key: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let res = std::env::var(key).or_else(|_| Err(format!("{} must be set", key)))?;
+    let res = std::env::var(key).map_err(|_| format!("{} must be set", key))?;
     Ok(res)
 }

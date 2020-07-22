@@ -40,9 +40,9 @@ async fn login(credentials: Json<UserMessage>, id: Identity, pool: Data<db::Pool
 
     user.verify_password(password.as_bytes())?;
 
-    let user_string = serde_json::to_string(&user).or_else(|e| {
+    let user_string = serde_json::to_string(&user).map_err(|e| {
         error!("unable to serialize the user struct: {}", e);
-        Err(ServiceError::InternalServerError)
+        ServiceError::InternalServerError
     })?;
 
     id.remember(user_string);

@@ -77,8 +77,8 @@ impl NewSale {
             //    - fetch beverage config based on slot_no by looping
             //    - get price
             //    - create new transaction struct dink
-            // 4. insert in transactions with the current count
-            // 5. update sales_counts
+            // 4. update sales_counts
+            // 5. insert in transactions with the current count
 
             let mut sales: HashMap<i16, Sale> = self.unroll()?;
             use diesel::dsl::any;
@@ -133,7 +133,7 @@ impl NewSale {
                 }
             }
 
-            // 5.
+            // 4
             for sale_count in sales_counts.iter_mut() {
                 if let Some(sale) = sales.get(&sale_count.slot_no) {
                     sale_count.sales += sale.amount as i64;
@@ -141,7 +141,7 @@ impl NewSale {
                 }
             }
 
-            // 4
+            // 5
             let sales: Vec<&Sale> = sales.values().collect();
 
             let transactions = diesel::insert_into(transactions::table)
@@ -293,7 +293,7 @@ impl SalesCount {
         let mut empty_sales: Vec<SalesCount> = Vec::new();
         for slot_no in MIN_SLOT_NO..MAX_SLOT_NO + 1 {
             empty_sales.push(SalesCount {
-                game_id: game_id,
+                game_id,
                 slot_no,
                 sales: 0,
             });
@@ -326,7 +326,7 @@ impl SalesCount {
         .get_result(conn)
     }
 
-    fn average_sales(sales: &Vec<SalesCount>) -> i64 {
+    fn average_sales(sales: &[SalesCount]) -> i64 {
         let mut total: i64 = 0;
 
         for beverage in sales {
