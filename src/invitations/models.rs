@@ -120,6 +120,7 @@ impl Invitation {
                     games::name,
                     games::start_time,
                     games::close_time,
+                    games::beverage_count,
                     (users::id, users::username),
                 ),
                 invitations::state,

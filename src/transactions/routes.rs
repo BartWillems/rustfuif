@@ -77,7 +77,7 @@ async fn beverage_sales(
 
     let sales = web::block(move || {
         let conn = &pool.get()?;
-        SalesCount::find_by_game(game_id, &conn).map_err(|e| crate::errors::ServiceError::from(e))
+        SalesCount::find_by_game(game_id, &conn).map_err(crate::errors::ServiceError::from)
     })
     .await?;
 

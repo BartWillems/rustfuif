@@ -6,11 +6,8 @@ use diesel::result::Error as DBError;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::games::BeverageConfig;
+use crate::games::{BeverageConfig, Game};
 use crate::schema::{beverage_configs, sales_counts, transactions, users};
-
-pub const MIN_SLOT_NO: i16 = 0;
-pub const MAX_SLOT_NO: i16 = 7;
 
 #[derive(Debug, Serialize, Queryable, Identifiable, AsChangeset, Clone)]
 pub struct Transaction {
@@ -79,6 +76,14 @@ impl NewSale {
             //    - create new transaction struct dink
             // 4. update sales_counts
             // 5. insert in transactions with the current count
+
+            let game = Game::find_by_id(self.game_id, conn)?;
+
+            for slot_no in self.slots.keys() {
+                if slot_no > &game.beverage_count || slot_no < &0 {
+                    bad_request!("a beverage slot exceeds the maximum configured beverage slots");
+                }
+            }
 
             let mut sales: HashMap<i16, Sale> = self.unroll()?;
             use diesel::dsl::any;
@@ -154,15 +159,11 @@ impl NewSale {
         Ok(transactions)
     }
 
-    /// turn the map of slots to a list of sales
+    /// turn the map of slots to a map of sales with their slot no as key
     fn unroll(&self) -> Result<HashMap<i16, Sale>, ServiceError> {
         let mut sales: HashMap<i16, Sale> = HashMap::new();
 
         for (slot_no, amount) in &self.slots {
-            if slot_no < &MIN_SLOT_NO || slot_no > &MAX_SLOT_NO {
-                bad_request!("the slot number should be within [0-7]");
-            }
-
             let sale = Sale {
                 user_id: self.user_id,
                 game_id: self.game_id,
@@ -179,13 +180,6 @@ impl NewSale {
 }
 
 impl Sale {
-    pub fn validate_slot(&self) -> Result<(), ServiceError> {
-        if !(MIN_SLOT_NO..MAX_SLOT_NO + 1).contains(&self.slot_no) {
-            bad_request!("the slot number should be within [0-7]");
-        }
-        Ok(())
-    }
-
     fn calculate_price(&mut self, cfg: &BeverageConfig, offset: &i64) {
         let price = cfg.starting_price + offset * 5;
         if price > cfg.max_price {
@@ -258,11 +252,11 @@ impl Transaction {
 }
 
 impl SalesCount {
-    pub fn new_slots(game_id: i64, conn: &db::Conn) -> Result<(), DBError> {
+    pub fn initialize_slots(game: &Game, conn: &db::Conn) -> Result<(), DBError> {
         let mut empty_sales: Vec<SalesCount> = Vec::new();
-        for slot_no in MIN_SLOT_NO..MAX_SLOT_NO + 1 {
+        for slot_no in 0..game.beverage_count {
             empty_sales.push(SalesCount {
-                game_id,
+                game_id: game.id,
                 slot_no,
                 sales: 0,
             });
@@ -373,31 +367,5 @@ mod tests {
 
         let res = sale.unroll().unwrap();
         assert_eq!(res.len(), 3);
-    }
-
-    #[test]
-    fn unroll_sale_with_higher_than_max_slot_no() {
-        let mut slots = HashMap::new();
-        slots.insert(8, 2);
-        let sale = NewSale {
-            user_id: 1,
-            game_id: 1,
-            slots,
-        };
-
-        assert_eq!(sale.unroll().is_err(), true);
-    }
-
-    #[test]
-    fn unroll_sale_with_lower_than_minimum_slot_no() {
-        let mut slots = HashMap::new();
-        slots.insert(-1, 2);
-        let sale = NewSale {
-            user_id: 1,
-            game_id: 1,
-            slots,
-        };
-
-        assert_eq!(sale.unroll().is_err(), true);
     }
 }

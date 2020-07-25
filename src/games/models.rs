@@ -21,6 +21,7 @@ pub struct Game {
     pub close_time: DateTime<Utc>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
+    pub beverage_count: i16,
 }
 
 #[derive(Debug, Clone, Deserialize, Insertable)]
@@ -31,6 +32,7 @@ pub struct CreateGame {
     pub owner_id: i64,
     pub start_time: DateTime<Utc>,
     pub close_time: DateTime<Utc>,
+    pub beverage_count: i16,
 }
 
 /// GameFilter a struct that the client
@@ -59,6 +61,7 @@ pub struct GameResponse {
     pub name: String,
     pub start_time: DateTime<Utc>,
     pub close_time: DateTime<Utc>,
+    pub beverage_count: i16,
     pub owner: crate::users::UserResponse,
 }
 
@@ -83,7 +86,7 @@ impl Game {
                 .accept()
                 .save(conn)?;
 
-            SalesCount::new_slots(game.id, conn)?;
+            SalesCount::initialize_slots(&game, conn)?;
 
             Ok(game)
         })?;
@@ -145,6 +148,7 @@ impl Game {
                 games::name,
                 games::start_time,
                 games::close_time,
+                games::beverage_count,
                 (users::id, users::username),
             ))
             .order(games::start_time)
@@ -188,6 +192,7 @@ impl Game {
                 games::name,
                 games::start_time,
                 games::close_time,
+                games::beverage_count,
                 (users::id, users::username),
             ))
             .into_boxed();
@@ -351,6 +356,12 @@ pub struct BeverageConfig {
 
 impl BeverageConfig {
     pub fn save(&self, conn: &db::Conn) -> Result<BeverageConfig, ServiceError> {
+        let game = Game::find_by_id(self.game_id, conn)?;
+
+        if self.slot_no > game.beverage_count {
+            bad_request!("a beverage slot exceeds the maximum configured beverage slots");
+        }
+
         let config = diesel::insert_into(beverage_configs::table)
             .values(self)
             .get_result::<BeverageConfig>(conn)?;
@@ -394,8 +405,8 @@ impl BeverageConfig {
 
 impl crate::validator::Validate<BeverageConfig> for BeverageConfig {
     fn validate(&self) -> Result<(), ServiceError> {
-        if !(0..8).contains(&self.slot_no) {
-            bad_request!("the slot number should be within [0-7]");
+        if self.slot_no < 0 {
+            bad_request!("the slot number cannot be negative");
         }
 
         if self.min_price <= 0 {
@@ -451,6 +462,7 @@ mod tests {
             owner_id: 1,
             start_time: time,
             close_time: time,
+            beverage_count: 8,
         };
 
         let game_with_smaller_end_time = CreateGame {
@@ -458,6 +470,7 @@ mod tests {
             owner_id: 1,
             start_time: time,
             close_time: smaller_time,
+            beverage_count: 8,
         };
 
         let game_with_equal_bigger_end_time = CreateGame {
@@ -465,6 +478,7 @@ mod tests {
             owner_id: 1,
             start_time: smaller_time,
             close_time: time,
+            beverage_count: 8,
         };
 
         assert!(Validator::new(game_with_same_times).validate().is_err());
@@ -487,6 +501,7 @@ mod tests {
             owner_id: 1,
             start_time,
             close_time,
+            beverage_count: 8,
         };
 
         assert!(Validator::new(game.clone()).validate().is_ok());
@@ -510,6 +525,7 @@ mod tests {
             owner_id: 1,
             start_time,
             close_time,
+            beverage_count: 8,
         };
 
         assert!(Validator::new(game.clone()).validate().is_err());
