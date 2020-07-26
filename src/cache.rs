@@ -34,21 +34,29 @@ pub fn connection() -> Result<CacheConnection, ServiceError> {
 }
 
 pub trait Cache {
-    fn cache_key(id: i64) -> String;
+    fn cache_key<T: std::fmt::Display>(id: T) -> String;
 }
 
-pub fn find<T: serde::de::DeserializeOwned + Cache>(id: i64) -> Result<Option<T>, ServiceError> {
+pub fn find<T: serde::de::DeserializeOwned + Cache, I: std::fmt::Display>(
+    id: I,
+) -> Result<Option<T>, ServiceError> {
     let cache_key: String = T::cache_key(id);
     let mut cache = connection()?;
     let res: Vec<u8> = cache.get(&cache_key)?;
 
     match serde_json::from_slice::<T>(&res).ok() {
-        Some(res) => Ok(Some(res)),
+        Some(res) => {
+            debug!("found {} in cache", cache_key);
+            Ok(Some(res))
+        }
         None => Ok(None),
     }
 }
 
-pub fn set<T: serde::Serialize + Cache>(arg: &T, id: i64) -> Result<(), ServiceError> {
+pub fn set<T: serde::Serialize + Cache, I: std::fmt::Display>(
+    arg: &T,
+    id: I,
+) -> Result<(), ServiceError> {
     let cache_key: String = T::cache_key(id);
     let mut cache = connection()?;
     if let Some(res) = serde_json::to_vec(arg).ok() {

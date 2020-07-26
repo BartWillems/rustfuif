@@ -132,7 +132,6 @@ impl Game {
 
     pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
         if let Some(game) = cache::find(id)? {
-            debug!("found game in cache");
             return Ok(game);
         }
 
@@ -311,7 +310,7 @@ impl Game {
 }
 
 impl crate::cache::Cache for Game {
-    fn cache_key(id: i64) -> String {
+    fn cache_key<T: std::fmt::Display>(id: T) -> String {
         format!("game.{}", id)
     }
 }
@@ -377,6 +376,11 @@ impl BeverageConfig {
             .values(self)
             .get_result::<BeverageConfig>(conn)?;
 
+        let _ = cache::delete(format!("beverage_config.{}.{}", self.game_id, self.user_id))
+            .map_err(|e| {
+                error!("unable to delete beverage config from cache: {}", e);
+            });
+
         Ok(config)
     }
 
@@ -385,11 +389,17 @@ impl BeverageConfig {
         user_id: i64,
         conn: &db::Conn,
     ) -> Result<Vec<BeverageConfig>, ServiceError> {
+        if let Some(configs) = cache::find(format!("{}.{}", game_id, user_id))? {
+            return Ok(configs);
+        }
+
         let configs = beverage_configs::table
             .filter(beverage_configs::user_id.eq(user_id))
             .filter(beverage_configs::game_id.eq(game_id))
             .order(beverage_configs::slot_no)
             .load::<BeverageConfig>(conn)?;
+
+        cache::set(&configs, format!("{}.{}", game_id, user_id))?;
 
         Ok(configs)
     }
@@ -410,7 +420,18 @@ impl BeverageConfig {
             ))
             .get_result::<BeverageConfig>(conn)?;
 
+        let _ = cache::delete(format!("beverage_config.{}.{}", self.game_id, self.user_id))
+            .map_err(|e| {
+                error!("unable to delete beverage config from cache: {}", e);
+            });
+
         Ok(config)
+    }
+}
+
+impl crate::cache::Cache for Vec<BeverageConfig> {
+    fn cache_key<T: std::fmt::Display>(id: T) -> String {
+        format!("beverage_config.{}", id)
     }
 }
 
