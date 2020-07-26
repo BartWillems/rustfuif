@@ -344,6 +344,10 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
             bad_request!("name can only contain letters, numbers, spaces, '-' and '_'");
         }
 
+        if self.beverage_count > 16 {
+            bad_request!("maximum 16 different beverages allowed");
+        }
+
         Ok(())
     }
 }
