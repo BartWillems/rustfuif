@@ -9,6 +9,7 @@ use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::cookie::SameSite;
 use actix_web::{dev, get, http, middleware, web, App, HttpResponse, HttpServer};
 use actix_web_opentelemetry::{RequestMetrics, RequestTracing, UuidWildcardFormatter};
+use chrono::Duration;
 use opentelemetry::{api::KeyValue, global, sdk};
 
 use crate::auth;
@@ -66,6 +67,8 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
                 CookieIdentityPolicy::new(&session_private_key.as_bytes())
                     .name("auth-cookie")
                     .same_site(SameSite::Strict)
+                    .visit_deadline(Duration::days(7))
+                    .max_age_time(Duration::days(7))
                     .secure(false),
             ))
             .data(web::JsonConfig::default().limit(262_144))
