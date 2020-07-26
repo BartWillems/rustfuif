@@ -5,6 +5,9 @@ extern crate diesel;
 extern crate diesel_migrations;
 
 #[macro_use]
+extern crate lazy_static;
+
+#[macro_use]
 extern crate log;
 
 #[macro_use]
@@ -17,6 +20,7 @@ use terminator::Terminator;
 mod macros;
 
 mod auth;
+mod cache;
 mod db;
 mod errors;
 mod games;
@@ -63,6 +67,8 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("running database migrations");
     db::migrate(&pool)?;
+
+    cache::init();
 
     debug!("launching the actix webserver");
     server::launch(pool, session_private_key).await?;

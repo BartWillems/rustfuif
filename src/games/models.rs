@@ -5,6 +5,7 @@ use diesel::prelude::*;
 use regex::Regex;
 use url::Url;
 
+use crate::cache;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::invitations::{InvitationQuery, NewInvitation, State};
@@ -102,7 +103,6 @@ impl Game {
             .filter(games::id.eq(game_id))
             .filter(invitations::user_id.eq(user_id))
             .filter(invitations::state.eq(State::ACCEPTED.to_string()))
-            // TODO: test these timestamps with timezones
             .filter(games::start_time.lt(now))
             .filter(games::close_time.gt(now))
             .select(games::id)
@@ -130,10 +130,16 @@ impl Game {
         Ok(())
     }
 
-    pub fn find_by_id(game_id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
-        let game = games::table
-            .filter(games::id.eq(game_id))
-            .first::<Game>(conn)?;
+    pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
+        if let Some(game) = cache::find(id)? {
+            debug!("found game in cache");
+            return Ok(game);
+        }
+
+        let game = games::table.filter(games::id.eq(id)).first::<Game>(conn)?;
+
+        cache::set(&game, game.id)?;
+
         Ok(game)
     }
 
@@ -179,11 +185,6 @@ impl Game {
             .filter(invitations::user_id.eq(user_id))
             .filter(invitations::state.eq(State::ACCEPTED.to_string()))
             .select(invitations::game_id);
-
-        // TODO
-        // Figure out if only accepted games should be shown
-        // OR
-        // also display the invitation state
 
         let mut query = games::table
             .inner_join(users::table)
@@ -276,13 +277,17 @@ impl Game {
     }
 
     pub fn update(&self, conn: &db::Conn) -> Result<Game, ServiceError> {
-        let game = diesel::update(self).set(self).get_result(conn)?;
+        let game: Game = diesel::update(self).set(self).get_result(conn)?;
+
+        cache::set(&game, game.id)?;
 
         Ok(game)
     }
 
     pub fn delete(&self, conn: &db::Conn) -> Result<(), ServiceError> {
         diesel::delete(self).execute(conn)?;
+
+        cache::delete(format!("game.{}", self.id))?;
 
         Ok(())
     }
@@ -302,6 +307,12 @@ impl Game {
             return true;
         }
         false
+    }
+}
+
+impl crate::cache::Cache for Game {
+    fn cache_key(id: i64) -> String {
+        format!("game.{}", id)
     }
 }
 

@@ -2,6 +2,7 @@ use actix_web::error::Error as ActixError;
 use actix_web::{error::ResponseError, HttpResponse};
 use derive_more::Display;
 use diesel::result::{DatabaseErrorKind, Error as DBError};
+use redis::RedisError;
 use std::convert::From;
 
 #[derive(Debug, Display)]
@@ -113,5 +114,13 @@ where
                 ServiceError::InternalServerError
             }
         }
+    }
+}
+
+impl From<RedisError> for ServiceError {
+    fn from(error: RedisError) -> ServiceError {
+        // ServiceError::new(500, format!("Redis error: {}", error))
+        error!("Redis error: {}", error);
+        ServiceError::InternalServerError
     }
 }
