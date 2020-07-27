@@ -9,7 +9,7 @@ use crate::db;
 use crate::server;
 use crate::validator::Validator;
 
-use crate::games::models::{BeverageConfig, CreateGame, Game, GameFilter};
+use crate::games::models::{Beverage, CreateGame, Game, GameFilter};
 
 #[get("/games")]
 async fn find_all(
@@ -103,7 +103,7 @@ async fn get_beverages(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -
 
     let configs = web::block(move || {
         let conn = pool.get()?;
-        BeverageConfig::find(*game_id, user.id, &conn)
+        Beverage::find(*game_id, user.id, &conn)
     })
     .await?;
 
@@ -113,7 +113,7 @@ async fn get_beverages(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -
 #[post("/games/{id}/beverages")]
 async fn create_beverage_config(
     game_id: Path<i64>,
-    config: Json<Validator<BeverageConfig>>,
+    config: Json<Validator<Beverage>>,
     pool: Data<db::Pool>,
     id: Identity,
 ) -> server::Response {
@@ -141,7 +141,7 @@ async fn create_beverage_config(
 #[put("/games/{id}/beverages")]
 async fn update_beverage_config(
     game_id: Path<i64>,
-    config: Json<Validator<BeverageConfig>>,
+    config: Json<Validator<Beverage>>,
     pool: Data<db::Pool>,
     id: Identity,
 ) -> server::Response {

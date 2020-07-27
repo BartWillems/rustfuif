@@ -9,7 +9,7 @@ use crate::cache;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::invitations::{InvitationQuery, NewInvitation, State};
-use crate::schema::{beverage_configs, games, invitations, users};
+use crate::schema::{beverages, games, invitations, users};
 use crate::transactions::models::SalesCount;
 use crate::users::{User, UserResponse};
 
@@ -353,7 +353,7 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
 }
 
 #[derive(Insertable, Deserialize, Serialize, Queryable, Debug)]
-pub struct BeverageConfig {
+pub struct Beverage {
     #[serde(skip_deserializing)]
     pub game_id: i64,
 
@@ -368,17 +368,17 @@ pub struct BeverageConfig {
     pub starting_price: i64,
 }
 
-impl BeverageConfig {
-    pub fn save(&self, conn: &db::Conn) -> Result<BeverageConfig, ServiceError> {
+impl Beverage {
+    pub fn save(&self, conn: &db::Conn) -> Result<Beverage, ServiceError> {
         let game = Game::find_by_id(self.game_id, conn)?;
 
         if self.slot_no > game.beverage_count {
             bad_request!("a beverage slot exceeds the maximum configured beverage slots");
         }
 
-        let config = diesel::insert_into(beverage_configs::table)
+        let config = diesel::insert_into(beverages::table)
             .values(self)
-            .get_result::<BeverageConfig>(conn)?;
+            .get_result::<Beverage>(conn)?;
 
         let _ = cache::delete(format!("beverage_config.{}.{}", self.game_id, self.user_id))
             .map_err(|e| {
@@ -392,26 +392,26 @@ impl BeverageConfig {
         game_id: i64,
         user_id: i64,
         conn: &db::Conn,
-    ) -> Result<Vec<BeverageConfig>, ServiceError> {
+    ) -> Result<Vec<Beverage>, ServiceError> {
         if let Some(configs) = cache::find(format!("{}.{}", game_id, user_id))? {
             return Ok(configs);
         }
 
-        let configs = beverage_configs::table
-            .filter(beverage_configs::user_id.eq(user_id))
-            .filter(beverage_configs::game_id.eq(game_id))
-            .order(beverage_configs::slot_no)
-            .load::<BeverageConfig>(conn)?;
+        let configs = beverages::table
+            .filter(beverages::user_id.eq(user_id))
+            .filter(beverages::game_id.eq(game_id))
+            .order(beverages::slot_no)
+            .load::<Beverage>(conn)?;
 
         cache::set(&configs, format!("{}.{}", game_id, user_id))?;
 
         Ok(configs)
     }
 
-    pub fn update(&self, conn: &db::Conn) -> Result<BeverageConfig, ServiceError> {
-        use crate::schema::beverage_configs::dsl::*;
+    pub fn update(&self, conn: &db::Conn) -> Result<Beverage, ServiceError> {
+        use crate::schema::beverages::dsl::*;
 
-        let config = diesel::update(beverage_configs)
+        let config = diesel::update(beverages)
             .filter(slot_no.eq(self.slot_no))
             .filter(game_id.eq(self.game_id))
             .filter(user_id.eq(self.user_id))
@@ -422,7 +422,7 @@ impl BeverageConfig {
                 max_price.eq(self.max_price),
                 starting_price.eq(self.starting_price),
             ))
-            .get_result::<BeverageConfig>(conn)?;
+            .get_result::<Beverage>(conn)?;
 
         let _ = cache::delete(format!("beverage_config.{}.{}", self.game_id, self.user_id))
             .map_err(|e| {
@@ -433,13 +433,13 @@ impl BeverageConfig {
     }
 }
 
-impl crate::cache::Cache for Vec<BeverageConfig> {
+impl crate::cache::Cache for Vec<Beverage> {
     fn cache_key<T: std::fmt::Display>(id: T) -> String {
         format!("beverage_config.{}", id)
     }
 }
 
-impl crate::validator::Validate<BeverageConfig> for BeverageConfig {
+impl crate::validator::Validate<Beverage> for Beverage {
     fn validate(&self) -> Result<(), ServiceError> {
         if self.slot_no < 0 {
             bad_request!("the slot number cannot be negative");

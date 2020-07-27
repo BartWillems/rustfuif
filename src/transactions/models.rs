@@ -6,8 +6,8 @@ use diesel::result::Error as DBError;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::games::{BeverageConfig, Game};
-use crate::schema::{beverage_configs, sales_counts, transactions, users};
+use crate::games::{Beverage, Game};
+use crate::schema::{beverages, sales_counts, transactions, users};
 
 #[derive(Debug, Serialize, Queryable, Identifiable, AsChangeset, Clone)]
 pub struct Transaction {
@@ -90,12 +90,12 @@ impl NewSale {
 
             let keys: Vec<&i16> = sales.keys().collect();
             // 1
-            let beverage_configs = beverage_configs::table
-                .filter(beverage_configs::user_id.eq(self.user_id))
-                .filter(beverage_configs::game_id.eq(self.game_id))
-                .filter(beverage_configs::slot_no.eq(any(keys)))
+            let beverage_configs = beverages::table
+                .filter(beverages::user_id.eq(self.user_id))
+                .filter(beverages::game_id.eq(self.game_id))
+                .filter(beverages::slot_no.eq(any(keys)))
                 .for_update()
-                .load::<BeverageConfig>(conn)?;
+                .load::<Beverage>(conn)?;
 
             // 2
             let mut sales_counts = SalesCount::find_by_game_for_update(self.game_id, conn)?;
@@ -104,7 +104,7 @@ impl NewSale {
 
             // 3
             for (_, sale) in sales.iter_mut() {
-                let mut beverage_config: Option<&BeverageConfig> = None;
+                let mut beverage_config: Option<&Beverage> = None;
                 let mut sale_count: Option<&SalesCount> = None;
                 for cfg in &beverage_configs {
                     if cfg.slot_no == sale.slot_no {
@@ -180,7 +180,7 @@ impl NewSale {
 }
 
 impl Sale {
-    fn calculate_price(&mut self, cfg: &BeverageConfig, offset: &i64) {
+    fn calculate_price(&mut self, cfg: &Beverage, offset: &i64) {
         let price = cfg.starting_price + offset * 5;
         if price > cfg.max_price {
             self.price = cfg.max_price;
