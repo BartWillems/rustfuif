@@ -1,6 +1,4 @@
 use crate::errors::ServiceError;
-use lazy_static;
-use r2d2;
 use redis::{Client, Commands, ConnectionLike};
 use std::env;
 
@@ -59,7 +57,7 @@ pub fn set<T: serde::Serialize + Cache, I: std::fmt::Display>(
 ) -> Result<(), ServiceError> {
     let cache_key: String = T::cache_key(id);
     let mut cache = connection()?;
-    if let Some(res) = serde_json::to_vec(arg).ok() {
+    if let Ok(res) = serde_json::to_vec(arg) {
         let _: () = cache.set_ex(&cache_key, res, 3600)?;
     }
     Ok(())

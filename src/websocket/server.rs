@@ -139,7 +139,7 @@ impl Handler<Disconnect> for TransactionServer {
         // remove address
         if self.sessions.remove(&msg.id).is_some() {
             // remove session from all games
-            for (_, sessions) in &mut self.games {
+            for sessions in self.games.values_mut() {
                 sessions.remove(&msg.id);
             }
         }
