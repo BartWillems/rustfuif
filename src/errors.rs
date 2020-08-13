@@ -119,7 +119,6 @@ where
 
 impl From<RedisError> for ServiceError {
     fn from(error: RedisError) -> ServiceError {
-        // ServiceError::new(500, format!("Redis error: {}", error))
         error!("Redis error: {}", error);
         ServiceError::InternalServerError
     }

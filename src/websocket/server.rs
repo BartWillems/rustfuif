@@ -24,10 +24,13 @@ pub enum Query {
     ActiveSessions,
 }
 
+type GameId = i64;
+type SessionId = usize;
+
 /// `TransactionServer` manages price updates/new sales
 pub struct TransactionServer {
-    sessions: HashMap<usize, Recipient<Sale>>,
-    games: HashMap<i64, HashSet<usize>>,
+    sessions: HashMap<SessionId, Recipient<Sale>>,
+    games: HashMap<GameId, HashSet<SessionId>>,
     rng: ThreadRng,
 }
 
@@ -70,7 +73,7 @@ impl TransactionServer {
     }
 }
 
-/// Make actor from `ChatServer`
+/// Make actor from `TransactionServer`
 impl Actor for TransactionServer {
     /// We are going to use simple Context, we just need ability to communicate
     /// with other actors.
@@ -133,15 +136,11 @@ impl Handler<Disconnect> for TransactionServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        let mut games: Vec<i64> = Vec::new();
-
         // remove address
         if self.sessions.remove(&msg.id).is_some() {
-            // remove session from all rooms
-            for (name, sessions) in &mut self.games {
-                if sessions.remove(&msg.id) {
-                    games.push(name.to_owned());
-                }
+            // remove session from all games
+            for (_, sessions) in &mut self.games {
+                sessions.remove(&msg.id);
             }
         }
     }
