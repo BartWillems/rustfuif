@@ -130,7 +130,7 @@ impl NewSale {
                         return Err(ServiceError::InternalServerError);
                     },
                     (Some(cfg), Some(salescount)) => {
-                        sale.calculate_price(
+                        sale.set_price(
                             cfg,
                             &salescount.get_offset(average_sales),
                         );
@@ -180,13 +180,8 @@ impl NewSale {
 }
 
 impl Sale {
-    fn calculate_price(&mut self, cfg: &Beverage, offset: &i64) {
-        let price = cfg.starting_price + offset * 5;
-        if price > cfg.max_price {
-            self.price = cfg.max_price;
-        } else {
-            self.price = price;
-        }
+    fn set_price(&mut self, cfg: &Beverage, offset: &i64) {
+        self.price = cfg.calculate_price(offset);
     }
 }
 

@@ -166,6 +166,16 @@ async fn update_beverage_config(
     http_created_json!(config);
 }
 
+#[get("/games/{id}/prices")]
+async fn get_prices(game_id: Path<i64>, id: Identity, pool: Data<db::Pool>) -> server::Response {
+    let user = auth::get_user(&id)?;
+    let game_id = game_id.into_inner();
+
+    let prices = web::block(move || Game::prices(game_id, user.id, &pool.get()?)).await?;
+
+    http_ok_json!(prices);
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(find_all);
     cfg.service(find);
@@ -176,4 +186,5 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(create_beverage_config);
     cfg.service(get_beverages);
     cfg.service(update_beverage_config);
+    cfg.service(get_prices);
 }
