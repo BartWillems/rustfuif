@@ -8,7 +8,7 @@ use actix_files as fs;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::cookie::SameSite;
 use actix_web::{dev, get, http, middleware, web, App, HttpResponse, HttpServer};
-use actix_web_opentelemetry::{RequestMetrics, RequestTracing, UuidWildcardFormatter};
+use actix_web_opentelemetry::{RequestMetrics, RequestTracing, RouteFormatter};
 use chrono::Duration;
 use opentelemetry::{api::KeyValue, global, sdk};
 
@@ -36,7 +36,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     let meter = sdk::Meter::new("rustfuif_api");
     let request_metrics = RequestMetrics::new(
         meter,
-        UuidWildcardFormatter::new(),
+        ResourceIdFormatter::new(),
         Some(|req: &dev::ServiceRequest| {
             req.path() == "/metrics" && req.method() == http::Method::GET
         }),
@@ -124,4 +124,26 @@ pub fn init_tracer(agent_endpoint: &str) -> std::io::Result<()> {
     global::set_provider(provider);
 
     Ok(())
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ResourceIdFormatter {}
+
+impl ResourceIdFormatter {
+    /// Create a new `ResourceIdFormatter`
+    pub fn new() -> Self {
+        ResourceIdFormatter {}
+    }
+}
+
+impl RouteFormatter for ResourceIdFormatter {
+    /// Function from path to route
+    /// e.g. /games/4 -> /games/{id}
+    fn format(&self, uri: &str) -> String {
+        use regex::Regex;
+        lazy_static::lazy_static! {
+            static ref RESOURCE_ID: Regex = Regex::new(r"/[0-9]+").expect("invalid routeformatter regex");
+        }
+        RESOURCE_ID.replace_all(uri, "/{id}").into_owned()
+    }
 }
