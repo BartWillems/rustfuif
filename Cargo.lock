@@ -349,15 +349,17 @@ dependencies = [
 
 [[package]]
 name = "actix-web-opentelemetry"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67910d55f499a7f891bcfc199ca330fcc21ff77b25d69df7f78663f0a14e0f97"
+checksum = "74be5faba591892b2592c43884638bdfe8cef63d280d4ac5df14e5dbb9ed32b8"
 dependencies = [
+ "actix-http",
  "actix-web",
  "futures",
  "lazy_static",
  "opentelemetry",
  "regex",
+ "serde",
 ]
 
 [[package]]
@@ -1401,9 +1403,9 @@ checksum = "0b631f7e854af39a1739f401cf34a8a013dfe09eac4fa4dba91e9768bd28168d"
 
 [[package]]
 name = "opentelemetry"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6f43afadc6a667ad746055bda245e8615dfc198c5f602b1b54e31fda46380fc"
+checksum = "acbf68b6b34b5d869342732c0dc05f74b7bdb4f17f2302d16d799231a6106441"
 dependencies = [
  "futures",
  "lazy_static",
@@ -1415,9 +1417,9 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-jaeger"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eba4ff92523ac0e701f11be725fbe6465bf17e6d1b02aca7ecc491a6b11f206c"
+checksum = "02a885963fd184822847d08527f3d53164a9fb6f770ceae61ea9388dc208690b"
 dependencies = [
  "opentelemetry",
  "thrift",
