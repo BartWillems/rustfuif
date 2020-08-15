@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use actix::prelude::*;
 use actix_identity::Identity;
 use actix_web::web::{Data, Path};
-use actix_web::{web, Error, HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest};
 use actix_web_actors::ws;
 
 use crate::auth;
@@ -24,7 +24,7 @@ pub async fn route(
     game_id: Path<i64>,
     id: Identity,
     pool: Data<db::Pool>,
-) -> Result<HttpResponse, Error> {
+) -> crate::server::Response {
     let user = auth::get_user(&id)?;
 
     let game_id = *game_id;
@@ -48,6 +48,7 @@ pub async fn route(
         &req,
         stream,
     )
+    .map_err(|e| e.into())
 }
 
 struct SalesUpdates {
