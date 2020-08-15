@@ -30,6 +30,9 @@ pub async fn route(
     let game_id = *game_id;
 
     web::block(move || {
+        if user.is_admin {
+            return Ok(());
+        }
         let conn = pool.get()?;
         if !Game::verify_user(game_id, user.id, &conn)? {
             forbidden!("you are not in this game");
