@@ -144,6 +144,6 @@ impl RouteFormatter for ResourceIdFormatter {
         lazy_static::lazy_static! {
             static ref RESOURCE_ID: Regex = Regex::new(r"/[0-9]+").expect("invalid routeformatter regex");
         }
-        RESOURCE_ID.replace_all(uri, "/{id}").into_owned()
+        RESOURCE_ID.replace_all(uri, "/:id").into_owned()
     }
 }
