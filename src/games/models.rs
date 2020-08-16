@@ -456,11 +456,14 @@ impl Beverage {
     pub fn calculate_price(&self, offset: &i64) -> i64 {
         // TODO: be able to configure the multiplier
         let price = self.starting_price + offset * PRICE_MULTIPLIER;
+
         if price > self.max_price {
-            self.max_price
-        } else {
-            price
+            return self.max_price;
+        } else if price < self.min_price {
+            return self.min_price;
         }
+
+        price
     }
 }
 
@@ -602,5 +605,22 @@ mod tests {
 
         game.name = String::from("('something')");
         assert!(Validator::new(game.clone()).validate().is_err());
+    }
+
+    #[test]
+    fn beverage_price_range() {
+        let beverage = Beverage {
+            game_id: 1,
+            name: String::from("Orval"),
+            image_url: None,
+            max_price: 500,
+            min_price: 200,
+            starting_price: 250,
+            slot_no: 0,
+            user_id: 0,
+        };
+
+        assert!(beverage.calculate_price(&500) <= beverage.max_price);
+        assert!(beverage.calculate_price(&-500) >= beverage.min_price);
     }
 }
