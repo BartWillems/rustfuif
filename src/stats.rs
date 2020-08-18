@@ -1,3 +1,4 @@
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::task::{Context, Poll};
 
@@ -7,7 +8,8 @@ use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::web::Data;
 use actix_web::Error;
 use actix_web::{get, web};
-use futures::future::{ok, Either, Ready};
+use futures::future::{ok, Ready};
+use futures::Future;
 
 use crate::db;
 use crate::server::Response;
@@ -15,12 +17,14 @@ use crate::websocket::server::{Query, TransactionServer};
 
 pub struct Stats {
     pub requests: AtomicU32,
+    pub errors: AtomicU32,
 }
 
 impl Stats {
     pub fn new() -> Stats {
         Stats {
             requests: AtomicU32::new(0u32),
+            errors: AtomicU32::new(0u32),
         }
     }
 }
@@ -28,6 +32,7 @@ impl Stats {
 #[derive(Serialize)]
 pub struct StatsResponse {
     pub requests: u32,
+    pub errors: u32,
     pub active_ws_sessions: usize,
     pub active_games: i64,
     pub active_db_connections: u32,
@@ -51,6 +56,7 @@ pub async fn route(
 
     http_ok_json!(StatsResponse {
         requests: stats.requests.load(Ordering::Relaxed),
+        errors: stats.errors.load(Ordering::Relaxed),
         active_ws_sessions: sessions.get_ref().send(Query::ActiveSessions).await?,
         active_games,
         active_db_connections: state.connections,
@@ -95,7 +101,7 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Either<S::Future, Ready<Result<Self::Response, Self::Error>>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
@@ -104,12 +110,20 @@ where
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let stats: Option<Data<Stats>> = req.app_data();
 
-        // TODO: add counter bad requests
-        if let Some(stats) = stats {
-            stats.into_inner().requests.fetch_add(1, Ordering::Relaxed);
-        }
+        let stats = stats.expect("unable to load stats").into_inner();
 
-        // TODO: figure out how to fix this
-        Either::Left(self.service.call(req))
+        stats.requests.fetch_add(1, Ordering::Relaxed);
+
+        let fut = self.service.call(req);
+
+        Box::pin(async move {
+            let res = fut.await?;
+
+            if res.response().status().is_server_error() {
+                stats.errors.fetch_add(1, Ordering::Relaxed);
+            }
+
+            Ok(res)
+        })
     }
 }
