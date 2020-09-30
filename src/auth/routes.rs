@@ -7,7 +7,7 @@ use crate::validator::Validator;
 
 use actix_identity::Identity;
 use actix_web::web::{Data, Json};
-use actix_web::{post, web, HttpResponse};
+use actix_web::{get, post, web, HttpResponse};
 use serde_json::json;
 
 #[post("/register")]
@@ -84,9 +84,17 @@ async fn change_password(
     http_ok_json!("password succesfully updated")
 }
 
+#[get("/verify-session")]
+async fn verify_session(id: Identity) -> Response {
+    auth::get_user(&id)?;
+
+    http_ok_json!("session is valid")
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(create_account);
     cfg.service(login);
     cfg.service(logout);
     cfg.service(change_password);
+    cfg.service(verify_session);
 }
