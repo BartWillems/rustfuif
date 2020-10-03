@@ -67,6 +67,12 @@ impl User {
         Ok(user)
     }
 
+    pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Self, ServiceError> {
+        let user = users::table.filter(users::id.eq(id)).first(conn)?;
+
+        Ok(user)
+    }
+
     pub fn create(user: &mut UserMessage, conn: &db::Conn) -> Result<Self, ServiceError> {
         user.hash_password()?;
 
