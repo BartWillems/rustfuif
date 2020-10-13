@@ -1,13 +1,3 @@
-FROM node:alpine as doc-builder
-
-WORKDIR /usr/src/rustfuif
-
-RUN npm install -g redoc-cli
-
-COPY api-spec/spec.yaml .
-
-RUN redoc-cli bundle spec.yaml -o index.html
-
 FROM rust:1.47 as builder
 
 WORKDIR /usr/src/rustfuif
@@ -33,7 +23,6 @@ RUN apt-get update && \
 RUN mkdir api-spec
 
 COPY ./migrations ./migrations
-COPY --from=doc-builder /usr/src/rustfuif/index.html ./api-spec/index.html
 COPY --from=builder /usr/local/cargo/bin/diesel /usr/bin/diesel
 COPY --from=builder /usr/src/rustfuif/target/release/rustfuif /usr/bin/rustfuif
 

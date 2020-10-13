@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_cors::Cors;
-use actix_files as fs;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::cookie::SameSite;
 use actix_web::{dev, get, http, middleware, web, App, HttpResponse, HttpServer};
@@ -84,8 +83,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
                     .configure(transactions::routes::register)
                     .configure(users::routes::register)
                     .configure(ddg::routes::register)
-                    .service(health)
-                    .service(fs::Files::new("/spec", "./api-spec").index_file("index.html")),
+                    .service(health),
             )
             .service(web::scope("/admin").service(health))
     })

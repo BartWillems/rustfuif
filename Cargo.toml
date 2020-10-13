@@ -10,7 +10,6 @@ repository = "https://github.com/bartwillems/rustfuif"
 [dependencies]
 actix = "0.9"
 actix-cors = "0.2"
-actix-files = "0.2"
 actix-identity = "0.2"
 actix-rt = "1.1.1"
 actix-service = "1.0.6"
