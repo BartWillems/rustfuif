@@ -14,6 +14,7 @@ use opentelemetry::{api::KeyValue, global, sdk};
 
 use crate::auth;
 use crate::db;
+use crate::ddg;
 use crate::errors::ServiceError;
 use crate::games;
 use crate::invitations;
@@ -82,6 +83,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
                     .configure(auth::routes::register)
                     .configure(transactions::routes::register)
                     .configure(users::routes::register)
+                    .configure(ddg::routes::register)
                     .service(health)
                     .service(fs::Files::new("/spec", "./api-spec").index_file("index.html")),
             )

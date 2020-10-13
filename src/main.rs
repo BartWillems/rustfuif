@@ -22,6 +22,7 @@ mod macros;
 mod auth;
 mod cache;
 mod db;
+mod ddg;
 mod errors;
 mod games;
 mod invitations;
