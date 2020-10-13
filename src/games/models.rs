@@ -134,13 +134,15 @@ impl Game {
     }
 
     pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
-        if let Some(game) = cache::find(id)? {
+        if let Some(game) = cache::find(id).unwrap_or(None) {
             return Ok(game);
         }
 
         let game = games::table.filter(games::id.eq(id)).first::<Game>(conn)?;
 
-        cache::set(&game, game.id)?;
+        if let Err(e) = cache::set(&game, game.id) {
+            error!("unable to cache game: {}", e);
+        }
 
         Ok(game)
     }
@@ -274,14 +276,16 @@ impl Game {
     }
 
     /// returns true if a user is an admin or created the game
-    pub fn is_owner(&self, user: &User) -> bool {
+    pub const fn is_owner(&self, user: &User) -> bool {
         user.is_admin || user.id == self.owner_id
     }
 
     pub fn update(&self, conn: &db::Conn) -> Result<Game, ServiceError> {
         let game: Game = diesel::update(self).set(self).get_result(conn)?;
 
-        cache::set(&game, game.id)?;
+        if let Err(e) = cache::set(&game, game.id) {
+            error!("unable to cache game: {}", e);
+        }
 
         Ok(game)
     }
@@ -322,7 +326,7 @@ impl Game {
 
         for beverage in &beverages {
             if let Some(offset) = offsets.get(&beverage.slot_no) {
-                prices.insert(beverage.slot_no, beverage.calculate_price(offset));
+                prices.insert(beverage.slot_no, beverage.calculate_price(*offset));
             }
         }
 
@@ -414,7 +418,7 @@ impl Beverage {
         user_id: i64,
         conn: &db::Conn,
     ) -> Result<Vec<Beverage>, ServiceError> {
-        if let Some(configs) = cache::find(format!("{}.{}", game_id, user_id))? {
+        if let Some(configs) = cache::find(format!("{}.{}", game_id, user_id)).unwrap_or(None) {
             return Ok(configs);
         }
 
@@ -424,7 +428,9 @@ impl Beverage {
             .order(beverages::slot_no)
             .load::<Beverage>(conn)?;
 
-        cache::set(&configs, format!("{}.{}", game_id, user_id))?;
+        if let Err(e) = cache::set(&configs, format!("{}.{}", game_id, user_id)) {
+            error!("unable to cache beverage config: {}", e);
+        }
 
         Ok(configs)
     }
@@ -453,7 +459,7 @@ impl Beverage {
         Ok(config)
     }
 
-    pub fn calculate_price(&self, offset: &i64) -> i64 {
+    pub const fn calculate_price(&self, offset: i64) -> i64 {
         // TODO: be able to configure the multiplier
         let price = self.starting_price + offset * PRICE_MULTIPLIER;
 
@@ -620,7 +626,7 @@ mod tests {
             user_id: 0,
         };
 
-        assert!(beverage.calculate_price(&500) <= beverage.max_price);
-        assert!(beverage.calculate_price(&-500) >= beverage.min_price);
+        assert!(beverage.calculate_price(500) <= beverage.max_price);
+        assert!(beverage.calculate_price(-500) >= beverage.min_price);
     }
 }

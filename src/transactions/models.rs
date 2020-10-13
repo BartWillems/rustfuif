@@ -132,7 +132,7 @@ impl NewSale {
                     (Some(cfg), Some(salescount)) => {
                         sale.set_price(
                             cfg,
-                            &salescount.get_offset(average_sales),
+                            salescount.get_offset(average_sales),
                         );
                     }
                 }
@@ -180,7 +180,7 @@ impl NewSale {
 }
 
 impl Sale {
-    fn set_price(&mut self, cfg: &Beverage, offset: &i64) {
+    fn set_price(&mut self, cfg: &Beverage, offset: i64) {
         self.price = cfg.calculate_price(offset);
     }
 }
@@ -304,7 +304,7 @@ impl SalesCount {
         (total as f64 / sales.len() as f64).ceil() as i64
     }
 
-    fn get_offset(&self, average: i64) -> i64 {
+    const fn get_offset(&self, average: i64) -> i64 {
         self.sales - average
     }
 
