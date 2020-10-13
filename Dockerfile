@@ -16,11 +16,9 @@ WORKDIR /usr/src/rustfuif
 
 # curl is used for docker-compose health checks
 RUN apt-get update && \
-    apt-get install libpq-dev curl -y --no-install-recommends && \
+    apt-get install libpq-dev curl ca-certificates -y --no-install-recommends && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-RUN mkdir api-spec
 
 COPY ./migrations ./migrations
 COPY --from=builder /usr/local/cargo/bin/diesel /usr/bin/diesel
