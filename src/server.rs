@@ -6,6 +6,7 @@ use actix::prelude::*;
 use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::cookie::SameSite;
+use actix_web::middleware::normalize::TrailingSlash;
 use actix_web::{dev, get, http, middleware, web, App, HttpResponse, HttpServer};
 use actix_web_opentelemetry::{RequestMetrics, RequestTracing};
 use opentelemetry::{api::KeyValue, global, sdk};
@@ -57,7 +58,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
-            .wrap(middleware::NormalizePath::default())
+            .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
             .wrap(stats::Middleware::default())
             .wrap(request_metrics.clone())
             .wrap(RequestTracing::default())
