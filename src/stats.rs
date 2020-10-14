@@ -107,14 +107,15 @@ where
         self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        let stats: Option<Data<Stats>> = req.app_data();
-
-        let stats = stats.expect("unable to load stats").into_inner();
+    fn call(&mut self, request: ServiceRequest) -> Self::Future {
+        let stats = request
+            .app_data::<Data<Stats>>()
+            .expect("unable to load stats")
+            .clone();
 
         stats.requests.fetch_add(1, Ordering::Relaxed);
 
-        let fut = self.service.call(req);
+        let fut = self.service.call(request);
 
         Box::pin(async move {
             let res = fut.await?;

@@ -83,10 +83,10 @@ async fn respond(info: Path<(i64, State)>, id: Identity, pool: Data<db::Pool>) -
 
     let invite = web::block(move || {
         let conn = pool.get()?;
-        let invite_id = &info.0;
+        let info = info.into_inner();
         let response = &info.1;
 
-        let mut invite = Invitation::find_by_id(*invite_id, &conn)?;
+        let mut invite = Invitation::find_by_id(info.0, &conn)?;
 
         if user.id != invite.user_id && !user.is_admin {
             forbidden!("this is not the invite you're looking for");

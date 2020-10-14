@@ -7,9 +7,9 @@ use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::cookie::SameSite;
 use actix_web::{dev, get, http, middleware, web, App, HttpResponse, HttpServer};
-use actix_web_opentelemetry::{RequestMetrics, RequestTracing, RouteFormatter};
-use chrono::Duration;
+use actix_web_opentelemetry::{RequestMetrics, RequestTracing};
 use opentelemetry::{api::KeyValue, global, sdk};
+use time::Duration;
 
 use crate::auth;
 use crate::db;
@@ -36,7 +36,6 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     let meter = sdk::Meter::new("rustfuif_api");
     let request_metrics = RequestMetrics::new(
         meter,
-        ResourceIdFormatter::new(),
         Some(|req: &dev::ServiceRequest| {
             req.path() == "/metrics" && req.method() == http::Method::GET
         }),
@@ -58,7 +57,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
-            .wrap(middleware::NormalizePath)
+            .wrap(middleware::NormalizePath::default())
             .wrap(stats::Middleware::default())
             .wrap(request_metrics.clone())
             .wrap(RequestTracing::default())
@@ -67,8 +66,8 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
                 CookieIdentityPolicy::new(&session_private_key.as_bytes())
                     .name("auth-cookie")
                     .same_site(SameSite::Strict)
-                    .visit_deadline(Duration::days(7))
-                    .max_age_time(Duration::days(7))
+                    .visit_deadline(Duration::weeks(2))
+                    .max_age_time(Duration::weeks(2))
                     .secure(false),
             ))
             .data(web::JsonConfig::default().limit(262_144))
@@ -124,26 +123,4 @@ pub fn init_tracer(agent_endpoint: &str) -> std::io::Result<()> {
     global::set_provider(provider);
 
     Ok(())
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ResourceIdFormatter {}
-
-impl ResourceIdFormatter {
-    /// Create a new `ResourceIdFormatter`
-    pub fn new() -> Self {
-        ResourceIdFormatter {}
-    }
-}
-
-impl RouteFormatter for ResourceIdFormatter {
-    /// Function from path to route
-    /// e.g. /games/4 -> /games/{id}
-    fn format(&self, uri: &str) -> String {
-        use regex::Regex;
-        lazy_static::lazy_static! {
-            static ref RESOURCE_ID: Regex = Regex::new(r"/[0-9]+").expect("invalid routeformatter regex");
-        }
-        RESOURCE_ID.replace_all(uri, "/:id").into_owned()
-    }
 }
