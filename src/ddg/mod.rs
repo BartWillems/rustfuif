@@ -4,7 +4,6 @@ use crate::cache;
 use crate::errors::ServiceError;
 
 use regex::Regex;
-use reqwest;
 
 const BASE_URI: &str = "https://duckduckgo.com";
 
