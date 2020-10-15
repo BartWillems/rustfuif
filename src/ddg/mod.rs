@@ -7,7 +7,6 @@ use regex::Regex;
 
 const BASE_URI: &str = "https://duckduckgo.com";
 
-#[derive(Clone)]
 pub struct Client {
     token: Option<String>,
     reqwest: reqwest::Client,
@@ -57,7 +56,9 @@ impl Client {
         if let Some(res) = cache::find(query).unwrap_or(None) {
             return Ok(res);
         }
-        let client: Client = Client::new().acquire_token(query).await?.to_owned();
+
+        let mut client = Client::new();
+        client.acquire_token(query).await?;
 
         let res = client
             .reqwest
