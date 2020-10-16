@@ -397,7 +397,7 @@ impl Beverage {
     pub fn save(&self, conn: &db::Conn) -> Result<Beverage, ServiceError> {
         let game = Game::find_by_id(self.game_id, conn)?;
 
-        if self.slot_no > game.beverage_count {
+        if self.slot_no >= game.beverage_count {
             bad_request!("a beverage slot exceeds the maximum configured beverage slots");
         }
 
