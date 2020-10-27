@@ -633,4 +633,28 @@ mod tests {
         assert!(beverage.calculate_price(500) <= beverage.max_price);
         assert!(beverage.calculate_price(-500) >= beverage.min_price);
     }
+
+    #[test]
+    fn valid_beverage_count_range() {
+        let start_time: DateTime<Utc> = Utc::now().add(Duration::days(1));
+        let close_time = start_time.add(Duration::hours(1));
+        let mut game = CreateGame {
+            owner_id: 1,
+            beverage_count: -1,
+            name: String::from("some game"),
+            start_time: start_time,
+            close_time: close_time,
+        };
+
+        assert!(Validator::new(game.clone()).validate().is_err());
+
+        game.beverage_count = 0;
+        assert!(Validator::new(game.clone()).validate().is_err());
+
+        game.beverage_count = 1;
+        assert!(Validator::new(game.clone()).validate().is_err());
+
+        game.beverage_count = 2;
+        assert!(Validator::new(game.clone()).validate().is_ok());
+    }
 }
