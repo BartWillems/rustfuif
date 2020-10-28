@@ -31,18 +31,8 @@ impl Client {
             .text()
             .await?;
 
-        lazy_static! {
-            static ref TOKEN_PATTERN: Regex =
-                Regex::new(r"vqd=([\d-]+)").expect("invalid ddg token regex");
-        }
-
-        let capture = TOKEN_PATTERN
-            .captures(&resp)
-            .and_then(|capture| capture.get(0))
-            .and_then(|token| token.as_str().split('=').last());
-
-        match capture {
-            Some(token) => self.token = Some(token.into()),
+        match Client::find_token(&resp) {
+            Some(token) => self.token = Some(token),
             None => {
                 error!("token not found in ddg request");
                 return Err(ServiceError::InternalServerError);
@@ -50,6 +40,24 @@ impl Client {
         }
 
         Ok(self)
+    }
+
+    /// look through a duckduckgo response and return the api token if it's present
+    fn find_token(haystack: &str) -> Option<String> {
+        lazy_static! {
+            static ref TOKEN_PATTERN: Regex =
+                Regex::new(r"vqd=([\d-]+)").expect("invalid ddg token regex");
+        }
+
+        let capture: Option<&str> = TOKEN_PATTERN
+            .captures(haystack)
+            .and_then(|capture| capture.get(0))
+            .and_then(|token| token.as_str().split('=').last());
+
+        match capture {
+            Some(token) => Some(token.into()),
+            None => None,
+        }
     }
 
     pub async fn search_images(query: &str) -> Result<ImageResponse, ServiceError> {
@@ -114,5 +122,22 @@ impl From<reqwest::Error> for ServiceError {
     fn from(error: reqwest::Error) -> ServiceError {
         error!("reqwest error: {}", error);
         ServiceError::InternalServerError
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_token() {
+        let token = Client::find_token("nrj('/d.js?q=test&t=D&l=us-en&s=0&dl=en&ct=BE&ss_mkt=us&vqd=3-322225378556065850860803507288131703155-133178935652763664263271092398831973244&p_ent=&ex=-1&sp=0');");
+        assert!(token.is_some());
+        assert_eq!(
+            token.unwrap(),
+            String::from(
+                "3-322225378556065850860803507288131703155-133178935652763664263271092398831973244"
+            )
+        );
     }
 }
