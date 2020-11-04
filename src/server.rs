@@ -62,7 +62,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             .wrap(stats::Middleware::default())
             .wrap(request_metrics.clone())
             .wrap(RequestTracing::default())
-            .wrap(Cors::new().supports_credentials().finish())
+            .wrap(Cors::permissive().supports_credentials())
             .wrap(IdentityService::new(
                 CookieIdentityPolicy::new(&session_private_key.as_bytes())
                     .name("auth-cookie")
