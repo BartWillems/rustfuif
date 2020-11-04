@@ -26,6 +26,7 @@ mod ddg;
 mod errors;
 mod games;
 mod invitations;
+mod prices;
 mod schema;
 mod server;
 mod stats;
@@ -46,6 +47,7 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
 
     env_logger::init();
 
+    // TODO: use a configuration helper
     let session_private_key = get_env("SESSION_PRIVATE_KEY")?;
     if session_private_key.len() < 32 {
         return Err(Box::from(format!(
@@ -71,8 +73,11 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
 
     cache::init();
 
+    info!("launching price updater");
+    prices::Updater::new(pool.clone(), std::time::Duration::from_secs(120)).start();
+
     debug!("launching the actix webserver");
-    server::launch(pool, session_private_key).await?;
+    server::launch(pool.clone(), session_private_key).await?;
 
     Ok(())
 }
