@@ -72,8 +72,6 @@ const MIN_GAME_SECONDS: i64 = 60 * 30;
 /// maximum duration is 24 hours
 const MAX_GAME_SECONDS: i64 = 60 * 60 * 24;
 
-const PRICE_MULTIPLIER: i64 = 10;
-
 impl Game {
     /// Creates a new game, saves it in the database and automatically invites and
     /// accepts the creator in a transaction.
@@ -464,8 +462,7 @@ impl Beverage {
     }
 
     pub const fn calculate_price(&self, offset: i64) -> i64 {
-        // TODO: be able to configure the multiplier
-        let price = self.starting_price + offset * PRICE_MULTIPLIER;
+        let price = self.starting_price + offset * (self.starting_price / 20);
 
         if price > self.max_price {
             return self.max_price;
@@ -473,7 +470,13 @@ impl Beverage {
             return self.min_price;
         }
 
-        price
+        // round to 10 cents
+        let mod_ten = price % 10;
+        if mod_ten >= 5 {
+            return price + (10 - mod_ten);
+        } else {
+            return price - mod_ten;
+        }
     }
 }
 
