@@ -53,7 +53,7 @@ impl Client {
             .captures(haystack)
             .and_then(|capture| capture.get(0))
             .and_then(|token| token.as_str().split('=').last())
-            .and_then(|token| Some(token.to_string()))
+            .map(|token| token.to_string())
     }
 
     pub async fn search_images(query: &str) -> Result<ImageResponse, ServiceError> {
