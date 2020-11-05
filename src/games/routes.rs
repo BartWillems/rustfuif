@@ -101,13 +101,13 @@ async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> serve
 async fn get_beverages(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    let configs = web::block(move || {
+    let beverages = web::block(move || {
         let conn = pool.get()?;
         Beverage::find(*game_id, user.id, &conn)
     })
     .await?;
 
-    http_ok_json!(configs);
+    http_ok_json!(beverages);
 }
 
 #[post("/games/{id}/beverages")]
@@ -124,6 +124,7 @@ async fn create_beverage_config(
 
     config.user_id = user.id;
     config.game_id = game_id;
+    config.set_price(config.starting_price);
 
     let config = web::block(move || {
         let conn = pool.get()?;

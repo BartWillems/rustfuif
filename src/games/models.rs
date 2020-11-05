@@ -113,7 +113,7 @@ impl Game {
     }
 
     /// return the amount of active games at the moment
-    pub fn active_games(conn: &db::Conn) -> Result<i64, ServiceError> {
+    pub fn active_game_count(conn: &db::Conn) -> Result<i64, ServiceError> {
         use diesel::dsl::{now, sql};
 
         let count = games::table
@@ -123,6 +123,17 @@ impl Game {
             .first::<i64>(conn)?;
 
         Ok(count)
+    }
+
+    pub fn active_games(conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
+        use diesel::dsl::now;
+
+        let games = games::table
+            .filter(games::start_time.lt(now))
+            .filter(games::close_time.gt(now))
+            .load(conn)?;
+
+        Ok(games)
     }
 
     pub fn invite_user(&self, user_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
@@ -330,6 +341,35 @@ impl Game {
 
         Ok(prices)
     }
+
+    pub fn get_beverages(&self, conn: &db::Conn) -> Result<Vec<Beverage>, ServiceError> {
+        Beverage::find_by_game(self.id, conn)
+    }
+
+    pub fn update_prices(&self, conn: &db::Conn) -> Result<(), ServiceError> {
+        let mut beverages = self.get_beverages(conn)?;
+
+        let sales = SalesCount::find_by_game_for_update(self.id, conn)?;
+        let average_sales = SalesCount::average_sales(&sales);
+
+        for beverage in &mut beverages {
+            for sale in &sales {
+                if sale.slot_no != beverage.slot_no {
+                    continue;
+                }
+
+                debug!("game({}) - beverage: {:?}", self.id, beverage);
+                assert_eq!(sale.slot_no, beverage.slot_no);
+                let offset = sale.get_offset(average_sales);
+                let price = beverage.calculate_price(offset);
+                debug!("setting price to: {}", price);
+                beverage.set_price(price);
+                beverage.save_price(conn)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl crate::cache::Cache for Game {
@@ -393,6 +433,9 @@ pub struct Beverage {
     pub min_price: i64,
     pub max_price: i64,
     pub starting_price: i64,
+
+    #[serde(skip_deserializing)]
+    current_price: i64,
 }
 
 impl Beverage {
@@ -406,12 +449,6 @@ impl Beverage {
         let config = diesel::insert_into(beverages::table)
             .values(self)
             .get_result::<Beverage>(conn)?;
-
-        let _ = cache::delete(format!("beverage_config.{}.{}", self.game_id, self.user_id))
-            .map_err(|e| {
-                error!("unable to delete beverage config from cache: {}", e);
-            });
-
         Ok(config)
     }
 
@@ -420,21 +457,22 @@ impl Beverage {
         user_id: i64,
         conn: &db::Conn,
     ) -> Result<Vec<Beverage>, ServiceError> {
-        if let Some(configs) = cache::find(format!("{}.{}", game_id, user_id)).unwrap_or(None) {
-            return Ok(configs);
-        }
-
         let configs = beverages::table
             .filter(beverages::user_id.eq(user_id))
             .filter(beverages::game_id.eq(game_id))
             .order(beverages::slot_no)
             .load::<Beverage>(conn)?;
 
-        if let Err(e) = cache::set(&configs, format!("{}.{}", game_id, user_id)) {
-            error!("unable to cache beverage config: {}", e);
-        }
-
         Ok(configs)
+    }
+
+    pub fn find_by_game(game_id: i64, conn: &db::Conn) -> Result<Vec<Beverage>, ServiceError> {
+        let beverages = beverages::table
+            .filter(beverages::game_id.eq(game_id))
+            .order(beverages::slot_no)
+            .load::<Beverage>(conn)?;
+
+        Ok(beverages)
     }
 
     pub fn update(&self, conn: &db::Conn) -> Result<Beverage, ServiceError> {
@@ -461,6 +499,24 @@ impl Beverage {
         Ok(config)
     }
 
+    pub fn save_price(&self, conn: &db::Conn) -> Result<Beverage, ServiceError> {
+        use crate::schema::beverages::dsl::*;
+
+        let config = diesel::update(beverages)
+            .filter(slot_no.eq(self.slot_no))
+            .filter(game_id.eq(self.game_id))
+            .filter(user_id.eq(self.user_id))
+            .set((current_price.eq(self.price()),))
+            .get_result::<Beverage>(conn)?;
+
+        let _ = cache::delete(format!("beverage_config.{}.{}", self.game_id, self.user_id))
+            .map_err(|e| {
+                error!("unable to delete beverage config from cache: {}", e);
+            });
+
+        Ok(config)
+    }
+
     pub const fn calculate_price(&self, offset: i64) -> i64 {
         let price = self.starting_price + offset * (self.starting_price / 20);
 
@@ -473,16 +529,18 @@ impl Beverage {
         // round to 10 cents
         let mod_ten = price % 10;
         if mod_ten >= 5 {
-            return price + (10 - mod_ten);
+            price + (10 - mod_ten)
         } else {
-            return price - mod_ten;
+            price - mod_ten
         }
     }
-}
 
-impl crate::cache::Cache for Vec<Beverage> {
-    fn cache_key<T: std::fmt::Display>(id: T) -> String {
-        format!("beverage_config.{}", id)
+    pub fn set_price(&mut self, price: i64) {
+        self.current_price = price;
+    }
+
+    pub fn price(&self) -> i64 {
+        self.current_price
     }
 }
 
@@ -631,6 +689,7 @@ mod tests {
             starting_price: 250,
             slot_no: 0,
             user_id: 0,
+            current_price: 250,
         };
 
         assert!(beverage.calculate_price(500) <= beverage.max_price);

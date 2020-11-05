@@ -100,40 +100,24 @@ impl NewSale {
             // 2
             let mut sales_counts = SalesCount::find_by_game_for_update(self.game_id, conn)?;
 
-            let average_sales = SalesCount::average_sales(&sales_counts);
-
             // 3
             for (_, sale) in sales.iter_mut() {
                 let mut beverage_config: Option<&Beverage> = None;
-                let mut sale_count: Option<&SalesCount> = None;
                 for cfg in &beverage_configs {
                     if cfg.slot_no == sale.slot_no {
                         beverage_config = Some(cfg);
                         break;
                     }
                 }
-
-                for count in &sales_counts {
-                    if count.slot_no == sale.slot_no {
-                        sale_count = Some(count);
-                        break;
-                    }
-                }
-
-                match (beverage_config, sale_count) {
-                    (None, _) => {
+                match beverage_config {
+                    None => {
                         error!("a sale was attempted without a pre-existing beverage config");
-                        return Err(ServiceError::BadRequest(String::from("unable to create purchase for beverage without a config")));
-                    },
-                    (_, None) => {
-                        error!("a sale with slot({}) was made for game:({}) but no count was found in the database", sale.slot_no, sale.game_id);
-                        return Err(ServiceError::InternalServerError);
-                    },
-                    (Some(cfg), Some(salescount)) => {
-                        sale.set_price(
-                            cfg,
-                            salescount.get_offset(average_sales),
-                        );
+                        return Err(ServiceError::BadRequest(String::from(
+                            "unable to create purchase for beverage without a config",
+                        )));
+                    }
+                    Some(beverage) => {
+                        sale.set_price(beverage);
                     }
                 }
             }
@@ -180,8 +164,8 @@ impl NewSale {
 }
 
 impl Sale {
-    fn set_price(&mut self, cfg: &Beverage, offset: i64) {
-        self.price = cfg.calculate_price(offset);
+    fn set_price(&mut self, beverage: &Beverage) {
+        self.price = beverage.price();
     }
 }
 
@@ -265,7 +249,10 @@ impl SalesCount {
     }
 
     /// get salescount for a game while locking the rows during a transaction
-    fn find_by_game_for_update(game_id: i64, conn: &db::Conn) -> Result<Vec<SalesCount>, DBError> {
+    pub(crate) fn find_by_game_for_update(
+        game_id: i64,
+        conn: &db::Conn,
+    ) -> Result<Vec<SalesCount>, DBError> {
         let res = sales_counts::table
             .filter(sales_counts::game_id.eq(game_id))
             .for_update()
@@ -294,7 +281,7 @@ impl SalesCount {
         .get_result(conn)
     }
 
-    fn average_sales(sales: &[SalesCount]) -> i64 {
+    pub(crate) fn average_sales(sales: &[SalesCount]) -> i64 {
         let mut total: i64 = 0;
 
         for beverage in sales {
@@ -304,7 +291,7 @@ impl SalesCount {
         (total as f64 / sales.len() as f64).ceil() as i64
     }
 
-    const fn get_offset(&self, average: i64) -> i64 {
+    pub(crate) const fn get_offset(&self, average: i64) -> i64 {
         self.sales - average
     }
 

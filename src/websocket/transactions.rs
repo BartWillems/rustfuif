@@ -42,7 +42,7 @@ pub async fn route(
     .await?;
 
     ws::start(
-        SalesUpdates {
+        NotificationUpdates {
             id: 0,
             hb: Instant::now(),
             game_id,
@@ -54,7 +54,7 @@ pub async fn route(
     .map_err(|e| e.into())
 }
 
-struct SalesUpdates {
+struct NotificationUpdates {
     /// unique session id
     id: usize,
     /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
@@ -62,11 +62,11 @@ struct SalesUpdates {
     hb: Instant,
     /// joined room
     game_id: i64,
-    /// Chat server
+    /// notification server
     addr: Addr<server::TransactionServer>,
 }
 
-impl Actor for SalesUpdates {
+impl Actor for NotificationUpdates {
     type Context = ws::WebsocketContext<Self>;
 
     /// Method is called on actor start.
@@ -106,16 +106,16 @@ impl Actor for SalesUpdates {
 }
 
 /// Handle messages from server, we simply send it to peer websocket
-impl Handler<server::Sale> for SalesUpdates {
+impl Handler<server::Notification> for NotificationUpdates {
     type Result = ();
 
-    fn handle(&mut self, sale: server::Sale, ctx: &mut Self::Context) {
-        ctx.text(serde_json::to_string(&sale).unwrap_or_default());
+    fn handle(&mut self, notification: server::Notification, ctx: &mut Self::Context) {
+        ctx.text(serde_json::to_string(&notification).unwrap_or_default());
     }
 }
 
 /// WebSocket message handler
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for SalesUpdates {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NotificationUpdates {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         let msg = match msg {
             Err(_) => {
@@ -150,7 +150,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for SalesUpdates {
     }
 }
 
-impl SalesUpdates {
+impl NotificationUpdates {
     /// helper method that sends ping to client every second.
     ///
     /// also this method checks heartbeats from client

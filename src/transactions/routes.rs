@@ -11,7 +11,7 @@ use crate::db;
 use crate::games::Game;
 use crate::server;
 use crate::transactions::models::{NewSale, SalesCount, Transaction, TransactionFilter};
-use crate::websocket::server::Sale;
+use crate::websocket::{Notification, Sale};
 
 #[get("/games/{id}/sales")]
 async fn get_sales(game_id: Path<i64>, id: Identity, pool: Data<db::Pool>) -> server::Response {
@@ -34,7 +34,7 @@ async fn create_sale(
     slots: Json<HashMap<i16, i32>>,
     id: Identity,
     pool: Data<db::Pool>,
-    tx: Data<mpsc::Sender<Sale>>,
+    tx: Data<mpsc::Sender<Notification>>,
 ) -> server::Response {
     let user = auth::get_user(&id)?;
     let game_id = game_id.into_inner();
@@ -55,7 +55,10 @@ async fn create_sale(
 
         let offsets = SalesCount::get_price_offsets(game_id, &conn)?;
 
-        Ok((transactions, Sale { game_id, offsets }))
+        Ok((
+            transactions,
+            Notification::NewSale(Sale { game_id, offsets }),
+        ))
     })
     .await?;
 

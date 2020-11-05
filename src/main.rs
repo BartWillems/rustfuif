@@ -73,9 +73,6 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
 
     cache::init();
 
-    info!("launching price updater");
-    prices::Updater::new(pool.clone(), std::time::Duration::from_secs(120)).start();
-
     debug!("launching the actix webserver");
     server::launch(pool.clone(), session_private_key).await?;
 

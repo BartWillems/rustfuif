@@ -18,11 +18,12 @@ use crate::ddg;
 use crate::errors::ServiceError;
 use crate::games;
 use crate::invitations;
+use crate::prices;
 use crate::stats;
 use crate::transactions;
 use crate::users;
 use crate::websocket;
-use crate::websocket::server::{Sale, TransactionServer};
+use crate::websocket::server::{Notification, TransactionServer};
 
 pub type Response = Result<HttpResponse, ServiceError>;
 
@@ -43,11 +44,19 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     );
 
     // used to notify the clients when a purchase is made in your game
-    let (transmitter, receiver) = mpsc::channel::<Sale>();
+    let (transmitter, receiver) = mpsc::channel::<Notification>();
 
     let transaction_server = Arc::new(TransactionServer::default().start());
 
     TransactionServer::listener(transaction_server.clone(), receiver);
+
+    debug!("launching price updater");
+    prices::Updater::new(
+        db_pool.clone(),
+        std::time::Duration::from_secs(120),
+        transmitter.clone(),
+    )
+    .start();
 
     HttpServer::new(move || {
         App::new()

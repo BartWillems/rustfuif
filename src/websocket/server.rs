@@ -8,7 +8,7 @@ use rand::{self, rngs::ThreadRng, Rng};
 #[derive(Message)]
 #[rtype(usize)]
 pub struct Connect {
-    pub addr: Recipient<Sale>,
+    pub addr: Recipient<Notification>,
     pub game_id: i64,
 }
 
@@ -29,7 +29,7 @@ type SessionId = usize;
 
 /// `TransactionServer` manages price updates/new sales
 pub struct TransactionServer {
-    sessions: HashMap<SessionId, Recipient<Sale>>,
+    sessions: HashMap<SessionId, Recipient<Notification>>,
     games: HashMap<GameId, HashSet<SessionId>>,
     rng: ThreadRng,
 }
@@ -45,25 +45,28 @@ impl Default for TransactionServer {
 }
 
 impl TransactionServer {
-    /// Send a message to a room, notifying them about a sale
-    pub fn notify_players(&self, sale: Sale) {
+    /// Notify all players of a game that a sale happened
+    pub fn notify_sale(&self, sale: Sale) {
         if let Some(sessions) = self.games.get(&sale.game_id) {
             for id in sessions {
                 if let Some(addr) = self.sessions.get(id) {
-                    let _ = addr.do_send(sale.clone());
+                    let _ = addr.do_send(Notification::NewSale(sale.clone()));
                 }
             }
         }
     }
 
+    pub fn notify_price_update(&self) {
+        for (_, recipient) in self.sessions.iter() {
+            let _ = recipient.do_send(Notification::PriceUpdate);
+        }
+    }
+
     /// Listener receives sales updates and sends price updates to the clients
-    pub fn listener(server: Arc<Addr<TransactionServer>>, rx: mpsc::Receiver<Sale>) {
+    pub fn listener(server: Arc<Addr<TransactionServer>>, rx: mpsc::Receiver<Notification>) {
         thread::spawn(move || {
-            for received in rx {
-                server.do_send(Sale {
-                    game_id: received.game_id,
-                    offsets: received.offsets,
-                });
+            for notification in rx {
+                server.do_send(notification.clone());
             }
         });
     }
@@ -118,16 +121,28 @@ pub struct Transaction {
 
 #[derive(Message, Debug, Serialize, Clone)]
 #[rtype(result = "()")]
+pub enum Notification {
+    NewSale(Sale),
+    PriceUpdate,
+}
+
+#[derive(Message, Debug, Serialize, Clone)]
+#[rtype(result = "()")]
 pub struct Sale {
     pub game_id: i64,
     pub offsets: HashMap<i16, i64>,
 }
 
-impl Handler<Sale> for TransactionServer {
+impl Handler<Notification> for TransactionServer {
     type Result = ();
 
-    fn handle(&mut self, sale: Sale, _: &mut Context<Self>) {
-        self.notify_players(sale);
+    fn handle(&mut self, notification: Notification, _: &mut Context<Self>) {
+        match notification {
+            Notification::NewSale(sale) => {
+                self.notify_sale(sale);
+            }
+            Notification::PriceUpdate => self.notify_price_update(),
+        }
     }
 }
 

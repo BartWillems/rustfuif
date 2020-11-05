@@ -50,7 +50,7 @@ pub async fn route(
 
     let active_games = web::block(move || {
         let conn = pool.get()?;
-        crate::games::Game::active_games(&conn)
+        crate::games::Game::active_game_count(&conn)
     })
     .await?;
 
