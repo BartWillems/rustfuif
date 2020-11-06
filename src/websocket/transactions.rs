@@ -9,6 +9,7 @@ use actix_web_actors::ws;
 use crate::auth;
 use crate::db;
 use crate::games::Game;
+use crate::users::User;
 use crate::websocket::server;
 
 /// How often heartbeat pings are sent
@@ -29,12 +30,14 @@ pub async fn route(
 
     let game_id = *game_id;
 
+    let auth_user = user.clone();
+
     web::block(move || {
-        if user.is_admin {
+        if auth_user.is_admin {
             return Ok(());
         }
         let conn = pool.get()?;
-        if !Game::verify_user(game_id, user.id, &conn)? {
+        if !Game::verify_user(game_id, auth_user.id, &conn)? {
             forbidden!("you are not in this game");
         }
         Ok(())
@@ -46,6 +49,7 @@ pub async fn route(
             id: 0,
             hb: Instant::now(),
             game_id,
+            user,
             addr: srv.get_ref().clone(),
         },
         &req,
@@ -56,12 +60,15 @@ pub async fn route(
 
 struct NotificationUpdates {
     /// unique session id
+    /// Get's filled in when connecting
     id: usize,
     /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
     /// otherwise we drop connection.
     hb: Instant,
-    /// joined room
+    /// joined game
     game_id: i64,
+    /// Connected user
+    user: User,
     /// notification server
     addr: Addr<server::TransactionServer>,
 }
@@ -84,6 +91,7 @@ impl Actor for NotificationUpdates {
         self.addr
             .send(server::Connect {
                 addr: addr.recipient(),
+                user: self.user.clone(),
                 game_id: self.game_id,
             })
             .into_actor(self)
@@ -96,6 +104,7 @@ impl Actor for NotificationUpdates {
                 fut::ready(())
             })
             .wait(ctx);
+        debug!("{} connected to the websocket", self.user.username);
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {

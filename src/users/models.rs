@@ -15,7 +15,7 @@ pub struct UserMessage {
     pub password: String,
 }
 
-#[derive(Serialize, Deserialize, Queryable, AsChangeset, Insertable, Debug)]
+#[derive(Serialize, Deserialize, Queryable, AsChangeset, Insertable, Debug, Clone)]
 pub struct User {
     pub id: i64,
     pub username: String,

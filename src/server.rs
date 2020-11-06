@@ -44,9 +44,9 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     );
 
     // used to notify the clients when a purchase is made in your game
-    let (transmitter, receiver) = mpsc::channel::<Notification>();
+    let (sender, receiver) = mpsc::channel::<Notification>();
 
-    let transaction_server = Arc::new(TransactionServer::default().start());
+    let transaction_server = Arc::new(TransactionServer::new(sender.clone()).start());
 
     TransactionServer::listener(transaction_server.clone(), receiver);
 
@@ -54,14 +54,14 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     prices::Updater::new(
         db_pool.clone(),
         std::time::Duration::from_secs(120),
-        transmitter.clone(),
+        sender.clone(),
     )
     .start();
 
     HttpServer::new(move || {
         App::new()
             .data(db_pool.clone())
-            .data(transmitter.clone())
+            .data(sender.clone())
             .data(transaction_server.deref().clone())
             .app_data(stats.clone())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))

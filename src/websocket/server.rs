@@ -6,11 +6,14 @@ use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 
 use crate::transactions::Transaction;
+use crate::users::User;
 
+#[allow(dead_code)]
 #[derive(Message)]
 #[rtype(usize)]
 pub struct Connect {
     pub addr: Recipient<Notification>,
+    pub user: User,
     pub game_id: i64,
 }
 
@@ -26,33 +29,60 @@ pub enum Query {
     ActiveSessions,
 }
 
+#[derive(Message)]
+#[rtype(result = "Result<Vec<User>, std::io::Error>")]
+pub struct ConnectedUsers;
+
 type GameId = i64;
 type SessionId = usize;
 
-/// `TransactionServer` manages price updates/new sales
-pub struct TransactionServer {
-    sessions: HashMap<SessionId, Recipient<Notification>>,
-    games: HashMap<GameId, HashSet<SessionId>>,
-    rng: ThreadRng,
+struct ConnectedUser {
+    recipient: Recipient<Notification>,
+    user: User,
 }
 
-impl Default for TransactionServer {
-    fn default() -> TransactionServer {
+#[allow(dead_code)]
+impl ConnectedUser {
+    fn new(recipient: Recipient<Notification>, user: User) -> Self {
+        ConnectedUser { recipient, user }
+    }
+    fn send(&self, message: Notification) -> Result<(), actix::prelude::SendError<Notification>> {
+        self.recipient.do_send(message)
+    }
+
+    fn user(&self) -> User {
+        self.user.clone()
+    }
+
+    fn is_admin(&self) -> bool {
+        self.user.is_admin
+    }
+}
+
+/// `TransactionServer` manages price updates/new sales
+pub struct TransactionServer {
+    sessions: HashMap<SessionId, ConnectedUser>,
+    games: HashMap<GameId, HashSet<SessionId>>,
+    rng: ThreadRng,
+    updates: mpsc::Sender<Notification>,
+}
+
+#[allow(dead_code)]
+impl TransactionServer {
+    pub fn new(updates: mpsc::Sender<Notification>) -> Self {
         TransactionServer {
             sessions: HashMap::new(),
             games: HashMap::new(),
             rng: rand::thread_rng(),
+            updates,
         }
     }
-}
-
-impl TransactionServer {
     /// Notify all players of a game that a sale happened
     pub fn notify_sale(&self, sale: Sale) {
         if let Some(sessions) = self.games.get(&sale.game_id) {
             for id in sessions {
                 if let Some(addr) = self.sessions.get(id) {
-                    let _ = addr.do_send(Notification::NewSale(sale.clone()));
+                    let _ = addr.send(Notification::NewSale(sale.clone()));
                 }
             }
         }
@@ -60,11 +90,25 @@ impl TransactionServer {
 
     pub fn notify_price_update(&self) {
         for (_, recipient) in self.sessions.iter() {
-            let _ = recipient.do_send(Notification::PriceUpdate);
+            let _ = recipient.send(Notification::PriceUpdate);
         }
     }
 
-    /// Listener receives sales updates and sends price updates to the clients
+    pub fn notify_connection_change(&self, game_id: GameId) {
+        if let Some(sessions) = self.games.get(&game_id) {
+            for id in sessions {
+                if let Some(addr) = self.sessions.get(id) {
+                    // let _ = addr.send(Notification::NewSale(sale.clone()));
+                    let _ = addr.send(Notification::ConnectionCount(
+                        self.users_in_game_count(game_id),
+                    ));
+                }
+            }
+        }
+    }
+
+    /// Listens for updates made by the beursfuif
+    /// Eg: a purchase is made, or the prices have been updated
     pub fn listener(server: Arc<Addr<TransactionServer>>, rx: mpsc::Receiver<Notification>) {
         thread::spawn(move || {
             for notification in rx {
@@ -75,6 +119,32 @@ impl TransactionServer {
 
     pub fn session_count(&self) -> usize {
         self.sessions.len()
+    }
+
+    /// returns the number of connected users for a given game
+    pub fn users_in_game_count(&self, game_id: GameId) -> usize {
+        self.games
+            .get(&game_id)
+            .map(|sessions| sessions.len())
+            .unwrap_or(0)
+    }
+
+    /// returns a hashmap with active games and their current connected player count
+    pub fn games(&self) -> HashMap<GameId, usize> {
+        self.games
+            .clone()
+            .into_iter()
+            .filter(|(_, sessions)| sessions.len() > 0)
+            .map(|(game_id, sessions)| (game_id, sessions.len()))
+            .collect()
+    }
+
+    pub fn connected_users(&self) -> Vec<User> {
+        let mut users: Vec<User> = Vec::new();
+        for session in self.sessions.values() {
+            users.push(session.user.clone());
+        }
+        users
     }
 }
 
@@ -94,12 +164,15 @@ impl Handler<Connect> for TransactionServer {
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
         // register session with random id
         let id = self.rng.gen::<usize>();
-        self.sessions.insert(id, msg.addr);
+        self.sessions
+            .insert(id, ConnectedUser::new(msg.addr, msg.user));
 
         self.games
             .entry(msg.game_id)
             .or_insert_with(HashSet::new)
             .insert(id);
+
+        let _ = self.updates.send(Notification::UserConnected(msg.game_id));
 
         id
     }
@@ -115,11 +188,23 @@ impl Handler<Query> for TransactionServer {
     }
 }
 
+impl Handler<ConnectedUsers> for TransactionServer {
+    type Result = Result<Vec<User>, std::io::Error>;
+
+    fn handle(&mut self, _: ConnectedUsers, _: &mut Context<Self>) -> Self::Result {
+        let users = self.connected_users();
+        Ok(users)
+    }
+}
+
 #[derive(Message, Debug, Serialize, Clone)]
 #[rtype(result = "()")]
 pub enum Notification {
     NewSale(Sale),
     PriceUpdate,
+    UserConnected(GameId),
+    UserDisconnected(GameId),
+    ConnectionCount(usize),
 }
 
 #[derive(Message, Debug, Serialize, Clone)]
@@ -138,6 +223,9 @@ impl Handler<Notification> for TransactionServer {
                 self.notify_sale(sale);
             }
             Notification::PriceUpdate => self.notify_price_update(),
+            Notification::UserConnected(game_id) => self.notify_connection_change(game_id),
+            Notification::UserDisconnected(game_id) => self.notify_connection_change(game_id),
+            _ => (),
         }
     }
 }
@@ -150,8 +238,10 @@ impl Handler<Disconnect> for TransactionServer {
         // remove address
         if self.sessions.remove(&msg.id).is_some() {
             // remove session from all games
-            for sessions in self.games.values_mut() {
-                sessions.remove(&msg.id);
+            for (game_id, sessions) in self.games.iter_mut() {
+                if sessions.remove(&msg.id) {
+                    let _ = self.updates.send(Notification::UserDisconnected(*game_id));
+                }
             }
         }
     }
