@@ -34,8 +34,8 @@ impl Updater {
                 }
                 Ok(()) => {
                     info!("succesfully updated the prices");
-                    if notifier.send(Notification::PriceUpdate).is_err() {
-                        error!("unable to notify users about price update");
+                    if let Err(err) = notifier.send(Notification::PriceUpdate) {
+                        error!("unable to notify users about price update: {}", err);
                     }
                 }
             };
