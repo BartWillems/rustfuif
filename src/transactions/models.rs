@@ -294,41 +294,6 @@ impl SalesCount {
     pub(crate) const fn get_offset(&self, average: i64) -> i64 {
         self.sales - average
     }
-
-    /// Returns a hashmap contianing how much each beverage's sales
-    /// differs from the average amount of sales.
-    /// This can be used to calculate the price of a beverage
-    pub fn get_price_offsets(
-        game_id: i64,
-        conn: &db::Conn,
-    ) -> Result<HashMap<i16, i64>, ServiceError> {
-        let sales = SalesCount::find_by_game(game_id, conn)?;
-        let average = SalesCount::average_sales(&sales);
-
-        let mut offsets: HashMap<i16, i64> = HashMap::new();
-
-        for slot in sales.iter() {
-            let offset = slot.sales - average;
-            trace!(
-                "beverage({})'s offset in game({}) is {} with {} sales",
-                slot.slot_no,
-                game_id,
-                offset,
-                slot.sales
-            );
-            let conflict = offsets.insert(slot.slot_no, offset).is_some();
-
-            if conflict {
-                error!(
-                    "unable to calculate offset for slot({}) in game({})",
-                    slot.slot_no, game_id
-                );
-                return Err(ServiceError::InternalServerError);
-            }
-        }
-
-        Ok(offsets)
-    }
 }
 
 #[cfg(test)]

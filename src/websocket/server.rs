@@ -5,6 +5,8 @@ use std::thread;
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 
+use crate::transactions::Transaction;
+
 #[derive(Message)]
 #[rtype(usize)]
 pub struct Connect {
@@ -113,12 +115,6 @@ impl Handler<Query> for TransactionServer {
     }
 }
 
-#[derive(Message, Debug)]
-#[rtype(result = "()")]
-pub struct Transaction {
-    pub game_id: i64,
-}
-
 #[derive(Message, Debug, Serialize, Clone)]
 #[rtype(result = "()")]
 pub enum Notification {
@@ -130,7 +126,7 @@ pub enum Notification {
 #[rtype(result = "()")]
 pub struct Sale {
     pub game_id: i64,
-    pub offsets: HashMap<i16, i64>,
+    pub transactions: Vec<Transaction>,
 }
 
 impl Handler<Notification> for TransactionServer {

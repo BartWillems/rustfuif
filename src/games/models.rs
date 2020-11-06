@@ -3,7 +3,6 @@ use chrono::Duration;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use regex::Regex;
-use std::collections::HashMap;
 use url::Url;
 
 use crate::cache;
@@ -322,24 +321,6 @@ impl Game {
             return true;
         }
         false
-    }
-
-    pub fn prices(
-        game_id: i64,
-        user_id: i64,
-        conn: &db::Conn,
-    ) -> Result<HashMap<i16, i64>, ServiceError> {
-        let mut prices: HashMap<i16, i64> = HashMap::new();
-        let offsets = SalesCount::get_price_offsets(game_id, conn)?;
-        let beverages = Beverage::find(game_id, user_id, conn)?;
-
-        for beverage in &beverages {
-            if let Some(offset) = offsets.get(&beverage.slot_no) {
-                prices.insert(beverage.slot_no, beverage.calculate_price(*offset));
-            }
-        }
-
-        Ok(prices)
     }
 
     pub fn get_beverages(&self, conn: &db::Conn) -> Result<Vec<Beverage>, ServiceError> {
