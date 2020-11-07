@@ -500,6 +500,7 @@ impl Beverage {
         Ok(config)
     }
 
+    /// calculate the price of a beverage based on it's offset from the average sales
     pub const fn calculate_price(&self, offset: i64) -> i64 {
         let price = self.starting_price + offset * (self.starting_price / 20);
 
