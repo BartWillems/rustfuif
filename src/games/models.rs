@@ -124,6 +124,17 @@ impl Game {
         Ok(count)
     }
 
+    /// return the total amount of created games
+    pub fn count(conn: &db::Conn) -> Result<i64, ServiceError> {
+        use diesel::dsl::sql;
+
+        let count = games::table
+            .select(sql::<diesel::sql_types::BigInt>("COUNT(*)"))
+            .first::<i64>(conn)?;
+
+        Ok(count)
+    }
+
     pub fn active_games(conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
         use diesel::dsl::now;
 
