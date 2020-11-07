@@ -33,6 +33,17 @@ pub enum Query {
 #[rtype(result = "Result<Vec<User>, std::io::Error>")]
 pub struct ConnectedUsers;
 
+/// returns the active games and how many connected users
+#[derive(Message)]
+#[rtype(result = "Result<Vec<ActiveGamesResponse>, std::io::Error>")]
+pub struct ActiveGames;
+
+#[derive(Serialize, Debug)]
+pub struct ActiveGamesResponse {
+    game_id: i64,
+    session_count: usize,
+}
+
 type GameId = i64;
 type SessionId = usize;
 
@@ -130,12 +141,15 @@ impl TransactionServer {
     }
 
     /// returns a hashmap with active games and their current connected player count
-    pub fn games(&self) -> HashMap<GameId, usize> {
+    pub fn games(&self) -> Vec<ActiveGamesResponse> {
         self.games
             .clone()
             .into_iter()
             .filter(|(_, sessions)| sessions.len() > 0)
-            .map(|(game_id, sessions)| (game_id, sessions.len()))
+            .map(|(game_id, sessions)| ActiveGamesResponse {
+                game_id,
+                session_count: sessions.len(),
+            })
             .collect()
     }
 
@@ -194,6 +208,15 @@ impl Handler<ConnectedUsers> for TransactionServer {
     fn handle(&mut self, _: ConnectedUsers, _: &mut Context<Self>) -> Self::Result {
         let users = self.connected_users();
         Ok(users)
+    }
+}
+
+impl Handler<ActiveGames> for TransactionServer {
+    type Result = Result<Vec<ActiveGamesResponse>, std::io::Error>;
+
+    fn handle(&mut self, _: ActiveGames, _: &mut Context<Self>) -> Self::Result {
+        let games = self.games();
+        Ok(games)
     }
 }
 
