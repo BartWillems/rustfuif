@@ -309,6 +309,8 @@ impl Game {
     pub fn delete_by_id(game_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
         diesel::delete(games::table.filter(games::id.eq(game_id))).execute(conn)?;
 
+        cache::delete(format!("game.{}", game_id))?;
+
         Ok(())
     }
 
