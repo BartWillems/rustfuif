@@ -11,3 +11,12 @@ pub fn get_user(id: &Identity) -> Result<User, ServiceError> {
         ServiceError::Unauthorized
     })
 }
+
+pub fn verify_admin(id: &Identity) -> Result<(), ServiceError> {
+    let user = get_user(id)?;
+
+    if user.is_admin {
+        return Ok(());
+    }
+    Err(ServiceError::Unauthorized)
+}
