@@ -12,6 +12,7 @@ use actix_web_opentelemetry::{RequestMetrics, RequestTracing};
 use opentelemetry::{api::KeyValue, global, sdk};
 use time::Duration;
 
+use crate::admin;
 use crate::auth;
 use crate::db;
 use crate::ddg;
@@ -92,9 +93,9 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
                     .configure(transactions::routes::register)
                     .configure(users::routes::register)
                     .configure(ddg::routes::register)
+                    .configure(admin::routes::register)
                     .service(health),
             )
-            .service(web::scope("/admin").service(health))
     })
     .bind(format!(
         "{}:{}",

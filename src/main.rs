@@ -19,6 +19,7 @@ use terminator::Terminator;
 #[macro_use]
 mod macros;
 
+mod admin;
 mod auth;
 mod cache;
 mod db;
