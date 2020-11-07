@@ -100,6 +100,17 @@ impl User {
         Ok(())
     }
 
+    /// return the total amount of registered users
+    pub fn count(conn: &db::Conn) -> Result<i64, ServiceError> {
+        use diesel::dsl::sql;
+
+        let count = users::table
+            .select(sql::<diesel::sql_types::BigInt>("COUNT(*)"))
+            .first::<i64>(conn)?;
+
+        Ok(count)
+    }
+
     pub fn hash_password(&mut self) -> Result<(), ServiceError> {
         let salt: [u8; 32] = rand::thread_rng().gen();
         let config = Config::default();
