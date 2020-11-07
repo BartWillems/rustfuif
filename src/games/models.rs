@@ -549,18 +549,12 @@ impl crate::validator::Validate<Beverage> for Beverage {
             }
         }
 
-        let pattern: Regex = Regex::new(r"^[a-zA-Z0-9_]+( [a-zA-Z0-9_]+)*$").unwrap();
-
         if self.name.trim().is_empty() {
             bad_request!("name is too short");
         }
 
         if self.name.trim().len() > 40 {
             bad_request!("name is too long, maximum 40 characters");
-        }
-
-        if !pattern.is_match(&self.name) {
-            bad_request!("name can only contain letters, numbers, spaces, '-' and '_'");
         }
 
         Ok(())
