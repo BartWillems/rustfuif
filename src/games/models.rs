@@ -2,7 +2,6 @@ use actix_web::Result;
 use chrono::Duration;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
-use regex::Regex;
 use url::Url;
 
 use crate::cache;
@@ -387,18 +386,12 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
             bad_request!("the max duration of a game is 24 hours");
         }
 
-        let pattern: Regex = Regex::new(r"^[a-zA-Z0-9_-]+( [a-zA-Z0-9_]+)*$").unwrap();
-
         if self.name.trim().is_empty() {
             bad_request!("name is too short");
         }
 
         if self.name.trim().len() > 40 {
             bad_request!("name is too long, maximum 40 characters");
-        }
-
-        if !pattern.is_match(&self.name) {
-            bad_request!("name can only contain letters, numbers, spaces, '-' and '_'");
         }
 
         if self.beverage_count < 2 {
@@ -644,27 +637,6 @@ mod tests {
 
         game.name = String::from("name-with_special-characters");
         assert!(Validator::new(game.clone()).validate().is_ok());
-    }
-
-    #[test]
-    fn invalid_game_names() {
-        let start_time: DateTime<Utc> = Utc::now().add(Duration::days(1));
-        let close_time = start_time.add(Duration::hours(1));
-        let mut game = CreateGame {
-            name: String::from("some-game@"),
-            owner_id: 1,
-            start_time,
-            close_time,
-            beverage_count: 8,
-        };
-
-        assert!(Validator::new(game.clone()).validate().is_err());
-
-        game.name = String::from("<html>");
-        assert!(Validator::new(game.clone()).validate().is_err());
-
-        game.name = String::from("('something')");
-        assert!(Validator::new(game.clone()).validate().is_err());
     }
 
     #[test]
