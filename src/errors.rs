@@ -24,6 +24,9 @@ pub enum ServiceError {
 
     #[display(fmt = "Forbidden: {}", _0)]
     Forbidden(String),
+
+    #[display(fmt = "Payload Too Large")]
+    PayloadTooLarge,
 }
 
 // impl ResponseError trait allows to convert our errors into http responses with appropriate data
@@ -38,6 +41,9 @@ impl ResponseError for ServiceError {
             ServiceError::NotFound => HttpResponse::NotFound().json("Not Found"),
             ServiceError::Forbidden(ref message) => HttpResponse::Forbidden().json(message),
             ServiceError::Conflict(ref message) => HttpResponse::Conflict().json(message),
+            ServiceError::PayloadTooLarge => {
+                HttpResponse::PayloadTooLarge().json("Payload Too Large")
+            }
         }
     }
 }

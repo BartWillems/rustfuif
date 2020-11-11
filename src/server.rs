@@ -5,8 +5,9 @@ use actix::prelude::*;
 use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::cookie::SameSite;
+use actix_web::error::JsonPayloadError;
 use actix_web::middleware::normalize::TrailingSlash;
-use actix_web::{dev, get, http, middleware, web, App, HttpResponse, HttpServer};
+use actix_web::{dev, get, http, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
 use actix_web_opentelemetry::{RequestMetrics, RequestTracing};
 use opentelemetry::{api::KeyValue, global, sdk};
 use time::Duration;
@@ -30,6 +31,13 @@ pub type Response = Result<HttpResponse, ServiceError>;
 #[get("/health")]
 async fn health() -> &'static str {
     "ok"
+}
+
+fn json_error_handler(error: JsonPayloadError, _: &HttpRequest) -> actix_web::Error {
+    match error {
+        JsonPayloadError::Overflow => ServiceError::PayloadTooLarge.into(),
+        _ => ServiceError::BadRequest(error.to_string()).into(),
+    }
 }
 
 pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::Result<()> {
@@ -76,7 +84,11 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
                     // TODO: set this to true in production
                     .secure(false),
             ))
-            .data(web::JsonConfig::default().limit(262_144))
+            .data(
+                web::JsonConfig::default()
+                    .error_handler(json_error_handler)
+                    .limit(262_144),
+            )
             .data(web::PayloadConfig::default().limit(262_144))
             .service(stats::route)
             .service(web::resource("/ws/{game_id}").to(websocket::routes::route))
