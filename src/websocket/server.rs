@@ -1,12 +1,11 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::{mpsc, Arc};
-use std::thread;
 
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 
 use crate::transactions::Transaction;
 use crate::users::User;
+use crate::websocket::queries::ActiveGamesResponse;
 
 #[allow(dead_code)]
 #[derive(Message)]
@@ -23,30 +22,10 @@ pub struct Disconnect {
     pub id: usize,
 }
 
-#[derive(Message)]
-#[rtype(usize)]
-pub enum Query {
-    ActiveSessions,
-}
-
-#[derive(Message)]
-#[rtype(result = "Result<Vec<User>, std::io::Error>")]
-pub struct ConnectedUsers;
-
-/// returns the active games and how many connected users
-#[derive(Message)]
-#[rtype(result = "Result<Vec<ActiveGamesResponse>, std::io::Error>")]
-pub struct ActiveGames;
-
-#[derive(Serialize, Debug)]
-pub struct ActiveGamesResponse {
-    game_id: i64,
-    session_count: usize,
-}
-
 type GameId = i64;
 type SessionId = usize;
 
+#[derive(Debug)]
 struct ConnectedUser {
     recipient: Recipient<Notification>,
     user: User,
@@ -70,24 +49,27 @@ impl ConnectedUser {
     }
 }
 
-/// `TransactionServer` manages price updates/new sales
-pub struct TransactionServer {
+/// `NotificationServer` manages price updates/new sales
+pub struct NotificationServer {
+    /// A hashmap containing the session ID as key and
+    /// a `ConnectedUser` as value.
+    /// The `ConnectedUser` contains the user and the actix
+    /// recipient address.
     sessions: HashMap<SessionId, ConnectedUser>,
     games: HashMap<GameId, HashSet<SessionId>>,
     rng: ThreadRng,
-    updates: mpsc::Sender<Notification>,
 }
 
 #[allow(dead_code)]
-impl TransactionServer {
-    pub fn new(updates: mpsc::Sender<Notification>) -> Self {
-        TransactionServer {
+impl NotificationServer {
+    pub fn new() -> Self {
+        NotificationServer {
             sessions: HashMap::new(),
             games: HashMap::new(),
             rng: rand::thread_rng(),
-            updates,
         }
     }
+
     /// Notify all players of a game that a sale happened
     pub fn notify_sale(&self, sale: Sale) {
         if let Some(sessions) = self.games.get(&sale.game_id) {
@@ -118,16 +100,6 @@ impl TransactionServer {
         }
     }
 
-    /// Listens for updates made by the beursfuif
-    /// Eg: a purchase is made, or the prices have been updated
-    pub fn listener(server: Arc<Addr<TransactionServer>>, rx: mpsc::Receiver<Notification>) {
-        thread::spawn(move || {
-            for notification in rx {
-                server.do_send(notification.clone());
-            }
-        });
-    }
-
     pub fn session_count(&self) -> usize {
         self.sessions.len()
     }
@@ -145,25 +117,22 @@ impl TransactionServer {
         self.games
             .clone()
             .into_iter()
-            .filter(|(_, sessions)| sessions.len() > 0)
-            .map(|(game_id, sessions)| ActiveGamesResponse {
-                game_id,
-                session_count: sessions.len(),
-            })
+            .filter(|(_, sessions)| !sessions.is_empty())
+            .map(|(game_id, sessions)| ActiveGamesResponse::new(game_id, sessions.len()))
             .collect()
     }
 
+    /// return all connected users
     pub fn connected_users(&self) -> Vec<User> {
-        let mut users: Vec<User> = Vec::new();
-        for session in self.sessions.values() {
-            users.push(session.user.clone());
-        }
-        users
+        self.sessions
+            .values()
+            .map(|session| session.user.clone())
+            .collect()
     }
 }
 
-/// Make actor from `TransactionServer`
-impl Actor for TransactionServer {
+/// Make actor from `NotificationServer`
+impl Actor for NotificationServer {
     /// We are going to use simple Context, we just need ability to communicate
     /// with other actors.
     type Context = Context<Self>;
@@ -172,61 +141,47 @@ impl Actor for TransactionServer {
 /// Handler for Connect message.
 ///
 /// Register new session and assign unique id to this session
-impl Handler<Connect> for TransactionServer {
+impl Handler<Connect> for NotificationServer {
     type Result = usize;
 
-    fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: Connect, ctx: &mut Context<Self>) -> Self::Result {
         // register session with random id
-        let id = self.rng.gen::<usize>();
+        let session_id = self.rng.gen::<usize>();
         self.sessions
-            .insert(id, ConnectedUser::new(msg.addr, msg.user));
+            .insert(session_id, ConnectedUser::new(msg.addr, msg.user));
 
         self.games
             .entry(msg.game_id)
             .or_insert_with(HashSet::new)
-            .insert(id);
+            .insert(session_id);
 
-        let _ = self.updates.send(Notification::UserConnected(msg.game_id));
+        ctx.notify(Notification::UserConnected(msg.game_id));
 
-        id
-    }
-}
+        debug!("new connection!");
+        debug!("sessions count: {}", self.sessions.len());
+        debug!("games count: {}", self.games.len());
 
-impl Handler<Query> for TransactionServer {
-    type Result = usize;
-
-    fn handle(&mut self, msg: Query, _: &mut Context<Self>) -> Self::Result {
-        match msg {
-            Query::ActiveSessions => self.session_count(),
-        }
-    }
-}
-
-impl Handler<ConnectedUsers> for TransactionServer {
-    type Result = Result<Vec<User>, std::io::Error>;
-
-    fn handle(&mut self, _: ConnectedUsers, _: &mut Context<Self>) -> Self::Result {
-        let users = self.connected_users();
-        Ok(users)
-    }
-}
-
-impl Handler<ActiveGames> for TransactionServer {
-    type Result = Result<Vec<ActiveGamesResponse>, std::io::Error>;
-
-    fn handle(&mut self, _: ActiveGames, _: &mut Context<Self>) -> Self::Result {
-        let games = self.games();
-        Ok(games)
+        session_id
     }
 }
 
 #[derive(Message, Debug, Serialize, Clone)]
 #[rtype(result = "()")]
 pub enum Notification {
+    /// Notify users in a game when a new sale happened
     NewSale(Sale),
+    /// Notify all connected users that he prices are updated
     PriceUpdate,
+    /// Notify users in a certain game that someone joined
+    /// /// This is done by sending the ConnectionCount
     UserConnected(GameId),
+    /// Notify users in a certain game that someone left
+    /// This is done by sending the ConnectionCount
     UserDisconnected(GameId),
+    /// When a user leaves or joins a game, send the connection count
+    /// This should be removed and the whole list of connected users should
+    /// be sent instead.
+    /// This is because I might implement a chat window later on
     ConnectionCount(usize),
 }
 
@@ -237,14 +192,12 @@ pub struct Sale {
     pub transactions: Vec<Transaction>,
 }
 
-impl Handler<Notification> for TransactionServer {
+impl Handler<Notification> for NotificationServer {
     type Result = ();
 
     fn handle(&mut self, notification: Notification, _: &mut Context<Self>) {
         match notification {
-            Notification::NewSale(sale) => {
-                self.notify_sale(sale);
-            }
+            Notification::NewSale(sale) => self.notify_sale(sale),
             Notification::PriceUpdate => self.notify_price_update(),
             Notification::UserConnected(game_id) => self.notify_connection_change(game_id),
             Notification::UserDisconnected(game_id) => self.notify_connection_change(game_id),
@@ -254,18 +207,130 @@ impl Handler<Notification> for TransactionServer {
 }
 
 /// Handler for Disconnect message.
-impl Handler<Disconnect> for TransactionServer {
+impl Handler<Disconnect> for NotificationServer {
     type Result = ();
 
-    fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: Disconnect, ctx: &mut Context<Self>) {
+        let mut stale_game: Option<GameId> = None;
         // remove address
         if self.sessions.remove(&msg.id).is_some() {
             // remove session from all games
             for (game_id, sessions) in self.games.iter_mut() {
                 if sessions.remove(&msg.id) {
-                    let _ = self.updates.send(Notification::UserDisconnected(*game_id));
+                    ctx.notify(Notification::UserDisconnected(*game_id));
+                    // this was the last user in the game
+                    if sessions.is_empty() {
+                        stale_game = Some(*game_id);
+                    }
                 }
             }
         }
+
+        // the game has no more players, remove it from the list
+        if let Some(game_id) = stale_game {
+            self.games.remove(&game_id);
+        }
+
+        debug!("user disconnected");
+        debug!("sessions count: {}", self.sessions.len());
+        debug!("games count: {}", self.games.len());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Message)]
+    #[rtype(result = "Result<Vec<usize>, std::io::Error>")]
+    pub struct InnerSessions;
+
+    #[derive(Message)]
+    #[rtype(usize)]
+    pub struct InnerGamesCount;
+
+    impl Handler<InnerSessions> for NotificationServer {
+        type Result = Result<Vec<usize>, std::io::Error>;
+
+        fn handle(&mut self, _: InnerSessions, _: &mut Context<Self>) -> Self::Result {
+            let session_ids: Vec<usize> = self.sessions.keys().cloned().collect();
+            Ok(session_ids)
+        }
+    }
+
+    impl Handler<InnerGamesCount> for NotificationServer {
+        type Result = usize;
+
+        fn handle(&mut self, _: InnerGamesCount, _: &mut Context<Self>) -> Self::Result {
+            self.games.len()
+        }
+    }
+
+    async fn add_user(server: &Addr<NotificationServer>, game_id: i64) {
+        let user = User {
+            id: 1,
+            username: String::from("admin"),
+            is_admin: true,
+            password: String::from("..."),
+            created_at: None,
+            updated_at: None,
+        };
+        server
+            .send(Connect {
+                addr: server.clone().recipient(),
+                user: user.clone(),
+                game_id,
+            })
+            .await
+            .unwrap();
+    }
+
+    /// This test should prove that the websocket sessions get correctly cleaned up
+    ///
+    /// The games hashmap(HashMap<GameId, HashSet<SessionId>>) should remove the GameId key correctly when the containing
+    /// session count reaches 0
+    #[actix_rt::test]
+    async fn session_cleanup() {
+        let server = NotificationServer::new().start();
+
+        add_user(&server, 1).await;
+
+        let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
+        assert_eq!(1, users.len());
+
+        let games_count: usize = server.send(InnerGamesCount).await.unwrap();
+        assert_eq!(1, games_count);
+
+        // connect the user to the same game
+        add_user(&server, 1).await;
+
+        let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
+        assert_eq!(2, users.len());
+
+        // The game count should stay the same
+        let games_count: usize = server.send(InnerGamesCount).await.unwrap();
+        assert_eq!(1, games_count);
+
+        // connect the user to another game
+        add_user(&server, 2).await;
+
+        let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
+        assert_eq!(3, users.len());
+
+        let games_count: usize = server.send(InnerGamesCount).await.unwrap();
+        assert_eq!(2, games_count);
+
+        // now I will disconnect all the users
+        // Both the games and the users should be completely cleaned up
+        // resulting in a zero game count & zero user count
+        for id in users {
+            server.send(Disconnect { id }).await.unwrap();
+        }
+
+        let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
+        assert_eq!(0, users.len());
+
+        let games_count: usize = server.send(InnerGamesCount).await.unwrap();
+        assert_eq!(0, games_count);
     }
 }

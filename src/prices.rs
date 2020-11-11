@@ -1,20 +1,27 @@
-use std::sync::mpsc;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+
+use actix::Addr;
 
 use crate::db;
 use crate::errors::ServiceError;
 use crate::games::Game;
+use crate::websocket::server::NotificationServer;
 use crate::websocket::Notification;
 
 pub(crate) struct Updater {
     pool: db::Pool,
     interval: Duration,
-    notifier: mpsc::Sender<Notification>,
+    notifier: Arc<Addr<NotificationServer>>,
 }
 
 impl Updater {
-    pub fn new(pool: db::Pool, interval: Duration, notifier: mpsc::Sender<Notification>) -> Self {
+    pub fn new(
+        pool: db::Pool,
+        interval: Duration,
+        notifier: Arc<Addr<NotificationServer>>,
+    ) -> Self {
         Updater {
             pool,
             interval,
@@ -34,9 +41,7 @@ impl Updater {
                 }
                 Ok(()) => {
                     info!("succesfully updated the prices");
-                    if let Err(err) = notifier.send(Notification::PriceUpdate) {
-                        error!("unable to notify users about price update: {}", err);
-                    }
+                    notifier.do_send(Notification::PriceUpdate);
                 }
             };
         });

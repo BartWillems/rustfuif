@@ -1,5 +1,4 @@
 use std::ops::Deref;
-use std::sync::mpsc;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -24,7 +23,7 @@ use crate::stats;
 use crate::transactions;
 use crate::users;
 use crate::websocket;
-use crate::websocket::server::{Notification, TransactionServer};
+use crate::websocket::server::NotificationServer;
 
 pub type Response = Result<HttpResponse, ServiceError>;
 
@@ -44,25 +43,19 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
         }),
     );
 
-    // used to notify the clients when a purchase is made in your game
-    let (sender, receiver) = mpsc::channel::<Notification>();
-
-    let transaction_server = Arc::new(TransactionServer::new(sender.clone()).start());
-
-    TransactionServer::listener(transaction_server.clone(), receiver);
+    let transaction_server = Arc::new(NotificationServer::new().start());
 
     debug!("launching price updater");
     prices::Updater::new(
         db_pool.clone(),
         std::time::Duration::from_secs(120),
-        sender.clone(),
+        transaction_server.clone(),
     )
     .start();
 
     HttpServer::new(move || {
         App::new()
             .data(db_pool.clone())
-            .data(sender.clone())
             .data(transaction_server.deref().clone())
             .app_data(stats.clone())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
@@ -72,6 +65,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             .wrap(stats::Middleware::default())
             .wrap(request_metrics.clone())
             .wrap(RequestTracing::default())
+            // TODO: set this to something more restrictive
             .wrap(Cors::permissive().supports_credentials())
             .wrap(IdentityService::new(
                 CookieIdentityPolicy::new(&session_private_key.as_bytes())
@@ -79,12 +73,13 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
                     .same_site(SameSite::Strict)
                     .visit_deadline(Duration::weeks(2))
                     .max_age_time(Duration::weeks(2))
+                    // TODO: set this to true in production
                     .secure(false),
             ))
             .data(web::JsonConfig::default().limit(262_144))
             .data(web::PayloadConfig::default().limit(262_144))
             .service(stats::route)
-            .service(web::resource("/ws/{game_id}").to(websocket::transactions::route))
+            .service(web::resource("/ws/{game_id}").to(websocket::routes::route))
             .service(
                 web::scope("/api")
                     .configure(games::routes::register)

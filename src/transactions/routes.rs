@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::sync::mpsc;
 
+use actix::Addr;
 use actix_identity::Identity;
 use actix_web::web;
 use actix_web::web::{Data, Json, Path};
@@ -11,6 +11,7 @@ use crate::db;
 use crate::games::Game;
 use crate::server;
 use crate::transactions::models::{NewSale, SalesCount, Transaction, TransactionFilter};
+use crate::websocket::server::NotificationServer;
 use crate::websocket::{Notification, Sale};
 
 #[get("/games/{id}/sales")]
@@ -34,7 +35,7 @@ async fn create_sale(
     slots: Json<HashMap<i16, i32>>,
     id: Identity,
     pool: Data<db::Pool>,
-    tx: Data<mpsc::Sender<Notification>>,
+    websocket_server: Data<Addr<NotificationServer>>,
 ) -> server::Response {
     let user = auth::get_user(&id)?;
     let game_id = game_id.into_inner();
@@ -57,13 +58,13 @@ async fn create_sale(
             transactions.clone(),
             Notification::NewSale(Sale {
                 game_id,
-                transactions: transactions,
+                transactions,
             }),
         ))
     })
     .await?;
 
-    if let Err(e) = tx.into_inner().send(sale) {
+    if let Err(e) = websocket_server.send(sale).await {
         error!("unable to notify users about transaction: {}", e);
     }
 

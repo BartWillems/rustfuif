@@ -21,7 +21,7 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 pub async fn route(
     req: HttpRequest,
     stream: web::Payload,
-    srv: Data<Addr<server::TransactionServer>>,
+    srv: Data<Addr<server::NotificationServer>>,
     game_id: Path<i64>,
     id: Identity,
     pool: Data<db::Pool>,
@@ -45,12 +45,12 @@ pub async fn route(
     .await?;
 
     ws::start(
-        NotificationUpdates {
+        WebsocketConnection {
             id: 0,
             hb: Instant::now(),
             game_id,
             user,
-            addr: srv.get_ref().clone(),
+            server: srv.get_ref().clone(),
         },
         &req,
         stream,
@@ -58,7 +58,7 @@ pub async fn route(
     .map_err(|e| e.into())
 }
 
-struct NotificationUpdates {
+struct WebsocketConnection {
     /// unique session id
     /// Get's filled in when connecting
     id: usize,
@@ -70,10 +70,10 @@ struct NotificationUpdates {
     /// Connected user
     user: User,
     /// notification server
-    addr: Addr<server::TransactionServer>,
+    server: Addr<server::NotificationServer>,
 }
 
-impl Actor for NotificationUpdates {
+impl Actor for WebsocketConnection {
     type Context = ws::WebsocketContext<Self>;
 
     /// Method is called on actor start.
@@ -82,13 +82,13 @@ impl Actor for NotificationUpdates {
         // we'll start heartbeat process on session start.
         self.hb(ctx);
 
-        // register self in chat server. `AsyncContext::wait` register
+        // register self in notification server. `AsyncContext::wait` register
         // future within context, but context waits until this future resolves
         // before processing any other events.
         // HttpContext::state() is instance of WsChatSessionState, state is shared
         // across all routes within application
         let addr = ctx.address();
-        self.addr
+        self.server
             .send(server::Connect {
                 addr: addr.recipient(),
                 user: self.user.clone(),
@@ -109,13 +109,13 @@ impl Actor for NotificationUpdates {
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         // notify server
-        self.addr.do_send(server::Disconnect { id: self.id });
+        self.server.do_send(server::Disconnect { id: self.id });
         Running::Stop
     }
 }
 
 /// Handle messages from server, we simply send it to peer websocket
-impl Handler<server::Notification> for NotificationUpdates {
+impl Handler<server::Notification> for WebsocketConnection {
     type Result = ();
 
     fn handle(&mut self, notification: server::Notification, ctx: &mut Self::Context) {
@@ -124,7 +124,7 @@ impl Handler<server::Notification> for NotificationUpdates {
 }
 
 /// WebSocket message handler
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NotificationUpdates {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebsocketConnection {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         let msg = match msg {
             Err(_) => {
@@ -159,7 +159,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NotificationUpdat
     }
 }
 
-impl NotificationUpdates {
+impl WebsocketConnection {
     /// helper method that sends ping to client every second.
     ///
     /// also this method checks heartbeats from client
@@ -170,8 +170,8 @@ impl NotificationUpdates {
                 // heartbeat timed out
                 error!("Websocket Client heartbeat failed, disconnecting!");
 
-                // notify chat server
-                act.addr.do_send(server::Disconnect { id: act.id });
+                // notify server
+                act.server.do_send(server::Disconnect { id: act.id });
 
                 // stop actor
                 ctx.stop();

@@ -8,7 +8,8 @@ use crate::db;
 use crate::games::Game;
 use crate::server::Response;
 use crate::users::User;
-use crate::websocket::server::{ActiveGames, ConnectedUsers, TransactionServer};
+use crate::websocket::queries::{ActiveGames, ConnectedUsers};
+use crate::websocket::server::NotificationServer;
 
 #[get("/admin/games/count")]
 async fn game_count(pool: Data<db::Pool>, id: Identity) -> Response {
@@ -39,7 +40,7 @@ async fn user_count(pool: Data<db::Pool>, id: Identity) -> Response {
 #[get("/admin/websockets/connected-users")]
 async fn connected_users(
     id: Identity,
-    websocket_server: Data<Addr<TransactionServer>>,
+    websocket_server: Data<Addr<NotificationServer>>,
 ) -> Response {
     auth::verify_admin(&id)?;
 
@@ -55,7 +56,7 @@ async fn connected_users(
 }
 
 #[get("/admin/websockets/active-games")]
-async fn active_games(id: Identity, websocket_server: Data<Addr<TransactionServer>>) -> Response {
+async fn active_games(id: Identity, websocket_server: Data<Addr<NotificationServer>>) -> Response {
     auth::verify_admin(&id)?;
 
     let res = websocket_server.get_ref().send(ActiveGames).await?;

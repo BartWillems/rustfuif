@@ -13,7 +13,8 @@ use futures::Future;
 
 use crate::db;
 use crate::server::Response;
-use crate::websocket::server::{Query, TransactionServer};
+use crate::websocket::queries::ActiveSessionCount;
+use crate::websocket::server::NotificationServer;
 
 pub struct Stats {
     pub requests: AtomicU32,
@@ -42,7 +43,7 @@ pub struct StatsResponse {
 #[get("/stats")]
 pub async fn route(
     stats: Data<Stats>,
-    sessions: Data<Addr<TransactionServer>>,
+    sessions: Data<Addr<NotificationServer>>,
     pool: Data<db::Pool>,
 ) -> Response {
     let state = pool.clone().into_inner().state();
@@ -57,7 +58,7 @@ pub async fn route(
     http_ok_json!(StatsResponse {
         requests: stats.requests.load(Ordering::Relaxed),
         errors: stats.errors.load(Ordering::Relaxed),
-        active_ws_sessions: sessions.get_ref().send(Query::ActiveSessions).await?,
+        active_ws_sessions: sessions.get_ref().send(ActiveSessionCount).await?,
         active_games,
         active_db_connections: state.connections,
         idle_db_connections: state.idle_connections,
