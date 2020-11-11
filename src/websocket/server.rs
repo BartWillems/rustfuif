@@ -173,7 +173,7 @@ pub enum Notification {
     /// Notify all connected users that he prices are updated
     PriceUpdate,
     /// Notify users in a certain game that someone joined
-    /// /// This is done by sending the ConnectionCount
+    /// This is done by sending the ConnectionCount
     UserConnected(GameId),
     /// Notify users in a certain game that someone left
     /// This is done by sending the ConnectionCount

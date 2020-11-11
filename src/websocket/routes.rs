@@ -77,7 +77,7 @@ impl Actor for WebsocketConnection {
     type Context = ws::WebsocketContext<Self>;
 
     /// Method is called on actor start.
-    /// We register ws session with ChatServer
+    /// We register ws session with NotificationServer
     fn started(&mut self, ctx: &mut Self::Context) {
         // we'll start heartbeat process on session start.
         self.hb(ctx);
@@ -85,7 +85,7 @@ impl Actor for WebsocketConnection {
         // register self in notification server. `AsyncContext::wait` register
         // future within context, but context waits until this future resolves
         // before processing any other events.
-        // HttpContext::state() is instance of WsChatSessionState, state is shared
+        // HttpContext::state() is instance of WebsocketConnection, state is shared
         // across all routes within application
         let addr = ctx.address();
         self.server
@@ -98,8 +98,11 @@ impl Actor for WebsocketConnection {
             .then(|res, act, ctx| {
                 match res {
                     Ok(res) => act.id = res,
-                    // something is wrong with chat server
-                    _ => ctx.stop(),
+                    // something is wrong with notification server
+                    Err(e) => {
+                        error!("unable to start websocket connection: {}", e);
+                        ctx.stop();
+                    }
                 }
                 fut::ready(())
             })
@@ -108,7 +111,6 @@ impl Actor for WebsocketConnection {
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        // notify server
         self.server.do_send(server::Disconnect { id: self.id });
         Running::Stop
     }
