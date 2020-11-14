@@ -30,6 +30,7 @@ cargo watch -x run
 - `/health` returns http 200
 - `/stats` shows the following live stats:
   - total handled requests
+  - total server errors (http response code >= 500)
   - active websocket connections
   - active games
   - active db connections
