@@ -9,7 +9,6 @@ use actix_web::error::JsonPayloadError;
 use actix_web::middleware::normalize::TrailingSlash;
 use actix_web::{dev, get, http, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
 use actix_web_opentelemetry::{RequestMetrics, RequestTracing};
-use opentelemetry::{api::KeyValue, global, sdk};
 use time::Duration;
 
 use crate::admin;
@@ -43,9 +42,8 @@ fn json_error_handler(error: JsonPayloadError, _: &HttpRequest) -> actix_web::Er
 pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::Result<()> {
     let stats = web::Data::new(stats::Stats::new());
 
-    let meter = sdk::Meter::new("rustfuif_api");
-    let request_metrics = RequestMetrics::new(
-        meter,
+    let prometheus_metrics = RequestMetrics::new(
+        opentelemetry::sdk::Meter::new("rustfuif_api"),
         Some(|req: &dev::ServiceRequest| {
             req.path() == "/metrics" && req.method() == http::Method::GET
         }),
@@ -71,7 +69,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             .wrap(middleware::Logger::default())
             .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
             .wrap(stats::Middleware::default())
-            .wrap(request_metrics.clone())
+            .wrap(prometheus_metrics.clone())
             .wrap(RequestTracing::default())
             // TODO: set this to something more restrictive
             .wrap(Cors::permissive().supports_credentials())
@@ -111,34 +109,4 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     ))?
     .run()
     .await
-}
-
-pub fn init_tracer(agent_endpoint: &str) -> std::io::Result<()> {
-    let exporter: opentelemetry_jaeger::Exporter = opentelemetry_jaeger::Exporter::builder()
-        .with_agent_endpoint(
-            agent_endpoint
-                .parse()
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?,
-        )
-        .with_process(opentelemetry_jaeger::Process {
-            service_name: "rustfuif".to_string(),
-            tags: Vec::new(),
-        })
-        .init()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    let provider = sdk::Provider::builder()
-        .with_simple_exporter(exporter)
-        .with_config(sdk::Config {
-            default_sampler: Box::new(sdk::Sampler::AlwaysOn),
-            resource: Arc::new(sdk::Resource::new(vec![
-                KeyValue::new("service.name", "rustfuif-api"),
-                KeyValue::new("service.namespace", "rustfuif"),
-                KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-            ])),
-            ..Default::default()
-        })
-        .build();
-    global::set_provider(provider);
-
-    Ok(())
 }

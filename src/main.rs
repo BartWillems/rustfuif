@@ -57,13 +57,6 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
         )));
     }
 
-    match server::init_tracer(&get_env("OPENTELEMETRY_AGENT")?) {
-        Err(e) => error!("Error: {}, no jaeger traces will be sent", e),
-        _ => {
-            info!("jaeger tracing enabled");
-        }
-    }
-
     let database_url = get_env("DATABASE_URL")?;
 
     debug!("building database connection pool");

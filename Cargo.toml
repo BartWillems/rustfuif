@@ -26,7 +26,6 @@ futures = "0.3"
 lazy_static = "1.4"
 log = "0.4"
 opentelemetry = "0.8.0"
-opentelemetry-jaeger = "0.7.0"
 r2d2 = "0.8"
 rand = "0.7"
 redis = { version = "0.17.0", features = ["r2d2"] }
