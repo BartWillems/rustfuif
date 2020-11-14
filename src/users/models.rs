@@ -73,6 +73,7 @@ impl User {
         Ok(user)
     }
 
+    /// Hash the user's password an store it in the database
     pub fn create(user: &mut UserMessage, conn: &db::Conn) -> Result<Self, ServiceError> {
         user.hash_password()?;
 
@@ -84,14 +85,23 @@ impl User {
     }
 
     pub fn update(&self, conn: &db::Conn) -> Result<Self, ServiceError> {
-        let user = diesel::update(users::table).set(&*self).get_result(conn)?;
+        let user = diesel::update(users::table)
+            .filter(users::id.eq(self.id))
+            .set(self)
+            .get_result(conn)?;
 
         Ok(user)
     }
 
-    pub fn update_password(&mut self, conn: &db::Conn) -> Result<Self, ServiceError> {
+    pub fn update_password(&mut self, conn: &db::Conn) -> Result<(), ServiceError> {
         self.hash_password()?;
-        self.update(conn)
+
+        let _ = diesel::update(users::table)
+            .filter(users::id.eq(self.id))
+            .set(users::password.eq(self.password.clone()))
+            .execute(conn)?;
+
+        Ok(())
     }
 
     pub fn delete(id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
