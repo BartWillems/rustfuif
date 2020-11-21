@@ -27,6 +27,7 @@ mod ddg;
 mod errors;
 mod games;
 mod invitations;
+mod market;
 mod prices;
 mod schema;
 mod server;

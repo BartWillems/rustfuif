@@ -351,7 +351,7 @@ impl Game {
                     continue;
                 }
 
-                debug!("game({}) - beverage: {:?}", self.id, beverage);
+                debug!("game({}) - beverage: {}", self.id, beverage.name);
                 assert_eq!(sale.slot_no, beverage.slot_no);
                 let offset = sale.get_offset(average_sales);
                 let price = beverage.calculate_price(offset);
@@ -359,6 +359,18 @@ impl Game {
                 beverage.set_price(price);
                 beverage.save_price(conn)?;
             }
+        }
+
+        Ok(())
+    }
+
+    /// Set all beverages for this game to their lowest possible value
+    pub fn crash_prices(&self, conn: &db::Conn) -> Result<(), ServiceError> {
+        let mut beverages = self.get_beverages(conn)?;
+
+        for beverage in &mut beverages {
+            beverage.set_price(beverage.min_price);
+            beverage.save_price(conn)?;
         }
 
         Ok(())

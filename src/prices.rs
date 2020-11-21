@@ -7,9 +7,17 @@ use actix::Addr;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::games::Game;
+use crate::market;
 use crate::websocket::server::NotificationServer;
 use crate::websocket::Notification;
 
+#[derive(Serialize, Debug, Clone)]
+pub enum PriceUpdate {
+    Regular,
+    /// When the stock market has crashed, all prices are set to their lowest
+    /// possible value.
+    StockMarketCrash,
+}
 pub(crate) struct Updater {
     pool: db::Pool,
     interval: Duration,
@@ -33,35 +41,60 @@ impl Updater {
         let interval = self.interval;
         let pool = self.pool.clone();
         let notifier = self.notifier.clone();
-        thread::spawn(move || loop {
-            thread::sleep(interval);
-            match Updater::update_prices(pool.clone()) {
-                Err(e) => {
-                    error!("unable to update prices: {}", e);
-                }
-                Ok(()) => {
-                    info!("succesfully updated the prices");
-                    notifier.do_send(Notification::PriceUpdate);
-                }
-            };
+
+        thread::spawn(move || {
+            let mut stock_market = market::StockMarket::new();
+
+            loop {
+                thread::sleep(interval);
+
+                match Updater::update_prices(pool.clone(), &mut stock_market) {
+                    Err(e) => {
+                        error!("unable to update prices: {}", e);
+                    }
+                    Ok(PriceUpdate::Regular) => {
+                        info!("succesfully updated the prices");
+                        notifier.do_send(Notification::PriceUpdate(PriceUpdate::Regular));
+                    }
+                    Ok(PriceUpdate::StockMarketCrash) => {
+                        info!("succesfully updated the prices, with stock market crash");
+                        notifier.do_send(Notification::PriceUpdate(PriceUpdate::StockMarketCrash));
+                    }
+                };
+            }
         });
     }
 
-    fn update_prices(pool: db::Pool) -> Result<(), ServiceError> {
+    fn update_prices(
+        pool: db::Pool,
+        stock_market: &mut market::StockMarket,
+    ) -> Result<PriceUpdate, ServiceError> {
         use diesel::prelude::*;
         let start = std::time::Instant::now();
         let conn = pool.get()?;
+
+        let should_crash = stock_market.maybe_crash();
+        info!("has stockmarket crashed: {}", should_crash);
+
         conn.transaction::<(), ServiceError, _>(|| {
             let games = Game::active_games(&conn)?;
 
             for game in &games {
-                game.update_prices(&conn)?;
+                if should_crash {
+                    game.crash_prices(&conn)?;
+                } else {
+                    game.update_prices(&conn)?;
+                }
             }
-            debug!("updated {} games in {:?}", games.len(), start.elapsed());
+            info!("updated {} games in {:?}", games.len(), start.elapsed());
 
             Ok(())
         })?;
 
-        Ok(())
+        if should_crash {
+            return Ok(PriceUpdate::StockMarketCrash);
+        }
+
+        Ok(PriceUpdate::Regular)
     }
 }
