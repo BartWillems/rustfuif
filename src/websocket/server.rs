@@ -70,36 +70,25 @@ impl NotificationServer {
         }
     }
 
-    /// Notify all players of a game that a sale happened
-    pub fn notify_sale(&self, sale: Sale) {
-        if let Some(sessions) = self.games.get(&sale.game_id) {
-            for id in sessions {
-                if let Some(addr) = self.sessions.get(id) {
-                    let _ = addr.send(Notification::NewSale(sale.clone()));
-                }
-            }
-        }
-    }
-
-    pub fn notify_price_update(&self) {
+    /// send a message to all connected users
+    pub fn broadcast(&self, notification: Notification) {
         for (_, recipient) in self.sessions.iter() {
-            let _ = recipient.send(Notification::PriceUpdate);
+            let _ = recipient.send(notification.clone());
         }
     }
 
-    pub fn notify_connection_change(&self, game_id: GameId) {
+    /// send a message to all connected users in a game
+    pub fn notify_game(&self, notification: Notification, game_id: GameId) {
         if let Some(sessions) = self.games.get(&game_id) {
             for id in sessions {
                 if let Some(addr) = self.sessions.get(id) {
-                    // let _ = addr.send(Notification::NewSale(sale.clone()));
-                    let _ = addr.send(Notification::ConnectionCount(
-                        self.users_in_game_count(game_id),
-                    ));
+                    let _ = addr.send(notification.clone());
                 }
             }
         }
     }
 
+    /// returns the number of connected users
     pub fn session_count(&self) -> usize {
         self.sessions.len()
     }
@@ -197,10 +186,18 @@ impl Handler<Notification> for NotificationServer {
 
     fn handle(&mut self, notification: Notification, _: &mut Context<Self>) {
         match notification {
-            Notification::NewSale(sale) => self.notify_sale(sale),
-            Notification::PriceUpdate => self.notify_price_update(),
-            Notification::UserConnected(game_id) => self.notify_connection_change(game_id),
-            Notification::UserDisconnected(game_id) => self.notify_connection_change(game_id),
+            Notification::NewSale(sale) => {
+                self.notify_game(Notification::NewSale(sale.clone()), sale.game_id)
+            }
+            Notification::PriceUpdate => self.broadcast(Notification::PriceUpdate),
+            Notification::UserConnected(game_id) => self.notify_game(
+                Notification::ConnectionCount(self.users_in_game_count(game_id)),
+                game_id,
+            ),
+            Notification::UserDisconnected(game_id) => self.notify_game(
+                Notification::ConnectionCount(self.users_in_game_count(game_id)),
+                game_id,
+            ),
             _ => (),
         }
     }
