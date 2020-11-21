@@ -89,6 +89,16 @@ impl NotificationServer {
         }
     }
 
+    /// send a message to all connected administrators
+    pub fn notify_administrators(&self, notification: Notification) {
+        self.sessions
+            .iter()
+            .filter(|&(_, user)| user.is_admin())
+            .for_each(|(_, user)| {
+                let _ = user.send(notification.clone());
+            });
+    }
+
     /// returns the number of connected users
     pub fn session_count(&self) -> usize {
         self.sessions.len()
