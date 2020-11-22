@@ -8,13 +8,22 @@ use crate::transactions::Transaction;
 use crate::users::User;
 use crate::websocket::queries::ActiveGamesResponse;
 
+type GameId = i64;
+type SessionId = usize;
+
+#[derive(Debug, Serialize, Clone, Copy)]
+pub enum ConnectionType {
+    GameConnection(GameId),
+    AdminConnection,
+}
+
 #[allow(dead_code)]
 #[derive(Message)]
 #[rtype(usize)]
 pub struct Connect {
     pub addr: Recipient<Notification>,
     pub user: User,
-    pub game_id: i64,
+    pub connection_type: ConnectionType,
 }
 
 #[derive(Message)]
@@ -22,9 +31,6 @@ pub struct Connect {
 pub struct Disconnect {
     pub id: usize,
 }
-
-type GameId = i64;
-type SessionId = usize;
 
 #[derive(Debug)]
 struct ConnectedUser {
@@ -129,6 +135,24 @@ impl NotificationServer {
             .map(|session| session.user.clone())
             .collect()
     }
+
+    pub fn connection_change(&self, connection_type: ConnectionType) {
+        match connection_type {
+            ConnectionType::GameConnection(game_id) => {
+                self.notify_game(
+                    Notification::ConnectionCount(self.users_in_game_count(game_id)),
+                    game_id,
+                );
+
+                // Also notify the administrators
+                self.notify_administrators(Notification::ConnectedUsers(self.connected_users()));
+                self.notify_administrators(Notification::ActiveGames(self.games()));
+            }
+            ConnectionType::AdminConnection => {
+                info!("admin connection change, this is ignored for now")
+            }
+        };
+    }
 }
 
 /// Make actor from `NotificationServer`
@@ -150,12 +174,20 @@ impl Handler<Connect> for NotificationServer {
         self.sessions
             .insert(session_id, ConnectedUser::new(msg.addr, msg.user));
 
-        self.games
-            .entry(msg.game_id)
-            .or_insert_with(HashSet::new)
-            .insert(session_id);
-
-        ctx.notify(Notification::UserConnected(msg.game_id));
+        match msg.connection_type {
+            ConnectionType::GameConnection(game_id) => {
+                self.games
+                    .entry(game_id)
+                    .or_insert_with(HashSet::new)
+                    .insert(session_id);
+                ctx.notify(Notification::UserConnected(ConnectionType::GameConnection(
+                    game_id,
+                )));
+            }
+            ConnectionType::AdminConnection => {
+                ctx.notify(Notification::UserConnected(ConnectionType::AdminConnection));
+            }
+        };
 
         debug!("new connection!");
         debug!("sessions count: {}", self.sessions.len());
@@ -174,15 +206,17 @@ pub enum Notification {
     PriceUpdate(PriceUpdate),
     /// Notify users in a certain game that someone joined
     /// This is done by sending the ConnectionCount
-    UserConnected(GameId),
+    UserConnected(ConnectionType),
     /// Notify users in a certain game that someone left
     /// This is done by sending the ConnectionCount
-    UserDisconnected(GameId),
+    UserDisconnected(ConnectionType),
     /// When a user leaves or joins a game, send the connection count
     /// This should be removed and the whole list of connected users should
     /// be sent instead.
     /// This is because I might implement a chat window later on
     ConnectionCount(usize),
+    ConnectedUsers(Vec<User>),
+    ActiveGames(Vec<ActiveGamesResponse>),
 }
 
 #[derive(Message, Debug, Serialize, Clone)]
@@ -201,14 +235,10 @@ impl Handler<Notification> for NotificationServer {
                 self.notify_game(Notification::NewSale(sale.clone()), sale.game_id)
             }
             Notification::PriceUpdate(kind) => self.broadcast(Notification::PriceUpdate(kind)),
-            Notification::UserConnected(game_id) => self.notify_game(
-                Notification::ConnectionCount(self.users_in_game_count(game_id)),
-                game_id,
-            ),
-            Notification::UserDisconnected(game_id) => self.notify_game(
-                Notification::ConnectionCount(self.users_in_game_count(game_id)),
-                game_id,
-            ),
+            Notification::UserConnected(connection_type) => self.connection_change(connection_type),
+            Notification::UserDisconnected(connection_type) => {
+                self.connection_change(connection_type)
+            }
             _ => (),
         }
     }
@@ -225,7 +255,9 @@ impl Handler<Disconnect> for NotificationServer {
             // remove session from all games
             for (game_id, sessions) in self.games.iter_mut() {
                 if sessions.remove(&msg.id) {
-                    ctx.notify(Notification::UserDisconnected(*game_id));
+                    ctx.notify(Notification::UserDisconnected(
+                        ConnectionType::GameConnection(*game_id),
+                    ));
                     // this was the last user in the game
                     if sessions.is_empty() {
                         stale_game = Some(*game_id);
@@ -274,11 +306,15 @@ mod tests {
         }
     }
 
-    async fn add_user(server: &Addr<NotificationServer>, game_id: i64) {
+    async fn add_user(
+        server: &Addr<NotificationServer>,
+        connection_type: ConnectionType,
+        is_admin: bool,
+    ) {
         let user = User {
             id: 1,
             username: String::from("admin"),
-            is_admin: true,
+            is_admin,
             password: String::from("..."),
             created_at: None,
             updated_at: None,
@@ -287,7 +323,7 @@ mod tests {
             .send(Connect {
                 addr: server.clone().recipient(),
                 user: user.clone(),
-                game_id,
+                connection_type,
             })
             .await
             .unwrap();
@@ -301,7 +337,7 @@ mod tests {
     async fn session_cleanup() {
         let server = NotificationServer::new().start();
 
-        add_user(&server, 1).await;
+        add_user(&server, ConnectionType::GameConnection(1), true).await;
 
         let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(1, users.len());
@@ -310,7 +346,7 @@ mod tests {
         assert_eq!(1, games_count);
 
         // connect the user to the same game
-        add_user(&server, 1).await;
+        add_user(&server, ConnectionType::GameConnection(1), true).await;
 
         let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(2, users.len());
@@ -320,7 +356,7 @@ mod tests {
         assert_eq!(1, games_count);
 
         // connect the user to another game
-        add_user(&server, 2).await;
+        add_user(&server, ConnectionType::GameConnection(2), true).await;
 
         let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(3, users.len());
@@ -337,6 +373,15 @@ mod tests {
 
         let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(0, users.len());
+
+        let games_count: usize = server.send(InnerGamesCount).await.unwrap();
+        assert_eq!(0, games_count);
+
+        // connect an admin user
+        // the games count should not change
+        add_user(&server, ConnectionType::AdminConnection, true).await;
+        let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
+        assert_eq!(1, users.len());
 
         let games_count: usize = server.send(InnerGamesCount).await.unwrap();
         assert_eq!(0, games_count);

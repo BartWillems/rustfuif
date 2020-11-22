@@ -11,14 +11,15 @@ use crate::db;
 use crate::games::Game;
 use crate::users::User;
 use crate::websocket::server;
+use crate::websocket::server::ConnectionType;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 /// How long before lack of client response causes a timeout
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Entry point for our route
-pub async fn route(
+/// route used for game updates
+pub async fn game_route(
     req: HttpRequest,
     stream: web::Payload,
     srv: Data<Addr<server::NotificationServer>>,
@@ -26,11 +27,15 @@ pub async fn route(
     id: Identity,
     pool: Data<db::Pool>,
 ) -> crate::server::Response {
-    let user = auth::get_user(&id)?;
+    let mut user = auth::get_user(&id)?;
 
     let game_id = *game_id;
 
     let auth_user = user.clone();
+
+    // When an administrator connects to this route, his admin flag is set to false so he only receives normal user notifications
+    // This is a temporary workaround and should be changed once the server knows if a connected user wants game updates or admin updates
+    user.is_admin = false;
 
     web::block(move || {
         if auth_user.is_admin {
@@ -48,7 +53,34 @@ pub async fn route(
         WebsocketConnection {
             id: 0,
             hb: Instant::now(),
-            game_id,
+            connection_type: ConnectionType::GameConnection(game_id),
+            user,
+            server: srv.get_ref().clone(),
+        },
+        &req,
+        stream,
+    )
+    .map_err(|e| e.into())
+}
+
+/// Entry point for our route
+pub async fn admin_route(
+    req: HttpRequest,
+    stream: web::Payload,
+    srv: Data<Addr<server::NotificationServer>>,
+    id: Identity,
+) -> crate::server::Response {
+    let user = auth::get_user(&id)?;
+
+    if !user.is_admin {
+        forbidden!("insufficient permissions");
+    }
+
+    ws::start(
+        WebsocketConnection {
+            id: 0,
+            hb: Instant::now(),
+            connection_type: ConnectionType::AdminConnection,
             user,
             server: srv.get_ref().clone(),
         },
@@ -66,7 +98,7 @@ struct WebsocketConnection {
     /// otherwise we drop connection.
     hb: Instant,
     /// joined game
-    game_id: i64,
+    connection_type: ConnectionType,
     /// Connected user
     user: User,
     /// notification server
@@ -92,7 +124,7 @@ impl Actor for WebsocketConnection {
             .send(server::Connect {
                 addr: addr.recipient(),
                 user: self.user.clone(),
-                game_id: self.game_id,
+                connection_type: self.connection_type,
             })
             .into_actor(self)
             .then(|res, act, ctx| {

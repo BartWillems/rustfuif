@@ -89,7 +89,8 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             )
             .data(web::PayloadConfig::default().limit(262_144))
             .service(stats::route)
-            .service(web::resource("/ws/{game_id}").to(websocket::routes::route))
+            .service(web::resource("/ws/admin").to(websocket::routes::admin_route))
+            .service(web::resource("/ws/game/{game_id}").to(websocket::routes::game_route))
             .service(
                 web::scope("/api")
                     .configure(games::routes::register)

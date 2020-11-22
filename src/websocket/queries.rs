@@ -32,7 +32,7 @@ impl Handler<ConnectedUsers> for NotificationServer {
 #[rtype(result = "Result<Vec<ActiveGamesResponse>, std::io::Error>")]
 pub struct ActiveGames;
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct ActiveGamesResponse {
     game_id: i64,
     session_count: usize,
