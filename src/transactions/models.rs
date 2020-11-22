@@ -85,7 +85,7 @@ impl NewSale {
                 }
             }
 
-            let mut sales: HashMap<i16, Sale> = self.unroll()?;
+            let mut sales: HashMap<i16, Sale> = self.unroll();
             use diesel::dsl::any;
 
             let keys: Vec<&i16> = sales.keys().collect();
@@ -112,9 +112,7 @@ impl NewSale {
                 match beverage_config {
                     None => {
                         error!("a sale was attempted without a pre-existing beverage config");
-                        return Err(ServiceError::BadRequest(String::from(
-                            "unable to create purchase for beverage without a config",
-                        )));
+                        bad_request!("unable to create purchase for beverage without a config");
                     }
                     Some(beverage) => {
                         sale.set_price(beverage);
@@ -144,7 +142,7 @@ impl NewSale {
     }
 
     /// turn the map of slots to a map of sales with their slot no as key
-    fn unroll(&self) -> Result<HashMap<i16, Sale>, ServiceError> {
+    fn unroll(&self) -> HashMap<i16, Sale> {
         let mut sales: HashMap<i16, Sale> = HashMap::new();
 
         for (slot_no, amount) in &self.slots {
@@ -159,7 +157,7 @@ impl NewSale {
             sales.insert(*slot_no, sale);
         }
 
-        Ok(sales)
+        sales
     }
 }
 
@@ -312,7 +310,7 @@ mod tests {
             slots,
         };
 
-        let res = sale.unroll().unwrap();
+        let res = sale.unroll();
         assert_eq!(res.len(), 3);
     }
 }
