@@ -79,8 +79,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
                     .same_site(SameSite::Strict)
                     .visit_deadline(Duration::weeks(2))
                     .max_age_time(Duration::weeks(2))
-                    // TODO: set this to true in production
-                    .secure(false),
+                    .secure(true),
             ))
             .data(
                 web::JsonConfig::default()
