@@ -7,8 +7,7 @@ use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::cookie::SameSite;
 use actix_web::error::JsonPayloadError;
 use actix_web::middleware::normalize::TrailingSlash;
-use actix_web::{dev, get, http, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
-use actix_web_opentelemetry::{RequestMetrics, RequestTracing};
+use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
 use time::Duration;
 
 use crate::admin;
@@ -42,11 +41,14 @@ fn json_error_handler(error: JsonPayloadError, _: &HttpRequest) -> actix_web::Er
 pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::Result<()> {
     let stats = web::Data::new(stats::Stats::new());
 
-    let prometheus_metrics = RequestMetrics::new(
-        opentelemetry::sdk::Meter::new("rustfuif_api"),
-        Some(|req: &dev::ServiceRequest| {
-            req.path() == "/metrics" && req.method() == http::Method::GET
+    let exporter = opentelemetry_prometheus::exporter().init();
+
+    let prometheus_metrics = actix_web_opentelemetry::RequestMetrics::new(
+        opentelemetry::global::meter("rustfuif_api"),
+        Some(|req: &actix_web::dev::ServiceRequest| {
+            req.path() == "/metrics" && req.method() == actix_web::http::Method::GET
         }),
+        Some(exporter),
     );
 
     let transaction_server = Arc::new(NotificationServer::new().start());
@@ -70,7 +72,6 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
             .wrap(stats::Middleware::default())
             .wrap(prometheus_metrics.clone())
-            .wrap(RequestTracing::default())
             // TODO: set this to something more restrictive
             .wrap(Cors::permissive().supports_credentials())
             .wrap(IdentityService::new(

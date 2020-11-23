@@ -365,14 +365,17 @@ dependencies = [
 
 [[package]]
 name = "actix-web-opentelemetry"
-version = "0.6.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efeefd6473a1a03037e42afd8483146ce0f5c58ba8076c4c11fd20c5a4ed6bc7"
+checksum = "f7c2af09ed5912db416fe4556472c812f5d6b7c8a7785a7929a28ca7e4648b26"
 dependencies = [
  "actix-http",
  "actix-web",
  "futures",
  "opentelemetry",
+ "opentelemetry-prometheus",
+ "opentelemetry-semantic-conventions",
+ "prometheus",
  "serde",
 ]
 
@@ -873,6 +876,15 @@ checksum = "b584a330336237c1eecd3e94266efb216c56ed91225d634cb2991c5f3fd1aeab"
 dependencies = [
  "generic-array",
  "subtle",
+]
+
+[[package]]
+name = "dashmap"
+version = "4.0.0-rc6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "308a6703be2d759cb5fb7b80a23547fe73a8d5ebf70d3a4ca7f0ef4c0bfc2265"
+dependencies = [
+ "once_cell",
 ]
 
 [[package]]
@@ -1730,16 +1742,41 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry"
-version = "0.8.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acbf68b6b34b5d869342732c0dc05f74b7bdb4f17f2302d16d799231a6106441"
+checksum = "e260f0ef133e1043b95143f83cfc8f6be023cf4b46a526da0212039b45392679"
 dependencies = [
+ "async-trait",
+ "dashmap",
+ "fnv",
  "futures",
  "lazy_static",
  "percent-encoding",
  "pin-project 0.4.22",
- "prometheus",
  "rand",
+ "regex",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "opentelemetry-prometheus"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e164d9f3a96d6f46852d9e6052edbb7d50282a4f7309e6bb515755fdefaced16"
+dependencies = [
+ "opentelemetry",
+ "prometheus",
+ "protobuf",
+]
+
+[[package]]
+name = "opentelemetry-semantic-conventions"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3251f8e16776c613633602eb9d03753d128901bcaffe81b99b211204c4108798"
+dependencies = [
+ "opentelemetry",
 ]
 
 [[package]]
@@ -1910,16 +1947,17 @@ dependencies = [
 
 [[package]]
 name = "prometheus"
-version = "0.7.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5567486d5778e2c6455b1b90ff1c558f29e751fc018130fa182e15828e728af1"
+checksum = "30d70cf4412832bcac9cffe27906f4a66e450d323525e977168c70d1b36120ae"
 dependencies = [
  "cfg-if",
  "fnv",
  "lazy_static",
+ "parking_lot 0.11.0",
  "protobuf",
- "quick-error",
- "spin",
+ "regex",
+ "thiserror",
 ]
 
 [[package]]
@@ -2146,6 +2184,7 @@ dependencies = [
  "lazy_static",
  "log",
  "opentelemetry",
+ "opentelemetry-prometheus",
  "r2d2",
  "rand",
  "redis",
@@ -2364,12 +2403,6 @@ dependencies = [
  "redox_syscall",
  "winapi 0.3.8",
 ]
-
-[[package]]
-name = "spin"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "standback"
