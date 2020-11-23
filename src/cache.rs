@@ -1,70 +1,138 @@
-use crate::errors::ServiceError;
-use redis::{Client, Commands, ConnectionLike};
 use std::env;
+use std::fmt::Display;
 
-type Pool = r2d2::Pool<Client>;
-pub type CacheConnection = r2d2::PooledConnection<Client>;
+use deadpool_redis::Connection;
+use deadpool_redis::Pool as RedisPool;
+use deadpool_redis::{cmd, Config};
+use redis::RedisError;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
+pub(crate) struct Cache {
+    pool: Option<RedisPool>,
+    ttl: i32,
+}
 
 lazy_static! {
-    static ref POOL: Pool = {
-        let redis_url = env::var("REDIS_URL").expect("Redis url not set");
-        let client = redis::Client::open(redis_url).expect("Failed to create redis client");
-        Pool::new(client).expect("Failed to create redis pool")
-    };
+    static ref CACHE_POOL: Cache = Cache::new();
 }
 
-pub fn init() {
-    info!("initializing redis cache");
-    lazy_static::initialize(&POOL);
-    let mut conn = connection().expect("failed to get redis connection");
-    assert_eq!(
-        true,
-        conn.check_connection(),
-        "Redis connection check failed"
-    );
+pub trait CacheIdentifier {
+    fn cache_key<T: Display>(id: T) -> String;
 }
 
-pub fn connection() -> Result<CacheConnection, ServiceError> {
-    POOL.get().map_err(|e| {
-        error!("unable to fetch redis connection: {}", e);
-        ServiceError::InternalServerError
-    })
-}
-
-pub trait Cache {
-    fn cache_key<T: std::fmt::Display>(id: T) -> String;
-}
-
-pub fn find<T: serde::de::DeserializeOwned + Cache, I: std::fmt::Display>(
-    id: I,
-) -> Result<Option<T>, ServiceError> {
-    let cache_key: String = T::cache_key(id);
-    let mut cache = connection()?;
-    let res: Vec<u8> = cache.get(&cache_key)?;
-
-    match serde_json::from_slice::<T>(&res).ok() {
-        Some(res) => {
-            debug!("found {} in cache", cache_key);
-            Ok(Some(res))
+impl Cache {
+    fn default() -> Self {
+        Cache {
+            pool: None,
+            ttl: 3600 * 12,
         }
-        None => Ok(None),
     }
-}
 
-pub fn set<T: serde::Serialize + Cache, I: std::fmt::Display>(
-    arg: &T,
-    id: I,
-) -> Result<(), ServiceError> {
-    let cache_key: String = T::cache_key(id);
-    let mut cache = connection()?;
-    if let Ok(res) = serde_json::to_vec(arg) {
-        let _: () = cache.set_ex(&cache_key, res, 3600)?;
+    /// create a new cache object, this ignores all errors to make sure the cache doesn't break the application
+    fn new() -> Self {
+        let mut cache_pool = Cache::default();
+        let redis_url = match env::var("REDIS_URL") {
+            Ok(redis_url) => redis_url,
+            Err(_e) => {
+                info!("cache pool not initialising due to missing `REDIS_URL`");
+                return cache_pool;
+            }
+        };
+
+        let mut cfg = Config::default();
+        cfg.url = Some(redis_url);
+
+        match cfg.create_pool() {
+            Ok(pool) => {
+                cache_pool.pool = Some(pool);
+            }
+            Err(err) => {
+                error!("unable to initiate cache pool: {}", err);
+            }
+        };
+
+        cache_pool
     }
-    Ok(())
-}
 
-pub fn delete(cache_key: String) -> Result<(), ServiceError> {
-    let mut cache = connection()?;
-    let _: () = cache.del(cache_key)?;
-    Ok(())
+    pub(crate) fn init() {
+        info!("initializing redis cache");
+        lazy_static::initialize(&CACHE_POOL);
+    }
+
+    async fn connection(&self) -> Option<Connection> {
+        match self.pool.as_ref()?.get().await {
+            Ok(connection) => Some(connection),
+            Err(err) => {
+                error!("unable to get cahce connection: {}", err);
+                None
+            }
+        }
+    }
+
+    pub(crate) async fn get<T: DeserializeOwned + CacheIdentifier, I: Display>(id: I) -> Option<T> {
+        let mut conn = CACHE_POOL.connection().await?;
+        let cache_key: String = T::cache_key(id);
+
+        let res: Result<Vec<u8>, RedisError> =
+            cmd("GET").arg(&cache_key).query_async(&mut conn).await;
+
+        match res {
+            Ok(res) => {
+                let cache_hit = serde_json::from_slice::<T>(&res).ok();
+
+                if cache_hit.is_some() {
+                    debug!("found {} in cache", &cache_key);
+                }
+
+                return cache_hit;
+            }
+            Err(err) => {
+                error!("unable to fetch {} from cache: {}", &cache_key, err);
+                return None;
+            }
+        };
+    }
+
+    pub(crate) async fn set<T: Serialize + CacheIdentifier, I: Display>(object: &T, id: I) {
+        let mut conn = match CACHE_POOL.connection().await {
+            Some(conn) => conn,
+            None => return,
+        };
+
+        let cache_key: String = T::cache_key(id);
+
+        let object_string = match serde_json::to_vec(object) {
+            Ok(res) => res,
+            Err(err) => {
+                error!("unable to serialize object for cache {}", err);
+                return;
+            }
+        };
+
+        let res: Result<(), RedisError> = cmd("SETEX")
+            .arg(cache_key)
+            .arg(CACHE_POOL.ttl)
+            .arg(object_string)
+            .query_async(&mut conn)
+            .await;
+
+        if let Err(err) = res {
+            error!("unable to store object in cache: {}", err);
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) async fn delete(cache_key: String) {
+        let mut conn = match CACHE_POOL.connection().await {
+            Some(conn) => conn,
+            None => return,
+        };
+
+        let res: Result<(), RedisError> = cmd("DEL").arg(&cache_key).query_async(&mut conn).await;
+
+        if let Err(err) = res {
+            error!("unable to delete object from cache: {}", err);
+        }
+    }
 }

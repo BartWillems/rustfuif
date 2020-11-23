@@ -4,7 +4,6 @@ use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use url::Url;
 
-use crate::cache;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::invitations::{InvitationQuery, NewInvitation, State};
@@ -152,15 +151,7 @@ impl Game {
     }
 
     pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
-        if let Some(game) = cache::find(id).unwrap_or(None) {
-            return Ok(game);
-        }
-
         let game = games::table.filter(games::id.eq(id)).first::<Game>(conn)?;
-
-        if let Err(e) = cache::set(&game, game.id) {
-            error!("unable to cache game: {}", e);
-        }
 
         Ok(game)
     }
@@ -301,25 +292,17 @@ impl Game {
     pub fn update(&self, conn: &db::Conn) -> Result<Game, ServiceError> {
         let game: Game = diesel::update(self).set(self).get_result(conn)?;
 
-        if let Err(e) = cache::set(&game, game.id) {
-            error!("unable to cache game: {}", e);
-        }
-
         Ok(game)
     }
 
     pub fn delete(&self, conn: &db::Conn) -> Result<(), ServiceError> {
         diesel::delete(self).execute(conn)?;
 
-        cache::delete(format!("game.{}", self.id))?;
-
         Ok(())
     }
 
     pub fn delete_by_id(game_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
         diesel::delete(games::table.filter(games::id.eq(game_id))).execute(conn)?;
-
-        cache::delete(format!("game.{}", game_id))?;
 
         Ok(())
     }
@@ -374,12 +357,6 @@ impl Game {
         }
 
         Ok(())
-    }
-}
-
-impl crate::cache::Cache for Game {
-    fn cache_key<T: std::fmt::Display>(id: T) -> String {
-        format!("game.{}", id)
     }
 }
 
@@ -490,11 +467,6 @@ impl Beverage {
             ))
             .get_result::<Beverage>(conn)?;
 
-        let _ = cache::delete(format!("beverage_config.{}.{}", self.game_id, self.user_id))
-            .map_err(|e| {
-                error!("unable to delete beverage config from cache: {}", e);
-            });
-
         Ok(config)
     }
 
@@ -507,11 +479,6 @@ impl Beverage {
             .filter(user_id.eq(self.user_id))
             .set((current_price.eq(self.price()),))
             .get_result::<Beverage>(conn)?;
-
-        let _ = cache::delete(format!("beverage_config.{}.{}", self.game_id, self.user_id))
-            .map_err(|e| {
-                error!("unable to delete beverage config from cache: {}", e);
-            });
 
         Ok(config)
     }

@@ -1,6 +1,6 @@
 pub mod routes;
 
-use crate::cache;
+use crate::cache::Cache;
 use crate::errors::ServiceError;
 
 use regex::Regex;
@@ -57,7 +57,7 @@ impl Client {
     }
 
     pub async fn search_images(query: &str) -> Result<ImageResponse, ServiceError> {
-        if let Some(res) = cache::find(query).unwrap_or(None) {
+        if let Some(res) = Cache::get(query).await {
             return Ok(res);
         }
 
@@ -84,9 +84,7 @@ impl Client {
             .json::<ImageResponse>()
             .await?;
 
-        if let Err(e) = cache::set(&res, res.query.clone()) {
-            error!("unable to cache the DDG image query: {}", e);
-        }
+        Cache::set(&res, res.query.clone()).await;
 
         Ok(res)
     }
@@ -98,9 +96,9 @@ pub struct ImageResponse {
     results: Vec<Image>,
 }
 
-impl crate::cache::Cache for ImageResponse {
-    fn cache_key<T: std::fmt::Display>(id: T) -> String {
-        format!("image_response.{}", id)
+impl crate::cache::CacheIdentifier for ImageResponse {
+    fn cache_key<T: std::fmt::Display>(query: T) -> String {
+        format!("image_response.{}", query)
     }
 }
 
