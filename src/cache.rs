@@ -64,7 +64,7 @@ impl Cache {
         match self.pool.as_ref()?.get().await {
             Ok(connection) => Some(connection),
             Err(err) => {
-                error!("unable to get cahce connection: {}", err);
+                error!("unable to get cache connection: {}", err);
                 None
             }
         }
