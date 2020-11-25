@@ -38,12 +38,12 @@ cargo watch -x run
 
 | Required | Variable              | Description                                     | Example                                         | Default                          |
 | -------- | --------------------- | ----------------------------------------------- | ----------------------------------------------- | -------------------------------- |
-| [ ]      | `API_HOST`            | The hostname/ip address the rustfuif listens on | `0.0.0.0`                                       | `localhost`                      |
-| [ ]      | `API_PORT`            | The port the rustfuif listens on                | `80`                                            | `8080`                           |
-| [ ]      | `RUST_LOG`            | loglevel for different crates                   | `rustfuif=info`                                 | `rustfuif=debug,actix_web=debug` |
-| [x]      | `DATABASE_URL`        | URL to the database                             | `postgres://rustfuif:secret@127.0.0.1/rustfuif` | ``                               |
-| [x]      | `SESSION_PRIVATE_KEY` | secret used for cookies(minimum 32 characters)  | `...random_characters...`                       | ``                               |
-| [ ]      | `REDIS_URL`           | Redis cache URL                                 | `redis://redis`                                 | ``                               |
+| ✗        | `API_HOST`            | The hostname/ip address the rustfuif listens on | `0.0.0.0`                                       | `localhost`                      |
+| ✗        | `API_PORT`            | The port the rustfuif listens on                | `80`                                            | `8080`                           |
+| ✗        | `RUST_LOG`            | loglevel for different crates                   | `rustfuif=info`                                 | `rustfuif=debug,actix_web=debug` |
+| ✓        | `DATABASE_URL`        | URL to the database                             | `postgres://rustfuif:secret@127.0.0.1/rustfuif` | ``                               |
+| ✓        | `SESSION_PRIVATE_KEY` | secret used for cookies(minimum 32 characters)  | `...random_characters...`                       | ``                               |
+| ✗        | `REDIS_URL`           | Redis cache URL                                 | `redis://redis`                                 | ``                               |
 
 ### Observability
 
