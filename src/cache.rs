@@ -8,7 +8,7 @@ use redis::RedisError;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-pub(crate) struct Cache {
+pub struct Cache {
     pool: Option<RedisPool>,
     ttl: i32,
 }
