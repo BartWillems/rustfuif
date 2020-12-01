@@ -98,3 +98,66 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(change_password);
     cfg.service(verify_session);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_identity::Identity;
+    use actix_identity::{CookieIdentityPolicy, IdentityService};
+    use actix_web::http::StatusCode;
+    use actix_web::test::{self, TestRequest};
+    use actix_web::{web, App, HttpResponse};
+
+    const COOKIE_KEY_MASTER: [u8; 32] = [0; 32];
+    const COOKIE_NAME: &str = "actix_auth";
+
+    #[actix_rt::test]
+    async fn test_identity() {
+        let mut srv = test::init_service(
+            App::new()
+                .wrap(IdentityService::new(
+                    CookieIdentityPolicy::new(&COOKIE_KEY_MASTER)
+                        .domain("localhost")
+                        .name(COOKIE_NAME)
+                        .path("/")
+                        .secure(true),
+                ))
+                .service(verify_session)
+                .service(web::resource("/login").to(|id: Identity| {
+                    let user = User {
+                        id: 1,
+                        is_admin: true,
+                        username: "admin".to_string(),
+                        password: "admin".to_string(),
+                        created_at: None,
+                        updated_at: None,
+                    };
+
+                    let user_string = serde_json::to_string(&user).unwrap();
+
+                    id.remember(user_string);
+                    HttpResponse::Ok()
+                })),
+        )
+        .await;
+
+        let resp = test::call_service(
+            &mut srv,
+            TestRequest::with_uri("/verify-session").to_request(),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        let resp = test::call_service(&mut srv, TestRequest::with_uri("/login").to_request()).await;
+        let cookie = resp.response().cookies().next().unwrap().to_owned();
+
+        let resp = test::call_service(
+            &mut srv,
+            TestRequest::with_uri("/verify-session")
+                .cookie(cookie.clone())
+                .to_request(),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+}

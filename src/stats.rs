@@ -147,3 +147,30 @@ where
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use actix_web::test::{self, TestRequest};
+    use actix_web::{web, App, HttpResponse};
+
+    #[actix_rt::test]
+    async fn requests_and_errors_counter() {
+        let mut srv = test::init_service(
+            App::new()
+                .wrap(Middleware::default())
+                .service(web::resource("/success").to(|| HttpResponse::Ok()))
+                .service(web::resource("/failure").to(|| HttpResponse::InternalServerError())),
+        )
+        .await;
+
+        test::call_service(&mut srv, TestRequest::with_uri("/success").to_request()).await;
+        assert_eq!(STATS.requests.load(Ordering::Relaxed), 1);
+        assert_eq!(STATS.errors.load(Ordering::Relaxed), 0);
+
+        test::call_service(&mut srv, TestRequest::with_uri("/failure").to_request()).await;
+        assert_eq!(STATS.requests.load(Ordering::Relaxed), 2);
+        assert_eq!(STATS.errors.load(Ordering::Relaxed), 1);
+    }
+}
