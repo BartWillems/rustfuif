@@ -8,6 +8,8 @@ use redis::RedisError;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use crate::stats::Stats;
+
 pub struct Cache {
     pool: Option<RedisPool>,
     ttl: i32,
@@ -82,7 +84,10 @@ impl Cache {
                 let cache_hit = serde_json::from_slice::<T>(&res).ok();
 
                 if cache_hit.is_some() {
+                    Stats::cache_hit();
                     debug!("found {} in cache", &cache_key);
+                } else {
+                    Stats::cache_miss();
                 }
 
                 return cache_hit;

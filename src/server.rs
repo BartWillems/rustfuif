@@ -39,8 +39,6 @@ fn json_error_handler(error: JsonPayloadError, _: &HttpRequest) -> actix_web::Er
 }
 
 pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::Result<()> {
-    let stats = web::Data::new(stats::Stats::new());
-
     let exporter = opentelemetry_prometheus::exporter().init();
 
     let prometheus_metrics = actix_web_opentelemetry::RequestMetrics::new(
@@ -65,7 +63,6 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
         App::new()
             .data(db_pool.clone())
             .data(transaction_server.deref().clone())
-            .app_data(stats.clone())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())

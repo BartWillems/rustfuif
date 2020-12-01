@@ -16,9 +16,15 @@ use crate::server::Response;
 use crate::websocket::queries::ActiveSessionCount;
 use crate::websocket::server::NotificationServer;
 
+lazy_static! {
+    static ref STATS: Stats = Stats::new();
+}
+
 pub struct Stats {
-    pub requests: AtomicU32,
-    pub errors: AtomicU32,
+    requests: AtomicU32,
+    errors: AtomicU32,
+    cache_hits: AtomicU32,
+    cache_misses: AtomicU32,
 }
 
 impl Stats {
@@ -26,28 +32,43 @@ impl Stats {
         Stats {
             requests: AtomicU32::new(0u32),
             errors: AtomicU32::new(0u32),
+            cache_hits: AtomicU32::new(0u32),
+            cache_misses: AtomicU32::new(0u32),
         }
+    }
+
+    pub fn add_request() {
+        STATS.requests.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn add_error() {
+        STATS.errors.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn cache_hit() {
+        STATS.cache_hits.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn cache_miss() {
+        STATS.cache_misses.fetch_add(1, Ordering::Relaxed);
     }
 }
 
 #[derive(Serialize)]
 pub struct StatsResponse {
-    pub requests: u32,
-    pub errors: u32,
-    pub active_ws_sessions: usize,
-    pub active_games: i64,
-    pub active_db_connections: u32,
-    pub idle_db_connections: u32,
+    requests: u32,
+    errors: u32,
+    active_ws_sessions: usize,
+    active_games: i64,
+    active_db_connections: u32,
+    idle_db_connections: u32,
+    cache_hits: u32,
+    cache_misses: u32,
 }
 
 #[get("/stats")]
-pub async fn route(
-    stats: Data<Stats>,
-    sessions: Data<Addr<NotificationServer>>,
-    pool: Data<db::Pool>,
-) -> Response {
+pub async fn route(sessions: Data<Addr<NotificationServer>>, pool: Data<db::Pool>) -> Response {
     let state = pool.clone().into_inner().state();
-    let stats = stats.into_inner();
 
     let active_games = web::block(move || {
         let conn = pool.get()?;
@@ -56,12 +77,14 @@ pub async fn route(
     .await?;
 
     http_ok_json!(StatsResponse {
-        requests: stats.requests.load(Ordering::Relaxed),
-        errors: stats.errors.load(Ordering::Relaxed),
+        requests: STATS.requests.load(Ordering::Relaxed),
+        errors: STATS.errors.load(Ordering::Relaxed),
         active_ws_sessions: sessions.get_ref().send(ActiveSessionCount).await?,
         active_games,
         active_db_connections: state.connections,
         idle_db_connections: state.idle_connections,
+        cache_hits: STATS.cache_hits.load(Ordering::Relaxed),
+        cache_misses: STATS.cache_misses.load(Ordering::Relaxed),
     });
 }
 
@@ -109,12 +132,7 @@ where
     }
 
     fn call(&mut self, request: ServiceRequest) -> Self::Future {
-        let stats = request
-            .app_data::<Data<Stats>>()
-            .expect("unable to load stats")
-            .clone();
-
-        stats.requests.fetch_add(1, Ordering::Relaxed);
+        Stats::add_request();
 
         let fut = self.service.call(request);
 
@@ -122,7 +140,7 @@ where
             let res = fut.await?;
 
             if res.response().status().is_server_error() {
-                stats.errors.fetch_add(1, Ordering::Relaxed);
+                Stats::add_error();
             }
 
             Ok(res)
