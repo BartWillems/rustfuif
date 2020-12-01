@@ -115,11 +115,11 @@ impl Cache {
             }
         };
 
-        let res: Result<(), RedisError> = cmd("SETEX")
+        let res = cmd("SETEX")
             .arg(cache_key)
             .arg(CACHE_POOL.ttl)
             .arg(object_string)
-            .query_async(&mut conn)
+            .execute_async(&mut conn)
             .await;
 
         if let Err(err) = res {
@@ -134,7 +134,7 @@ impl Cache {
             None => return,
         };
 
-        let res: Result<(), RedisError> = cmd("DEL").arg(&cache_key).query_async(&mut conn).await;
+        let res = cmd("DEL").arg(&cache_key).execute_async(&mut conn).await;
 
         if let Err(err) = res {
             error!("unable to delete object from cache: {}", err);
