@@ -149,7 +149,7 @@ impl NotificationServer {
                 self.notify_administrators(Notification::ActiveGames(self.games()));
             }
             ConnectionType::AdminConnection => {
-                info!("admin connection change, this is ignored for now")
+                self.notify_administrators(Notification::ConnectedUsers(self.connected_users()));
             }
         };
     }
