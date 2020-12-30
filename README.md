@@ -44,6 +44,7 @@ cargo watch -x run
 | ✓        | `DATABASE_URL`        | URL to the database                             | `postgres://rustfuif:secret@127.0.0.1/rustfuif` | ``                               |
 | ✓        | `SESSION_PRIVATE_KEY` | secret used for cookies(minimum 32 characters)  | `...random_characters...`                       | ``                               |
 | ✗        | `REDIS_URL`           | Redis cache URL                                 | `redis://redis`                                 | ``                               |
+| ✗        | `SENTRY_DSN`          | Sentry error reporting middleware DSN           | `https://examplePublicKey@ingest.sentry.io/0`   | ``                               |
 
 ### Observability
 

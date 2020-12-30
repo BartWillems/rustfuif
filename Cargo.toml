@@ -35,6 +35,8 @@ redis = { version = "0.17.0" }
 regex = "1.4"
 reqwest = { version = "0.10", features = ["json"] }
 rust-argon2 = "0.8"
+sentry = "0.21"
+sentry-actix = "0.21"
 serde = { version = "1.0" }
 serde_derive = "1.0"
 serde_json = "1.0"

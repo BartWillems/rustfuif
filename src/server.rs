@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -39,6 +38,15 @@ fn json_error_handler(error: JsonPayloadError, _: &HttpRequest) -> actix_web::Er
 }
 
 pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::Result<()> {
+    // TODO: use config library
+    let _guard = match std::env::var("SENTRY_DSN") {
+        Ok(key) => sentry::init(key),
+        Err(_) => {
+            info!("SENTRY_DSN not set");
+            sentry::init(())
+        }
+    };
+
     let exporter = opentelemetry_prometheus::exporter().init();
 
     let prometheus_metrics = actix_web_opentelemetry::RequestMetrics::new(
@@ -62,7 +70,8 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     HttpServer::new(move || {
         App::new()
             .data(db_pool.clone())
-            .data(transaction_server.deref().clone())
+            .data(transaction_server.clone())
+            .wrap(sentry_actix::Sentry::new())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
