@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -57,20 +58,20 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
         Some(exporter),
     );
 
-    let transaction_server = Arc::new(NotificationServer::new().start());
+    let notification_server = Arc::new(NotificationServer::new().start());
 
     debug!("launching price updater");
     prices::Updater::new(
         db_pool.clone(),
         std::time::Duration::from_secs(120),
-        transaction_server.clone(),
+        notification_server.clone(),
     )
     .start();
 
     HttpServer::new(move || {
         App::new()
             .data(db_pool.clone())
-            .data(transaction_server.clone())
+            .data(notification_server.deref().clone())
             .wrap(sentry_actix::Sentry::new())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
             .wrap(middleware::Compress::default())
