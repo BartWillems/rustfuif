@@ -75,7 +75,11 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             .wrap(sentry_actix::Sentry::new())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
             .wrap(middleware::Compress::default())
-            .wrap(middleware::Logger::default())
+            .wrap(
+                middleware::Logger::default()
+                    .exclude_regex("^/api/health")
+                    .exclude_regex("^/stats"),
+            )
             .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
             .wrap(stats::Middleware::default())
             .wrap(prometheus_metrics.clone())
