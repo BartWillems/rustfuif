@@ -70,9 +70,24 @@ async fn active_games(id: Identity, websocket_server: Data<Addr<NotificationServ
     }
 }
 
+#[derive(Serialize)]
+struct CacheStatus {
+    enabled: bool,
+}
+
+#[get("/admin/server/cache")]
+async fn cache_status(id: Identity) -> Response {
+    auth::verify_admin(&id)?;
+
+    http_ok_json!(CacheStatus {
+        enabled: crate::cache::Cache::is_enabled(),
+    });
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(game_count);
     cfg.service(user_count);
     cfg.service(connected_users);
     cfg.service(active_games);
+    cfg.service(cache_status);
 }

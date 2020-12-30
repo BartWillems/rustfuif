@@ -62,6 +62,11 @@ impl Cache {
         lazy_static::initialize(&CACHE_POOL);
     }
 
+    /// returns true if the cache is initialized and ready for usage
+    pub(crate) fn is_enabled() -> bool {
+        CACHE_POOL.pool.is_some()
+    }
+
     async fn connection(&self) -> Option<Connection> {
         match self.pool.as_ref()?.get().await {
             Ok(connection) => Some(connection),
