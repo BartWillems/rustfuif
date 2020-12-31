@@ -1,4 +1,3 @@
-use std::env;
 use std::fmt::Display;
 
 use deadpool_redis::Connection;
@@ -34,16 +33,16 @@ impl Cache {
     /// create a new cache object, this ignores all errors to make sure the cache doesn't break the application
     fn new() -> Self {
         let mut cache_pool = Cache::default();
-        let redis_url = match env::var("REDIS_URL") {
-            Ok(redis_url) => redis_url,
-            Err(_e) => {
+        let redis_url = match crate::config::Config::redis_url() {
+            Some(redis_url) => redis_url,
+            None => {
                 info!("cache pool not initialising due to missing `REDIS_URL`");
                 return cache_pool;
             }
         };
 
         let mut cfg = Config::default();
-        cfg.url = Some(redis_url);
+        cfg.url = Some(redis_url.to_owned());
 
         match cfg.create_pool() {
             Ok(pool) => {

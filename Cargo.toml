@@ -22,6 +22,7 @@ derive_more = "0.99"
 diesel = { version = "1.4.5", features = ["chrono", "postgres", "r2d2"] }
 diesel_migrations = "1.4"
 dotenv = "0.15.0"
+envy = "0.4"
 env_logger = "0.8"
 futures = "0.3"
 lazy_static = "1.4"
@@ -42,6 +43,7 @@ serde_json = "1.0"
 terminator = "0.1.0"
 time = "0.2"
 url = "2.2"
+validator = { version = "0.12", features = ["derive"] }
 
 [dev-dependencies]
 actix-rt = "1.1.1"

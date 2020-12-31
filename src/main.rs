@@ -22,6 +22,7 @@ mod macros;
 mod admin;
 mod auth;
 mod cache;
+mod config;
 mod db;
 mod ddg;
 mod errors;
@@ -49,19 +50,8 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
 
     env_logger::init();
 
-    // TODO: use a configuration helper
-    let session_private_key = get_env("SESSION_PRIVATE_KEY")?;
-    if session_private_key.len() < 32 {
-        return Err(Box::from(format!(
-            "session private key should be at least 32 bytes, found: {}",
-            session_private_key.len()
-        )));
-    }
-
-    let database_url = get_env("DATABASE_URL")?;
-
     debug!("building database connection pool");
-    let pool = db::build_connection_pool(&database_url)?;
+    let pool = db::build_connection_pool(config::Config::database_url())?;
 
     info!("running database migrations");
     db::migrate(&pool)?;
@@ -69,12 +59,7 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
     cache::Cache::init();
 
     debug!("launching the actix webserver");
-    server::launch(pool.clone(), session_private_key).await?;
+    server::launch(pool.clone()).await?;
 
     Ok(())
-}
-
-fn get_env(key: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let res = std::env::var(key).map_err(|_| format!("{} must be set", key))?;
-    Ok(res)
 }

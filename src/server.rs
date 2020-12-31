@@ -12,6 +12,7 @@ use time::Duration;
 
 use crate::admin;
 use crate::auth;
+use crate::config::Config;
 use crate::db;
 use crate::ddg;
 use crate::errors::ServiceError;
@@ -38,11 +39,10 @@ fn json_error_handler(error: JsonPayloadError, _: &HttpRequest) -> actix_web::Er
     }
 }
 
-pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::Result<()> {
-    // TODO: use config library
-    let _guard = match std::env::var("SENTRY_DSN") {
-        Ok(key) => sentry::init(key),
-        Err(_) => {
+pub async fn launch(db_pool: db::Pool) -> std::io::Result<()> {
+    let _guard = match Config::sentry_dsn() {
+        Some(key) => sentry::init(key),
+        None => {
             info!("SENTRY_DSN not set");
             sentry::init(())
         }
@@ -61,12 +61,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
     let notification_server = Arc::new(NotificationServer::new().start());
 
     debug!("launching price updater");
-    prices::Updater::new(
-        db_pool.clone(),
-        std::time::Duration::from_secs(120),
-        notification_server.clone(),
-    )
-    .start();
+    prices::Updater::new(db_pool.clone(), notification_server.clone()).start();
 
     HttpServer::new(move || {
         App::new()
@@ -86,7 +81,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
             // TODO: set this to something more restrictive
             .wrap(Cors::permissive().supports_credentials())
             .wrap(IdentityService::new(
-                CookieIdentityPolicy::new(&session_private_key.as_bytes())
+                CookieIdentityPolicy::new(Config::session_private_key().as_bytes())
                     .name("auth-cookie")
                     .same_site(SameSite::Strict)
                     .visit_deadline(Duration::weeks(2))
@@ -114,11 +109,7 @@ pub async fn launch(db_pool: db::Pool, session_private_key: String) -> std::io::
                     .service(health),
             )
     })
-    .bind(format!(
-        "{}:{}",
-        std::env::var("API_HOST").unwrap_or_else(|_| "localhost".to_string()),
-        std::env::var("API_PORT").unwrap_or_else(|_| "8080".to_string())
-    ))?
+    .bind(format!("{}:{}", Config::api_host(), Config::api_port()))?
     .run()
     .await
 }

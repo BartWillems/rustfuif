@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use actix::Addr;
 
+use crate::config::Config;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::games::Game;
@@ -25,14 +26,10 @@ pub(crate) struct Updater {
 }
 
 impl Updater {
-    pub fn new(
-        pool: db::Pool,
-        interval: Duration,
-        notifier: Arc<Addr<NotificationServer>>,
-    ) -> Self {
+    pub fn new(pool: db::Pool, notifier: Arc<Addr<NotificationServer>>) -> Self {
         Updater {
             pool,
-            interval,
+            interval: Config::price_update_interval(),
             notifier,
         }
     }
