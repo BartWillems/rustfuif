@@ -1,7 +1,7 @@
 use actix::Addr;
 use actix_identity::Identity;
 use actix_web::web::Data;
-use actix_web::{get, web};
+use actix_web::{get, post, web};
 
 use crate::auth;
 use crate::db;
@@ -70,18 +70,29 @@ async fn active_games(id: Identity, websocket_server: Data<Addr<NotificationServ
     }
 }
 
-#[derive(Serialize)]
-struct CacheStatus {
-    enabled: bool,
-}
-
 #[get("/admin/server/cache")]
 async fn cache_status(id: Identity) -> Response {
     auth::verify_admin(&id)?;
 
-    http_ok_json!(CacheStatus {
-        enabled: crate::cache::Cache::is_enabled(),
-    });
+    http_ok_json!(crate::cache::Cache::status().await);
+}
+
+#[post("/admin/server/cache/disable")]
+async fn disable_cache(id: Identity) -> Response {
+    auth::verify_admin(&id)?;
+
+    crate::cache::Cache::disable_cache().await;
+
+    http_ok_json!(crate::cache::Cache::status().await);
+}
+
+#[post("/admin/server/cache/enable")]
+async fn enable_cache(id: Identity) -> Response {
+    auth::verify_admin(&id)?;
+
+    crate::cache::Cache::enable_cache().await;
+
+    http_ok_json!(crate::cache::Cache::status().await);
 }
 
 pub fn register(cfg: &mut web::ServiceConfig) {
@@ -90,4 +101,6 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(connected_users);
     cfg.service(active_games);
     cfg.service(cache_status);
+    cfg.service(disable_cache);
+    cfg.service(enable_cache);
 }

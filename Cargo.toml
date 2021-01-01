@@ -42,6 +42,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 terminator = "0.1.0"
 time = "0.2"
+tokio = { version = "0.3", features = ["sync"], default-features = false }
 url = "2.2"
 validator = { version = "0.12", features = ["derive"] }
 
