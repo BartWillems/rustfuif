@@ -40,10 +40,7 @@ impl Config {
     }
 
     pub fn api_port() -> usize {
-        match CONFIG.api_port {
-            Some(port) => port,
-            None => 8080,
-        }
+        CONFIG.api_port.unwrap_or(8080)
     }
 
     pub fn session_private_key() -> &'static str {
