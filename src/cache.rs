@@ -1,7 +1,5 @@
 use std::fmt::Display;
 
-// use std::sync::RwLock;
-
 use deadpool_redis::cmd;
 use deadpool_redis::Connection;
 use deadpool_redis::Pool as RedisPool;

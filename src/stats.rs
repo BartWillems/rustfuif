@@ -27,6 +27,16 @@ pub struct Stats {
     cache_misses: AtomicU32,
 }
 
+/// This is used to expose the raw stats without needing to declare new
+/// atomic variables
+#[derive(Serialize)]
+pub struct LoadedStats {
+    requests: u32,
+    errors: u32,
+    cache_hits: u32,
+    cache_misses: u32,
+}
+
 impl Stats {
     pub fn new() -> Stats {
         Stats {
@@ -51,6 +61,16 @@ impl Stats {
 
     pub fn cache_miss() {
         STATS.cache_misses.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Load the atomic stats variables as regular u32's
+    pub fn load() -> LoadedStats {
+        LoadedStats {
+            requests: STATS.requests.load(Ordering::Relaxed),
+            errors: STATS.errors.load(Ordering::Relaxed),
+            cache_hits: STATS.cache_hits.load(Ordering::Relaxed),
+            cache_misses: STATS.cache_misses.load(Ordering::Relaxed),
+        }
     }
 }
 

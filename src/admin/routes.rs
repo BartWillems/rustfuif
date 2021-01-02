@@ -95,6 +95,13 @@ async fn enable_cache(id: Identity) -> Response {
     http_ok_json!(crate::cache::Cache::status().await);
 }
 
+#[get("/admin/server/stats")]
+async fn server_stats(id: Identity) -> Response {
+    auth::verify_admin(&id)?;
+
+    http_ok_json!(crate::stats::Stats::load());
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(game_count);
     cfg.service(user_count);
@@ -103,4 +110,5 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(cache_status);
     cfg.service(disable_cache);
     cfg.service(enable_cache);
+    cfg.service(server_stats);
 }
