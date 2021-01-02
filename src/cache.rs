@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 use deadpool_redis::cmd;
 use deadpool_redis::Connection;
@@ -80,6 +80,7 @@ impl Cache {
         cache.pool.is_some()
     }
 
+    #[tracing::instrument]
     async fn connection() -> Option<Connection> {
         let cache = CACHE_POOL.read().await;
 
@@ -92,7 +93,10 @@ impl Cache {
         }
     }
 
-    pub(crate) async fn get<T: DeserializeOwned + CacheIdentifier, I: Display>(id: I) -> Option<T> {
+    #[tracing::instrument(name = "cache::get")]
+    pub(crate) async fn get<T: DeserializeOwned + CacheIdentifier, I: Display + Debug>(
+        id: I,
+    ) -> Option<T> {
         let mut conn = Cache::connection().await?;
         let cache_key: String = T::cache_key(id);
 
@@ -110,16 +114,17 @@ impl Cache {
                     Stats::cache_miss();
                 }
 
-                return cache_hit;
+                cache_hit
             }
             Err(err) => {
                 error!("unable to fetch {} from cache: {}", &cache_key, err);
-                return None;
+                None
             }
-        };
+        }
     }
 
-    pub(crate) async fn set<T: Serialize + CacheIdentifier, I: Display>(object: &T, id: I) {
+    #[tracing::instrument(name = "cache::set", skip(object))]
+    pub(crate) async fn set<T: Serialize + CacheIdentifier, I: Display + Debug>(object: &T, id: I) {
         let mut conn = match Cache::connection().await {
             Some(conn) => conn,
             None => return,
@@ -150,6 +155,7 @@ impl Cache {
     }
 
     #[allow(dead_code)]
+    #[tracing::instrument(name = "cache::delete")]
     pub(crate) async fn delete(cache_key: String) {
         let mut conn = match Cache::connection().await {
             Some(conn) => conn,

@@ -8,6 +8,7 @@ use actix_web::cookie::SameSite;
 use actix_web::error::JsonPayloadError;
 use actix_web::middleware::normalize::TrailingSlash;
 use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web_opentelemetry::RequestTracing;
 use time::Duration;
 
 use crate::admin;
@@ -78,6 +79,7 @@ pub async fn launch(db_pool: db::Pool) -> std::io::Result<()> {
             .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
             .wrap(stats::Middleware::default())
             .wrap(prometheus_metrics.clone())
+            .wrap(RequestTracing::new())
             // TODO: set this to something more restrictive
             .wrap(Cors::permissive().supports_credentials())
             .wrap(IdentityService::new(

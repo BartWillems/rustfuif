@@ -106,6 +106,7 @@ impl Invitation {
     }
 
     /// get your game invites
+    #[tracing::instrument(skip(conn))]
     pub fn find(
         user_id: i64,
         filter: InvitationQuery,

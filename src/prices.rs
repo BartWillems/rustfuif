@@ -62,6 +62,7 @@ impl Updater {
         });
     }
 
+    #[tracing::instrument(skip(pool, stock_market))]
     fn update_prices(
         pool: db::Pool,
         stock_market: &mut market::StockMarket,

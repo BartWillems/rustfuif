@@ -75,6 +75,7 @@ impl Game {
     ///
     /// When something fails, the transaction rolls-back, returns an error
     /// and nothing will have happened.
+    #[tracing::instrument(skip(conn))]
     pub fn create(new_game: CreateGame, conn: &db::Conn) -> Result<Game, ServiceError> {
         let game = conn.transaction::<Game, diesel::result::Error, _>(|| {
             let game: Game = diesel::insert_into(games::table)
@@ -93,6 +94,7 @@ impl Game {
         Ok(game)
     }
 
+    #[tracing::instrument(skip(conn))]
     pub fn is_open(game_id: i64, user_id: i64, conn: &db::Conn) -> Result<bool, ServiceError> {
         use diesel::dsl::now;
 
@@ -110,6 +112,7 @@ impl Game {
     }
 
     /// return the amount of active games at the moment
+    #[tracing::instrument(skip(conn))]
     pub fn active_game_count(conn: &db::Conn) -> Result<i64, ServiceError> {
         use diesel::dsl::{now, sql};
 
@@ -123,6 +126,7 @@ impl Game {
     }
 
     /// return the total amount of created games
+    #[tracing::instrument(skip(conn))]
     pub fn count(conn: &db::Conn) -> Result<i64, ServiceError> {
         use diesel::dsl::sql;
 
@@ -133,6 +137,7 @@ impl Game {
         Ok(count)
     }
 
+    #[tracing::instrument(skip(conn))]
     pub fn active_games(conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
         use diesel::dsl::now;
 
@@ -144,18 +149,21 @@ impl Game {
         Ok(games)
     }
 
+    #[tracing::instrument(skip(conn))]
     pub fn invite_user(&self, user_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
         let invite = NewInvitation::new(self.id, user_id);
         invite.save(conn)?;
         Ok(())
     }
 
+    #[tracing::instrument(skip(conn))]
     pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
         let game = games::table.filter(games::id.eq(id)).first::<Game>(conn)?;
 
         Ok(game)
     }
 
+    #[tracing::instrument(skip(conn))]
     pub fn find_all(
         filter: GameFilter,
         conn: &db::Conn,
@@ -189,6 +197,7 @@ impl Game {
         Ok(games)
     }
 
+    #[tracing::instrument(skip(conn))]
     pub fn find_by_user(
         user_id: i64,
         filter: GameFilter,
@@ -233,6 +242,7 @@ impl Game {
 
     /// returns a list of users who have been invited for a game
     /// filter by changing the invitation state
+    #[tracing::instrument(skip(conn))]
     pub fn find_users(
         game_id: i64,
         filter: InvitationQuery,
@@ -255,6 +265,7 @@ impl Game {
     }
 
     /// show users who are not yet invited in a game
+    #[tracing::instrument(skip(conn))]
     pub fn find_available_users(
         game_id: i64,
         conn: &db::Conn,
@@ -272,6 +283,7 @@ impl Game {
     }
 
     /// validates if a user is actually partaking in a game (invited and accepted)
+    #[tracing::instrument(skip(conn))]
     pub fn verify_user(game_id: i64, user_id: i64, conn: &db::Conn) -> Result<bool, ServiceError> {
         let res = invitations::table
             .filter(invitations::game_id.eq(game_id))
@@ -318,10 +330,12 @@ impl Game {
         false
     }
 
+    #[tracing::instrument(skip(conn))]
     pub fn get_beverages(&self, conn: &db::Conn) -> Result<Vec<Beverage>, ServiceError> {
         Beverage::find_by_game(self.id, conn)
     }
 
+    #[tracing::instrument(skip(conn))]
     pub fn update_prices(&self, conn: &db::Conn) -> Result<(), ServiceError> {
         let mut beverages = self.get_beverages(conn)?;
 
@@ -348,6 +362,7 @@ impl Game {
     }
 
     /// Set all beverages for this game to their lowest possible value
+    #[tracing::instrument(skip(conn))]
     pub fn crash_prices(&self, conn: &db::Conn) -> Result<(), ServiceError> {
         let mut beverages = self.get_beverages(conn)?;
 

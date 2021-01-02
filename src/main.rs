@@ -13,6 +13,9 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::prelude::*;
+
 use dotenv::dotenv;
 use terminator::Terminator;
 
@@ -48,7 +51,21 @@ async fn main() -> Result<(), Terminator> {
 async fn init() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
-    env_logger::init();
+    let (tracer, _uninstall) = opentelemetry_jaeger::new_pipeline()
+        .with_service_name("rustfuif")
+        .with_agent_endpoint(config::Config::opentelemetry_endpoint())
+        .install()
+        .expect("unable to connect to opentelemetry agent");
+
+    // Create a tracing layer with the configured tracer
+    let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
+        .with(tracing_subscriber::EnvFilter::from_default_env())
+        .with(opentelemetry)
+        .try_init()
+        .expect("unable to initialize the tokio tracer");
 
     debug!("building database connection pool");
     let pool = db::build_connection_pool(config::Config::database_url())?;

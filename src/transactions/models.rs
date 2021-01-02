@@ -64,6 +64,7 @@ pub struct SalesCount {
 }
 
 impl NewSale {
+    #[tracing::instrument(skip(conn))]
     pub fn save(&self, conn: &db::Conn) -> Result<Vec<Transaction>, ServiceError> {
         let transactions = conn.transaction::<Vec<Transaction>, ServiceError, _>(|| {
             // NEW SALES ORDER
@@ -174,6 +175,7 @@ impl Transaction {
             .first::<Transaction>(conn)
     }
 
+    #[tracing::instrument(skip(conn))]
     pub fn find_all(
         filter: &TransactionFilter,
         conn: &db::Conn,
@@ -195,6 +197,7 @@ impl Transaction {
     }
 
     /// Get the amount of sales each user has made in a game
+    #[tracing::instrument(skip(conn))]
     pub fn get_sales_per_user(
         game_id: i64,
         conn: &db::Conn,
@@ -214,7 +217,8 @@ impl Transaction {
         Ok(sale_count)
     }
 
-    /// show the totaol money spend for everyone in a game
+    /// show the total money spend for everyone in a game
+    #[tracing::instrument(skip(conn))]
     pub fn total_income(game_id: i64, conn: &db::Conn) -> Result<i64, ServiceError> {
         use diesel::dsl::sql;
         let res = transactions::table
@@ -247,6 +251,7 @@ impl SalesCount {
     }
 
     /// get salescount for a game while locking the rows during a transaction
+    #[tracing::instrument(skip(conn))]
     pub(crate) fn find_by_game_for_update(
         game_id: i64,
         conn: &db::Conn,
@@ -260,6 +265,7 @@ impl SalesCount {
         Ok(res)
     }
 
+    #[tracing::instrument(skip(conn))]
     pub fn find_by_game(game_id: i64, conn: &db::Conn) -> Result<Vec<SalesCount>, DBError> {
         let res = sales_counts::table
             .filter(sales_counts::game_id.eq(game_id))
@@ -269,6 +275,7 @@ impl SalesCount {
         Ok(res)
     }
 
+    #[tracing::instrument(skip(conn))]
     fn update(&self, conn: &db::Conn) -> Result<SalesCount, DBError> {
         diesel::update(
             sales_counts::table

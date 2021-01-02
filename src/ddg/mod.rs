@@ -7,6 +7,7 @@ use regex::Regex;
 
 const BASE_URI: &str = "https://duckduckgo.com";
 
+#[derive(Debug)]
 pub struct Client {
     token: Option<String>,
     reqwest: reqwest::Client,
@@ -19,8 +20,10 @@ impl Client {
             reqwest: reqwest::Client::new(),
         }
     }
+
     /// fetch and set the duckduckgo request token
     /// This token is only valid for a specific request for a (currently unkown) amount of time
+    #[tracing::instrument]
     async fn acquire_token(&mut self, query: &str) -> Result<&Client, ServiceError> {
         let resp = self
             .reqwest
@@ -39,7 +42,7 @@ impl Client {
             }
         }
 
-        Ok(self)
+        Ok(&*self)
     }
 
     /// look through a duckduckgo response and return the api token if it's present
@@ -56,6 +59,7 @@ impl Client {
             .map(|token| token.to_string())
     }
 
+    #[tracing::instrument]
     pub async fn search_images(query: &str) -> Result<ImageResponse, ServiceError> {
         if let Some(res) = Cache::get(query).await {
             return Ok(res);

@@ -13,6 +13,8 @@ pub struct Config {
     sentry_dsn: Option<String>,
     /// the interval in seconds between price updates
     price_update_interval: Option<u64>,
+    /// defaults to localhost, which shouldn't cause issues if you're using udp
+    opentelemetry_endpoint: Option<String>,
 }
 
 lazy_static! {
@@ -65,6 +67,13 @@ impl Config {
         match CONFIG.price_update_interval {
             Some(interval) => Duration::from_secs(interval),
             None => Duration::from_secs(120),
+        }
+    }
+
+    pub fn opentelemetry_endpoint() -> &'static str {
+        match &CONFIG.opentelemetry_endpoint {
+            Some(endpoint) => endpoint.as_ref(),
+            None => "127.0.0.1:6831",
         }
     }
 }

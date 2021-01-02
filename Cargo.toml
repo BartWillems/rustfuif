@@ -15,7 +15,6 @@ actix-service = "1.0.6"
 actix-threadpool = "0.3"
 actix-web = { version = "3.2", default-features = false }
 actix-web-actors = "3.0"
-actix-web-opentelemetry = { version = "0.8", default-features = false, features = ["metrics"] }
 chrono = { version = "0.4", features = ["serde"] }
 deadpool-redis = { version = "0.6",  default-features = false }
 derive_more = "0.99"
@@ -23,12 +22,9 @@ diesel = { version = "1.4.5", features = ["chrono", "postgres", "r2d2"] }
 diesel_migrations = "1.4"
 dotenv = "0.15.0"
 envy = "0.4"
-env_logger = "0.8"
 futures = "0.3"
 lazy_static = "1.4"
 log = "0.4"
-opentelemetry = { version = "0.10", default-features = false, features = ["metrics"] }
-opentelemetry-prometheus = { version = "0.3" }
 r2d2 = "0.8"
 rand = "0.7"
 redis = { version = "0.17.0" }
@@ -45,6 +41,17 @@ time = "0.2"
 tokio = { version = "0.3", features = ["sync"], default-features = false }
 url = "2.2"
 validator = { version = "0.12", features = ["derive"] }
+
+# Metrics & Tracing
+actix-web-opentelemetry = { version = "0.8", default-features = false, features = ["metrics"] }
+opentelemetry = { version = "0.10", default-features = false, features = ["metrics", "trace"] }
+opentelemetry-prometheus = { version = "0.3" }
+opentelemetry-jaeger = "0.9"
+tracing = { version = "0.1", features = ["log", "log-always"] }
+tracing-attributes = "0.1"
+tracing-futures = "0.2"
+tracing-subscriber = "0.2"
+tracing-opentelemetry = "0.9"
 
 [dev-dependencies]
 actix-rt = "1.1.1"
