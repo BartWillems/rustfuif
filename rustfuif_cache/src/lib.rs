@@ -1,3 +1,9 @@
+#[macro_use]
+extern crate lazy_static;
+
+#[macro_use]
+extern crate serde_derive;
+
 use std::fmt::{Debug, Display};
 
 use deadpool_redis::cmd;
@@ -7,9 +13,16 @@ use redis::RedisError;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tokio::sync::RwLock;
+use tracing::{debug, error};
 
-use crate::config::Config;
-use crate::stats::Stats;
+mod stats;
+
+pub use stats::Stats;
+
+lazy_static! {
+    static ref CACHE_POOL: RwLock<Cache> = RwLock::new(Cache::default());
+    static ref REDIS_URL: RwLock<Option<String>> = RwLock::new(None);
+}
 
 pub struct Cache {
     pool: Option<RedisPool>,
@@ -24,10 +37,6 @@ pub struct CacheStatus {
     healthy: bool,
 }
 
-lazy_static! {
-    static ref CACHE_POOL: RwLock<Cache> = RwLock::new(Cache::new());
-}
-
 pub trait CacheIdentifier {
     fn cache_key<T: Display>(id: T) -> String;
 }
@@ -40,42 +49,33 @@ impl Cache {
         }
     }
 
+    async fn set_url(url: String) {
+        let mut cfg_url = REDIS_URL.write().await;
+        *cfg_url = Some(url);
+    }
+
     /// create a new cache object, this ignores all errors to make sure the cache doesn't break the application
-    fn new() -> Self {
-        info!("creating cache pool");
-        let mut cache_pool = Cache::default();
-        let redis_url = match Config::redis_url() {
-            Some(redis_url) => redis_url,
-            None => {
-                info!("cache pool not initialising due to missing `REDIS_URL`");
-                return cache_pool;
-            }
-        };
+    pub async fn init(url: String) -> Result<(), redis::RedisError> {
+        let mut new_cache = Cache::default();
 
         let cfg = deadpool_redis::Config {
-            url: Some(redis_url.to_owned()),
+            url: Some(url.clone()),
             ..Default::default()
         };
 
-        match cfg.create_pool() {
-            Ok(pool) => {
-                cache_pool.pool = Some(pool);
-            }
-            Err(err) => {
-                error!("unable to initiate cache pool: {}", err);
-            }
-        };
+        let pool = cfg.create_pool()?;
+        new_cache.pool = Some(pool);
 
-        cache_pool
-    }
+        let mut cache = CACHE_POOL.write().await;
 
-    pub(crate) fn init() {
-        info!("initializing redis cache");
-        lazy_static::initialize(&CACHE_POOL);
+        *cache = new_cache;
+        // the url should be set to be able to reuse the cache
+        Cache::set_url(url).await;
+        Ok(())
     }
 
     /// returns true if the cache is initialized and ready for usage
-    pub(crate) async fn is_enabled() -> bool {
+    pub async fn is_enabled() -> bool {
         let cache = CACHE_POOL.read().await;
         cache.pool.is_some()
     }
@@ -94,7 +94,7 @@ impl Cache {
     }
 
     #[tracing::instrument(name = "cache::get")]
-    pub(crate) async fn get<T: DeserializeOwned + CacheIdentifier, I: Display + Debug>(
+    pub async fn get<T: DeserializeOwned + CacheIdentifier, I: Display + Debug>(
         id: I,
     ) -> Option<T> {
         let mut conn = Cache::connection().await?;
@@ -124,7 +124,7 @@ impl Cache {
     }
 
     #[tracing::instrument(name = "cache::set", skip(object))]
-    pub(crate) async fn set<T: Serialize + CacheIdentifier, I: Display + Debug>(object: &T, id: I) {
+    pub async fn set<T: Serialize + CacheIdentifier, I: Display + Debug>(object: &T, id: I) {
         let mut conn = match Cache::connection().await {
             Some(conn) => conn,
             None => return,
@@ -154,9 +154,8 @@ impl Cache {
         }
     }
 
-    #[allow(dead_code)]
     #[tracing::instrument(name = "cache::delete")]
-    pub(crate) async fn delete(cache_key: String) {
+    pub async fn delete(cache_key: String) {
         let mut conn = match Cache::connection().await {
             Some(conn) => conn,
             None => return,
@@ -169,19 +168,24 @@ impl Cache {
         }
     }
 
-    pub(crate) async fn disable_cache() {
+    pub async fn disable_cache() {
         let mut cache = CACHE_POOL.write().await;
 
         cache.pool = None;
     }
 
-    pub(crate) async fn enable_cache() {
-        let mut cache = CACHE_POOL.write().await;
+    pub async fn enable_cache() -> Result<(), RedisError> {
+        let url = REDIS_URL.read().await;
 
-        *cache = Cache::new();
+        let url: String = (*url
+            .clone()
+            .expect("the redis cache should be initialized before"))
+        .to_string();
+
+        Cache::init(url).await
     }
 
-    pub(crate) async fn status() -> CacheStatus {
+    pub async fn status() -> CacheStatus {
         let enabled = Cache::is_enabled().await;
         let mut healthy = true;
         if enabled {

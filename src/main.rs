@@ -24,7 +24,6 @@ mod macros;
 
 mod admin;
 mod auth;
-mod cache;
 mod config;
 mod db;
 mod ddg;
@@ -73,7 +72,13 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
     info!("running database migrations");
     db::migrate(&pool)?;
 
-    cache::Cache::init();
+    if let Some(redis_url) = config::Config::redis_url() {
+        info!("launching cache");
+        match rustfuif_cache::Cache::init(redis_url.to_string()).await {
+            Ok(()) => info!("cache initialized"),
+            Err(e) => error!("unable to initiate cache pool: {}", e),
+        };
+    }
 
     debug!("launching the actix webserver");
     server::launch(pool.clone()).await?;

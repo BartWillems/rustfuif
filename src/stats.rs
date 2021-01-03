@@ -23,8 +23,6 @@ lazy_static! {
 pub struct Stats {
     requests: AtomicU32,
     errors: AtomicU32,
-    cache_hits: AtomicU32,
-    cache_misses: AtomicU32,
 }
 
 /// This is used to expose the raw stats without needing to declare new
@@ -42,8 +40,6 @@ impl Stats {
         Stats {
             requests: AtomicU32::new(0u32),
             errors: AtomicU32::new(0u32),
-            cache_hits: AtomicU32::new(0u32),
-            cache_misses: AtomicU32::new(0u32),
         }
     }
 
@@ -55,21 +51,14 @@ impl Stats {
         STATS.errors.fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn cache_hit() {
-        STATS.cache_hits.fetch_add(1, Ordering::Relaxed);
-    }
-
-    pub fn cache_miss() {
-        STATS.cache_misses.fetch_add(1, Ordering::Relaxed);
-    }
-
     /// Load the atomic stats variables as regular u32's
     pub fn load() -> LoadedStats {
+        let cache_stats = rustfuif_cache::Stats::load();
         LoadedStats {
             requests: STATS.requests.load(Ordering::Relaxed),
             errors: STATS.errors.load(Ordering::Relaxed),
-            cache_hits: STATS.cache_hits.load(Ordering::Relaxed),
-            cache_misses: STATS.cache_misses.load(Ordering::Relaxed),
+            cache_hits: cache_stats.cache_hits,
+            cache_misses: cache_stats.cache_misses,
         }
     }
 }
@@ -96,6 +85,8 @@ pub async fn route(sessions: Data<Addr<NotificationServer>>, pool: Data<db::Pool
     })
     .await?;
 
+    let cache_stats = rustfuif_cache::Stats::load();
+
     http_ok_json!(StatsResponse {
         requests: STATS.requests.load(Ordering::Relaxed),
         errors: STATS.errors.load(Ordering::Relaxed),
@@ -103,8 +94,8 @@ pub async fn route(sessions: Data<Addr<NotificationServer>>, pool: Data<db::Pool
         active_games,
         active_db_connections: state.connections,
         idle_db_connections: state.idle_connections,
-        cache_hits: STATS.cache_hits.load(Ordering::Relaxed),
-        cache_misses: STATS.cache_misses.load(Ordering::Relaxed),
+        cache_hits: cache_stats.cache_hits,
+        cache_misses: cache_stats.cache_misses,
     });
 }
 

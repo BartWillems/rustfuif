@@ -2361,7 +2361,6 @@ dependencies = [
  "actix-web-actors",
  "actix-web-opentelemetry",
  "chrono",
- "deadpool-redis",
  "derive_more",
  "diesel",
  "diesel_migrations",
@@ -2375,10 +2374,10 @@ dependencies = [
  "opentelemetry-prometheus",
  "r2d2",
  "rand",
- "redis",
  "regex",
  "reqwest",
  "rust-argon2",
+ "rustfuif_cache",
  "sentry",
  "sentry-actix",
  "serde",
@@ -2394,6 +2393,21 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "validator",
+]
+
+[[package]]
+name = "rustfuif_cache"
+version = "0.1.0"
+dependencies = [
+ "deadpool-redis",
+ "lazy_static",
+ "redis",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tokio 0.3.6",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
