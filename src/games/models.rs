@@ -75,7 +75,7 @@ impl Game {
     ///
     /// When something fails, the transaction rolls-back, returns an error
     /// and nothing will have happened.
-    #[tracing::instrument(skip(conn))]
+    #[tracing::instrument(skip(conn), name = "game::create")]
     pub fn create(new_game: CreateGame, conn: &db::Conn) -> Result<Game, ServiceError> {
         let game = conn.transaction::<Game, diesel::result::Error, _>(|| {
             let game: Game = diesel::insert_into(games::table)
@@ -94,7 +94,7 @@ impl Game {
         Ok(game)
     }
 
-    #[tracing::instrument(skip(conn))]
+    #[tracing::instrument(skip(conn), name = "game::is_open")]
     pub fn is_open(game_id: i64, user_id: i64, conn: &db::Conn) -> Result<bool, ServiceError> {
         use diesel::dsl::now;
 
@@ -126,7 +126,7 @@ impl Game {
     }
 
     /// return the total amount of created games
-    #[tracing::instrument(skip(conn))]
+    #[tracing::instrument(skip(conn), name = "game::count")]
     pub fn count(conn: &db::Conn) -> Result<i64, ServiceError> {
         use diesel::dsl::sql;
 
@@ -156,7 +156,7 @@ impl Game {
         Ok(())
     }
 
-    #[tracing::instrument(skip(conn))]
+    #[tracing::instrument(skip(conn), name = "game::find_by_id")]
     pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
         let game = games::table.filter(games::id.eq(id)).first::<Game>(conn)?;
 
