@@ -1,7 +1,7 @@
 pub mod routes;
 
+use crate::cache::Cache;
 use crate::errors::ServiceError;
-use rustfuif_cache::Cache;
 
 use regex::Regex;
 
@@ -100,7 +100,7 @@ pub struct ImageResponse {
     results: Vec<Image>,
 }
 
-impl rustfuif_cache::CacheIdentifier for ImageResponse {
+impl crate::cache::CacheIdentifier for ImageResponse {
     fn cache_key<T: std::fmt::Display>(query: T) -> String {
         format!("image_response.{}", query)
     }

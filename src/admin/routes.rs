@@ -74,27 +74,25 @@ async fn active_games(id: Identity, websocket_server: Data<Addr<NotificationServ
 async fn cache_status(id: Identity) -> Response {
     auth::verify_admin(&id)?;
 
-    http_ok_json!(rustfuif_cache::Cache::status().await);
+    http_ok_json!(crate::cache::Cache::status().await);
 }
 
 #[post("/admin/server/cache/disable")]
 async fn disable_cache(id: Identity) -> Response {
     auth::verify_admin(&id)?;
 
-    rustfuif_cache::Cache::disable_cache().await;
+    crate::cache::Cache::disable_cache().await;
 
-    http_ok_json!(rustfuif_cache::Cache::status().await);
+    http_ok_json!(crate::cache::Cache::status().await);
 }
 
 #[post("/admin/server/cache/enable")]
 async fn enable_cache(id: Identity) -> Response {
     auth::verify_admin(&id)?;
 
-    if let Err(e) = rustfuif_cache::Cache::enable_cache().await {
-        error!("unable to enable the cache: {}", e);
-    }
+    crate::cache::Cache::enable_cache().await;
 
-    http_ok_json!(rustfuif_cache::Cache::status().await);
+    http_ok_json!(crate::cache::Cache::status().await);
 }
 
 #[get("/admin/server/stats")]
