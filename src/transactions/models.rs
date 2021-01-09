@@ -64,7 +64,7 @@ pub struct SalesCount {
 }
 
 impl NewSale {
-    #[tracing::instrument(skip(conn), name = "transaction::purchase")]
+    #[tracing::instrument(skip(conn))]
     pub fn save(&self, conn: &db::Conn) -> Result<Vec<Transaction>, ServiceError> {
         let transactions = conn.transaction::<Vec<Transaction>, ServiceError, _>(|| {
             // NEW SALES ORDER
@@ -251,7 +251,7 @@ impl SalesCount {
     }
 
     /// get salescount for a game while locking the rows during a transaction
-    #[tracing::instrument(skip(conn), name = "salescount::find_by_game_for_update")]
+    #[tracing::instrument(skip(conn))]
     pub(crate) fn find_by_game_for_update(
         game_id: i64,
         conn: &db::Conn,
