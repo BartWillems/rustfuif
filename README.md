@@ -20,10 +20,10 @@ They will then have an influence on your prices, and you on theirs.
 
 ### Features
 
-- automatic price updates based on demand
+- automatic price updates(using websockets) based on demand
 - some nice graphs
-- history of purchases
-- admin panel to see connected users, active games, total games, ...
+- history of purchases and prices
+- admin panel to see connected users, active games, total games, server status, ...
 
 ## Development
 
@@ -81,10 +81,18 @@ cargo watch -x run
 
 ## Frontend Screenshots
 
+Admin Panel
+
 ![Admin Panel](screenshots/admin_panel.png "Admin Panel")
+
+Game Overview
 
 ![Game Overview](screenshots/beverages.png "Example game overview")
 
+Stats
+
 ![Stats](screenshots/stats.png "Example game stats")
+
+Purchase Timeline
 
 ![Timeline](screenshots/timeline.png "Example game timeline")
