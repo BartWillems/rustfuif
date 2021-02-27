@@ -78,3 +78,13 @@ cargo watch -x run
   - [tokio-rs/tracing](https://github.com/tokio-rs/tracing)
   - [tracing-opentelemetry](https://github.com/tokio-rs/tracing/tree/master/tracing-opentelemetry)
   - [OutThereLabs/actix-web-opentelemetry](https://github.com/OutThereLabs/actix-web-opentelemetry)
+
+## Frontend Screenshots
+
+![Admin Panel](screenshots/admin_panel.png "Admin Panel")
+
+![Game Overview](screenshots/beverages.png "Example game overview")
+
+![Stats](screenshots/stats.png "Example game stats")
+
+![Timeline](screenshots/timeline.png "Example game timeline")
