@@ -179,8 +179,14 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebsocketConnecti
             }
             ws::Message::Text(_) => {
                 debug!("ignoring incoming messages for now");
+                ctx.close(Some(ws::CloseReason::from(ws::CloseCode::Unsupported)));
+                ctx.stop();
             }
-            ws::Message::Binary(_) => debug!("Unexpected binary"),
+            ws::Message::Binary(_) => {
+                debug!("Unexpected binary");
+                ctx.close(Some(ws::CloseReason::from(ws::CloseCode::Unsupported)));
+                ctx.stop();
+            }
             ws::Message::Close(reason) => {
                 ctx.close(reason);
                 ctx.stop();
