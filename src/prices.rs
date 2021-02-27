@@ -3,14 +3,17 @@ use std::thread;
 use std::time::Duration;
 
 use actix::Addr;
+use chrono::{DateTime, Utc};
+use diesel::prelude::*;
 
-use crate::config::Config;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::games::Game;
 use crate::market;
+use crate::schema::price_histories;
 use crate::websocket::server::NotificationServer;
 use crate::websocket::Notification;
+use crate::{config::Config, games::Beverage};
 
 #[derive(Serialize, Debug, Clone)]
 pub enum PriceUpdate {
@@ -78,11 +81,17 @@ impl Updater {
             let games = Game::active_games(&conn)?;
 
             for game in &games {
+                let beverages;
                 if should_crash {
-                    game.crash_prices(&conn)?;
+                    beverages = game.crash_prices(&conn)?;
                 } else {
-                    game.update_prices(&conn)?;
+                    beverages = game.update_prices(&conn)?;
                 }
+
+                let changes: Vec<PriceChange> =
+                    beverages.iter().map(|beverage| beverage.into()).collect();
+
+                PriceHistory::save(&changes, &conn)?;
             }
             info!("updated {} games in {:?}", games.len(), start.elapsed());
 
@@ -94,5 +103,62 @@ impl Updater {
         }
 
         Ok(PriceUpdate::Regular)
+    }
+}
+
+#[derive(Debug, Serialize, Queryable, Identifiable)]
+#[table_name = "price_histories"]
+#[serde(rename_all = "camelCase")]
+pub struct PriceHistory {
+    id: i64,
+    game_id: i64,
+    user_id: i64,
+    slot_no: i16,
+    price: i64,
+    created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Insertable)]
+#[table_name = "price_histories"]
+pub(crate) struct PriceChange {
+    game_id: i64,
+    user_id: i64,
+    slot_no: i16,
+    price: i64,
+    created_at: DateTime<Utc>,
+}
+
+impl PriceHistory {
+    /// Return all price changes for a single beverage
+    pub fn load(
+        user_id: i64,
+        game_id: i64,
+        conn: &db::Conn,
+    ) -> Result<Vec<PriceHistory>, diesel::result::Error> {
+        price_histories::table
+            .filter(price_histories::user_id.eq(user_id))
+            .filter(price_histories::game_id.eq(game_id))
+            .load(conn)
+    }
+
+    fn save(
+        changes: &Vec<PriceChange>,
+        conn: &db::Conn,
+    ) -> Result<PriceHistory, diesel::result::Error> {
+        diesel::insert_into(price_histories::table)
+            .values(changes)
+            .get_result(conn)
+    }
+}
+
+impl From<&Beverage> for PriceChange {
+    fn from(beverage: &Beverage) -> Self {
+        PriceChange {
+            game_id: beverage.game_id,
+            user_id: beverage.user_id,
+            slot_no: beverage.slot_no,
+            price: beverage.price(),
+            created_at: Utc::now(),
+        }
     }
 }

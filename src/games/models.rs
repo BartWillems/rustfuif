@@ -335,8 +335,9 @@ impl Game {
         Beverage::find_by_game(self.id, conn)
     }
 
+    /// Update the prices for a game, returning the updated beverages
     #[tracing::instrument(skip(conn))]
-    pub fn update_prices(&self, conn: &db::Conn) -> Result<(), ServiceError> {
+    pub fn update_prices(&self, conn: &db::Conn) -> Result<Vec<Beverage>, ServiceError> {
         let mut beverages = self.get_beverages(conn)?;
 
         let sales = SalesCount::find_by_game_for_update(self.id, conn)?;
@@ -358,12 +359,12 @@ impl Game {
             }
         }
 
-        Ok(())
+        Ok(beverages)
     }
 
-    /// Set all beverages for this game to their lowest possible value
+    /// Set all beverages for this game to their lowest possible value, returning the updated beverages
     #[tracing::instrument(skip(conn))]
-    pub fn crash_prices(&self, conn: &db::Conn) -> Result<(), ServiceError> {
+    pub fn crash_prices(&self, conn: &db::Conn) -> Result<Vec<Beverage>, ServiceError> {
         let mut beverages = self.get_beverages(conn)?;
 
         for beverage in &mut beverages {
@@ -371,7 +372,7 @@ impl Game {
             beverage.save_price(conn)?;
         }
 
-        Ok(())
+        Ok(beverages)
     }
 }
 
@@ -517,10 +518,12 @@ impl Beverage {
         }
     }
 
+    /// set the current price
     pub fn set_price(&mut self, price: i64) {
         self.current_price = price;
     }
 
+    /// get the current price
     pub fn price(&self) -> i64 {
         self.current_price
     }

@@ -6,10 +6,11 @@ use actix_web::{delete, get, post, put};
 
 use crate::auth;
 use crate::db;
+use crate::errors::ServiceError;
+use crate::games::models::{Beverage, CreateGame, Game, GameFilter};
+use crate::prices::PriceHistory;
 use crate::server;
 use crate::validator::Validator;
-
-use crate::games::models::{Beverage, CreateGame, Game, GameFilter};
 
 #[get("/games")]
 async fn find_all(
@@ -167,6 +168,21 @@ async fn update_beverage_config(
     http_created_json!(config);
 }
 
+#[get("/games/{id}/price-history")]
+async fn price_history(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+    let user = auth::get_user(&id)?;
+
+    let prices = web::block(move || {
+        let conn = pool.get()?;
+        let res: Result<Vec<PriceHistory>, ServiceError> =
+            PriceHistory::load(user.id, *game_id, &conn).map_err(|err| err.into());
+        res
+    })
+    .await?;
+
+    http_ok_json!(prices);
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(find_all);
     cfg.service(find);
@@ -177,4 +193,6 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(create_beverage_config);
     cfg.service(get_beverages);
     cfg.service(update_beverage_config);
+
+    cfg.service(price_history);
 }
