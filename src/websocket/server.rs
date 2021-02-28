@@ -17,7 +17,6 @@ pub enum ConnectionType {
     AdminConnection,
 }
 
-#[allow(dead_code)]
 #[derive(Message)]
 #[rtype(usize)]
 pub struct Connect {
@@ -58,10 +57,8 @@ impl ConnectedUser {
 
 /// `NotificationServer` manages price updates/new sales
 pub struct NotificationServer {
-    /// A hashmap containing the session ID as key and
-    /// a `ConnectedUser` as value.
-    /// The `ConnectedUser` contains the user and the actix
-    /// recipient address.
+    /// A hashmap containing the session ID as key and a `ConnectedUser` as value.
+    /// The `ConnectedUser` contains the user and the actix  recipient address.
     sessions: HashMap<SessionId, ConnectedUser>,
     games: HashMap<GameId, HashSet<SessionId>>,
     rng: ThreadRng,
@@ -80,7 +77,14 @@ impl NotificationServer {
     /// send a message to all connected users
     pub fn broadcast(&self, notification: Notification) {
         for (_, recipient) in self.sessions.iter() {
-            let _ = recipient.send(notification.clone());
+            if let Err(error) = recipient.send(notification.clone()) {
+                error!(
+                    "Unable to notify {} about {:?}, error: {}",
+                    recipient.user(),
+                    notification,
+                    error
+                );
+            }
         }
     }
 
