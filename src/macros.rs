@@ -1,3 +1,4 @@
+/// Return the request with HTTP 403
 #[macro_export]
 macro_rules! forbidden {
     ($message:expr) => {
@@ -5,6 +6,7 @@ macro_rules! forbidden {
     };
 }
 
+/// Return the request with HTTP 400
 #[macro_export]
 macro_rules! bad_request {
     ($message:expr) => {
@@ -14,6 +16,7 @@ macro_rules! bad_request {
     };
 }
 
+/// Answer the request with HTTP 201 and the object as response body
 #[macro_export]
 macro_rules! http_created_json {
     ($object:expr) => {
@@ -21,6 +24,7 @@ macro_rules! http_created_json {
     };
 }
 
+/// Answer the request with HTTP 200 and the object as response body
 #[macro_export]
 macro_rules! http_ok_json {
     ($object:expr) => {

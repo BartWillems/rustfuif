@@ -15,6 +15,15 @@ pub struct UserMessage {
     pub password: String,
 }
 
+impl std::fmt::Debug for UserMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UserMessage")
+            .field("username", &self.username)
+            .field("password", &"redacted")
+            .finish()
+    }
+}
+
 #[derive(Serialize, Deserialize, Queryable, AsChangeset, Insertable, Debug, Clone)]
 pub struct User {
     pub id: i64,
@@ -26,7 +35,7 @@ pub struct User {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Serialize, Queryable)]
+#[derive(Debug, Serialize, Queryable)]
 pub struct UserResponse {
     pub id: i64,
     pub username: String,
@@ -96,7 +105,7 @@ impl User {
     pub fn update_password(&mut self, conn: &db::Conn) -> Result<(), ServiceError> {
         self.hash_password()?;
 
-        let _ = diesel::update(users::table)
+        diesel::update(users::table)
             .filter(users::id.eq(self.id))
             .set(users::password.eq(self.password.clone()))
             .execute(conn)?;

@@ -50,7 +50,7 @@ pub struct SlotSale {
     pub sales: i64,
 }
 
-#[derive(Serialize, Queryable)]
+#[derive(Debug, Serialize, Queryable)]
 pub struct UserSales {
     pub username: String,
     pub sales: i64,

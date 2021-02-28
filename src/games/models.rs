@@ -47,14 +47,14 @@ pub struct GameFilter {
 }
 
 /// A GameUser is a user who is invited for a game
-#[derive(Serialize, Queryable)]
+#[derive(Debug, Serialize, Queryable)]
 pub struct GameUser {
     pub user_id: i64,
     pub username: String,
     pub invitation_state: String,
 }
 
-#[derive(Serialize, Queryable)]
+#[derive(Debug, Serialize, Queryable)]
 pub struct GameResponse {
     pub id: i64,
     pub name: String,

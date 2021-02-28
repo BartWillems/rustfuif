@@ -30,7 +30,7 @@ pub struct InvitationQuery {
 }
 
 impl std::fmt::Display for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
@@ -76,7 +76,7 @@ impl NewInvitation {
     }
 }
 
-#[derive(Serialize, Queryable)]
+#[derive(Debug, Serialize, Queryable)]
 pub struct InvitationResponse {
     pub id: i64,
     pub game: GameResponse,
