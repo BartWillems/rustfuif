@@ -24,6 +24,7 @@ They will then have an influence on your prices, and you on theirs.
 - some nice graphs
 - history of purchases and prices
 - admin panel to see connected users, active games, total games, server status, ...
+- completely optional cache (can be toggled at runtime)
 
 ## Development
 
