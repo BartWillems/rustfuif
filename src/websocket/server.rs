@@ -47,8 +47,8 @@ impl ConnectedUser {
         self.recipient.do_send(message)
     }
 
-    fn user(&self) -> User {
-        self.user.clone()
+    fn user(&self) -> &User {
+        &self.user
     }
 
     fn is_admin(&self) -> bool {
