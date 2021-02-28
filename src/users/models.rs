@@ -132,6 +132,12 @@ impl User {
     }
 }
 
+impl std::fmt::Display for User {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.username)
+    }
+}
+
 trait PasswordHash {
     fn hash_password(&mut self) -> Result<(), ServiceError> {
         let salt: [u8; 32] = rand::thread_rng().gen();
