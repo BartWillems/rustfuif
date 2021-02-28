@@ -143,16 +143,8 @@ trait PasswordHash {
         let salt: [u8; 32] = rand::thread_rng().gen();
         let config = Config::default();
         let hash = argon2::hash_encoded(self.password().as_bytes(), &salt, &config)?;
-        self.store_hash(hash);
-        Ok(())
-    }
-
-    /// Store the hashed password, panics if the hash doesn't match the current password
-    fn store_hash(&mut self, hash: String) {
-        let res = argon2::verify_encoded(&hash, &self.password().as_bytes())
-            .expect("invalid password/hash");
-        assert!(res);
         self.set_password(hash);
+        Ok(())
     }
 
     /// Get the current password
@@ -282,5 +274,6 @@ mod tests {
 
         assert!(user.verify_password(b"admin").is_ok());
         assert!(user.verify_password(b"not-admin").is_err());
+        assert_ne!(user.password(), "admin");
     }
 }
