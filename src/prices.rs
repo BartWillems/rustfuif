@@ -142,7 +142,7 @@ impl PriceHistory {
     }
 
     fn save(
-        changes: &Vec<PriceChange>,
+        changes: &[PriceChange],
         conn: &db::Conn,
     ) -> Result<PriceHistory, diesel::result::Error> {
         diesel::insert_into(price_histories::table)
