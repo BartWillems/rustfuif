@@ -153,7 +153,18 @@ impl Handler<server::Notification> for WebsocketConnection {
     type Result = ();
 
     fn handle(&mut self, notification: server::Notification, ctx: &mut Self::Context) {
-        ctx.text(serde_json::to_string(&notification).unwrap_or_default());
+        let json = match serde_json::to_string(&notification) {
+            Ok(json) => json,
+            Err(error) => {
+                // This should never happen
+                error!(
+                    "unable to serialize websocket message: {:?}, error: {}",
+                    notification, error
+                );
+                return;
+            }
+        };
+        ctx.text(json);
     }
 }
 
@@ -161,7 +172,9 @@ impl Handler<server::Notification> for WebsocketConnection {
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebsocketConnection {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         let msg = match msg {
-            Err(_) => {
+            Err(error) => {
+                error!("Invalid websocket protocol message: {}", error);
+                ctx.close(Some(ws::CloseReason::from(ws::CloseCode::Protocol)));
                 ctx.stop();
                 return;
             }
