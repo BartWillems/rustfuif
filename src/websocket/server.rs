@@ -125,10 +125,9 @@ impl NotificationServer {
     /// returns a hashmap with active games and their current connected player count
     pub fn games(&self) -> Vec<ActiveGamesResponse> {
         self.games
-            .clone()
-            .into_iter()
+            .iter()
             .filter(|(_, sessions)| !sessions.is_empty())
-            .map(|(game_id, sessions)| ActiveGamesResponse::new(game_id, sessions.len()))
+            .map(|(game_id, sessions)| ActiveGamesResponse::new(*game_id, sessions.len()))
             .collect()
     }
 
