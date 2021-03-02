@@ -168,7 +168,7 @@ async fn update_beverage_config(
     http_created_json!(config);
 }
 
-#[get("/games/{id}/price-history")]
+#[get("/games/{id}/stats/price-history")]
 async fn price_history(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
     let user = auth::get_user(&id)?;
 
