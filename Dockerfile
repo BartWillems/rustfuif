@@ -1,4 +1,4 @@
-FROM rust:1.48 as builder
+FROM rust:1.50 as builder
 
 WORKDIR /usr/src/rustfuif
 
