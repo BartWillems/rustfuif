@@ -71,10 +71,6 @@ impl NewSale {
             // 1. Fetch beverage configs FOR UPDATE
             // 2. Fetch current sales_counts FOR UPDATE
             // 3. Calculate the prices for each beverage in the new sale
-            //    - loop over sales
-            //    - fetch beverage config based on slot_no by looping
-            //    - get price
-            //    - create new transaction struct dink
             // 4. update sales_counts
             // 5. insert in transactions with the current count
 
@@ -233,6 +229,8 @@ impl Transaction {
 }
 
 impl SalesCount {
+    /// Create the empty beverage sale count rows
+    /// Should be called when initializing the game
     pub fn initialize_slots(game: &Game, conn: &db::Conn) -> Result<(), DBError> {
         let mut empty_sales: Vec<SalesCount> = Vec::new();
         for slot_no in 0..game.beverage_count {
@@ -286,6 +284,7 @@ impl SalesCount {
         .get_result(conn)
     }
 
+    /// Returns the aveage sales for a game
     pub(crate) fn average_sales(sales: &[SalesCount]) -> i64 {
         let mut total: i64 = 0;
 
@@ -296,6 +295,7 @@ impl SalesCount {
         (total as f64 / sales.len() as f64).ceil() as i64
     }
 
+    /// Returns the distance between the current sales and the average
     pub(crate) const fn get_offset(&self, average: i64) -> i64 {
         self.sales - average
     }
