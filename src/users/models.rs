@@ -25,6 +25,7 @@ impl std::fmt::Debug for UserMessage {
 }
 
 #[derive(Serialize, Deserialize, Queryable, AsChangeset, Insertable, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct User {
     pub id: i64,
     pub username: String,

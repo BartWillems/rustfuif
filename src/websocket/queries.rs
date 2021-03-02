@@ -33,6 +33,7 @@ impl Handler<ConnectedUsers> for NotificationServer {
 pub struct ActiveGames;
 
 #[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ActiveGamesResponse {
     game_id: i64,
     session_count: usize,

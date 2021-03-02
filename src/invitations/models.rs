@@ -38,6 +38,7 @@ impl std::fmt::Display for State {
 /// Game invite for a user.
 /// When you create a game, you're also instantly invited and accepted
 #[derive(Debug, Serialize, Insertable, Queryable, Identifiable, AsChangeset)]
+#[serde(rename_all = "camelCase")]
 pub struct Invitation {
     pub id: i64,
     pub game_id: i64,
@@ -49,6 +50,7 @@ pub struct Invitation {
 
 #[derive(Debug, Deserialize, Insertable)]
 #[table_name = "invitations"]
+#[serde(rename_all = "camelCase")]
 pub struct NewInvitation {
     game_id: i64,
     user_id: i64,
@@ -159,6 +161,7 @@ impl Invitation {
 /// InviteMessage is what the client sends us to invite an
 /// existing user to an existing game
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UserInvite {
     pub user_id: i64,
 }

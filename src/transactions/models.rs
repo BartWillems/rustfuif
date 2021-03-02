@@ -10,6 +10,7 @@ use crate::games::{Beverage, Game};
 use crate::schema::{beverages, sales_counts, transactions, users};
 
 #[derive(Debug, Serialize, Queryable, Identifiable, AsChangeset, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub id: i64,
     pub user_id: i64,
@@ -21,12 +22,14 @@ pub struct Transaction {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransactionFilter {
     pub user_id: Option<i64>,
     pub game_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Insertable, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
 #[table_name = "transactions"]
 pub struct Sale {
     pub user_id: i64,
@@ -37,6 +40,7 @@ pub struct Sale {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NewSale {
     pub user_id: i64,
     pub game_id: i64,
@@ -45,6 +49,7 @@ pub struct NewSale {
 
 /// contains how many sales have been made for a given slot
 #[derive(Serialize, Queryable, Clone, Copy, Debug, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct SlotSale {
     pub slot_no: i16,
     pub sales: i64,
@@ -57,6 +62,7 @@ pub struct UserSales {
 }
 
 #[derive(Debug, Serialize, Deserialize, Insertable, Queryable)]
+#[serde(rename_all = "camelCase")]
 pub struct SalesCount {
     pub game_id: i64,
     pub slot_no: i16,

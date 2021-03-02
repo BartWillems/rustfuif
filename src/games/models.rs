@@ -12,6 +12,7 @@ use crate::transactions::models::SalesCount;
 use crate::users::{User, UserResponse};
 
 #[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
+#[serde(rename_all = "camelCase")]
 pub struct Game {
     pub id: i64,
     pub name: String,
@@ -24,6 +25,7 @@ pub struct Game {
 }
 
 #[derive(Debug, Clone, Deserialize, Insertable)]
+#[serde(rename_all = "camelCase")]
 #[table_name = "games"]
 pub struct CreateGame {
     pub name: String,
@@ -37,6 +39,7 @@ pub struct CreateGame {
 /// GameFilter a struct that the client
 /// can use to query for games.
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GameFilter {
     /// filter these games by %name%
     pub name: Option<String>,
@@ -48,6 +51,7 @@ pub struct GameFilter {
 
 /// A GameUser is a user who is invited for a game
 #[derive(Debug, Serialize, Queryable)]
+#[serde(rename_all = "camelCase")]
 pub struct GameUser {
     pub user_id: i64,
     pub username: String,
@@ -55,6 +59,7 @@ pub struct GameUser {
 }
 
 #[derive(Debug, Serialize, Queryable)]
+#[serde(rename_all = "camelCase")]
 pub struct GameResponse {
     pub id: i64,
     pub name: String,
@@ -412,6 +417,7 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
 }
 
 #[derive(Insertable, Deserialize, Serialize, Queryable, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Beverage {
     #[serde(skip_deserializing)]
     pub game_id: i64,

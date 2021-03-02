@@ -118,7 +118,7 @@ pub struct PriceHistory {
     created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Insertable)]
+#[derive(Debug, Insertable)]
 #[table_name = "price_histories"]
 pub(crate) struct PriceChange {
     game_id: i64,
