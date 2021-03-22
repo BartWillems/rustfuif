@@ -1,0 +1,167 @@
+{
+  "db": "PostgreSQL",
+  "606364c79e0990deb07dfbe6c32b3d302d083ec5333f3a5ce04113c38a041100": {
+    "query": "SELECT * FROM users WHERE username = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "username",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "password",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 3,
+          "name": "is_admin",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "7332fbdcce19ebfd457d73302777c7a22f9fbe480a07ebe55c2fca689725d4da": {
+    "query": "UPDATE users SET password = $1 WHERE id = $2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Int8"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "843923b9a0257cf80f1dff554e7dc8fdfc05f489328e8376513124dfb42996e3": {
+    "query": "SELECT * FROM users WHERE id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "username",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "password",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 3,
+          "name": "is_admin",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "90a9f1194dbb0bdb96f18888b5449e053abc1a58dc7520672bf25dad44f61847": {
+    "query": "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *;",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "username",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "password",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 3,
+          "name": "is_admin",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  }
+}

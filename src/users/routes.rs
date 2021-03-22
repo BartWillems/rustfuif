@@ -5,11 +5,11 @@ use actix_web::web::{Data, Query};
 
 use crate::auth;
 use crate::db;
-use crate::server;
+use crate::server::{Response, State};
 use crate::users::{Filter, User};
 
 #[get("/users")]
-async fn find_all(query: Query<Filter>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+async fn find_all(query: Query<Filter>, pool: Data<db::Pool>, id: Identity) -> Response {
     auth::get_user(&id)?;
 
     let users = web::block(move || User::find_all(query.into_inner(), &pool.get()?)).await?;
@@ -18,10 +18,10 @@ async fn find_all(query: Query<Filter>, pool: Data<db::Pool>, id: Identity) -> s
 }
 
 #[get("/users/me")]
-async fn find_me(pool: Data<db::Pool>, id: Identity) -> server::Response {
+async fn find_me(state: Data<State>, id: Identity) -> Response {
     let user = auth::get_user(&id)?;
 
-    let user = web::block(move || User::find_by_id(user.id, &pool.get()?)).await?;
+    let user = User::find(user.id, &state.db).await?;
 
     http_ok_json!(user);
 }
