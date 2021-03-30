@@ -56,24 +56,7 @@ async fn change_password(
 
     let mut user = User::find(session.id, &state.db).await?;
     user.verify_password(password_change.old.as_bytes())?;
-    user.password = password_change.new;
-    user.update_password(&state.db).await?;
-
-    // web::block(move || {
-    //     let conn = pool.get()?;
-
-    //     let password_change = password_change.into_inner().validate()?;
-
-    //     let mut user = User::find(session_user.id, &conn)?;
-
-    //     // old password matches
-    //     user.verify_password(password_change.old.as_bytes())?;
-
-    //     user.password = password_change.new;
-
-    //     user.update_password(&conn)
-    // })
-    // .await?;
+    user.update_password(password_change.new, &state.db).await?;
 
     http_ok_json!("password succesfully updated")
 }

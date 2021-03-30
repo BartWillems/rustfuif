@@ -81,12 +81,6 @@ impl User {
         Ok(user)
     }
 
-    pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Self, ServiceError> {
-        let user = users::table.filter(users::id.eq(id)).first(conn)?;
-
-        Ok(user)
-    }
-
     /// Store the user in the database after hashing it's password
     #[tracing::instrument(name = "user::create")]
     pub async fn create(user: &mut Credentials, db: &Pool<Postgres>) -> Result<Self, ServiceError> {
@@ -104,19 +98,14 @@ impl User {
         Ok(user)
     }
 
-    pub fn update(&self, conn: &db::Conn) -> Result<Self, ServiceError> {
-        let user = diesel::update(users::table)
-            .filter(users::id.eq(self.id))
-            .set(self)
-            .get_result(conn)?;
-
-        Ok(user)
-    }
-
     /// Hash and store the user's changed password to the database
-    #[tracing::instrument(name = "user::update_password")]
-    pub async fn update_password(&mut self, db: &Pool<Postgres>) -> Result<(), ServiceError> {
-        self.hash_password()?;
+    #[tracing::instrument(name = "user::update_password", skip(password))]
+    pub async fn update_password(
+        &mut self,
+        password: String,
+        db: &Pool<Postgres>,
+    ) -> Result<(), ServiceError> {
+        self.set_password(password).hash_password()?;
 
         sqlx::query!(
             "UPDATE users SET password = $1 WHERE id = $2",
@@ -146,6 +135,7 @@ impl User {
         Ok(count)
     }
 
+    /// Returns Ok(()) if the user's hashed password matches the given password
     pub fn verify_password(&self, password: &[u8]) -> Result<(), ServiceError> {
         let is_match = argon2::verify_encoded(&self.password, password)?;
 
@@ -174,7 +164,7 @@ trait PasswordHash {
 
     /// Get the current password
     fn password(&self) -> &str;
-    fn set_password(&mut self, password: String);
+    fn set_password(&mut self, password: String) -> &mut Self;
 }
 
 impl PasswordHash for User {
@@ -182,8 +172,9 @@ impl PasswordHash for User {
         &self.password
     }
 
-    fn set_password(&mut self, password: String) {
+    fn set_password(&mut self, password: String) -> &mut Self {
         self.password = password;
+        self
     }
 }
 
@@ -192,8 +183,9 @@ impl PasswordHash for Credentials {
         &self.password
     }
 
-    fn set_password(&mut self, password: String) {
+    fn set_password(&mut self, password: String) -> &mut Self {
         self.password = password;
+        self
     }
 }
 
