@@ -100,12 +100,6 @@ pub struct ImageResponse {
     results: Vec<Image>,
 }
 
-impl crate::cache::CacheIdentifier for ImageResponse {
-    fn cache_key<T: std::fmt::Display>(query: T) -> String {
-        format!("image_response.{}", query)
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct Image {
     width: i32,
