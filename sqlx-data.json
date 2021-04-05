@@ -163,5 +163,55 @@
         true
       ]
     }
+  },
+  "b2116f9843bb5c93c2a12a1475583cef7ddcd4910ed3f3881401c659d39f502c": {
+    "query": "SELECT * FROM users WHERE username ilike $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "username",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "password",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 3,
+          "name": "is_admin",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
   }
 }

@@ -1,12 +1,9 @@
-use crate::schema::users;
 use argon2::Config;
 use chrono::{DateTime, Utc};
-use diesel::prelude::*;
 use rand::Rng;
 use regex::Regex;
 use sqlx::{Pool, Postgres};
 
-use crate::db;
 use crate::errors::ServiceError;
 
 #[derive(Deserialize)]
@@ -24,7 +21,7 @@ impl std::fmt::Debug for Credentials {
     }
 }
 
-#[derive(Serialize, Deserialize, Queryable, AsChangeset, Insertable, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
     pub id: i64,
@@ -51,14 +48,14 @@ pub struct Filter {
 }
 
 impl User {
-    pub fn find_all(filter: Filter, conn: &db::Conn) -> Result<Vec<Self>, ServiceError> {
-        let mut query = users::table.into_boxed();
-
-        if let Some(username) = filter.username {
-            query = query.filter(users::username.ilike(format!("%{}%", username)));
-        }
-
-        let users = query.load::<User>(conn)?;
+    pub async fn find_all(filter: Filter, db: &Pool<Postgres>) -> Result<Vec<Self>, sqlx::Error> {
+        let users = sqlx::query_as!(
+            User,
+            "SELECT * FROM users WHERE username ilike $1",
+            format!("%{}%", filter.username.unwrap_or_default())
+        )
+        .fetch_all(db)
+        .await?;
 
         Ok(users)
     }
@@ -118,21 +115,13 @@ impl User {
         Ok(())
     }
 
-    pub fn delete(id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
-        diesel::delete(users::table.filter(users::id.eq(id))).execute(conn)?;
-
-        Ok(())
-    }
-
     /// return the total amount of registered users
-    pub fn count(conn: &db::Conn) -> Result<i64, ServiceError> {
-        use diesel::dsl::sql;
+    pub async fn count(db: &Pool<Postgres>) -> Result<i64, sqlx::Error> {
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+            .fetch_one(db)
+            .await?;
 
-        let count = users::table
-            .select(sql::<diesel::sql_types::BigInt>("COUNT(*)"))
-            .first::<i64>(conn)?;
-
-        Ok(count)
+        Ok(row.0)
     }
 
     /// Returns Ok(()) if the user's hashed password matches the given password

@@ -6,7 +6,7 @@ use actix_web::{get, post, web};
 use crate::auth;
 use crate::db;
 use crate::games::Game;
-use crate::server::Response;
+use crate::server::{Response, State};
 use crate::users::User;
 use crate::websocket::queries::{ActiveGames, ConnectedUsers};
 use crate::websocket::server::NotificationServer;
@@ -25,14 +25,10 @@ async fn game_count(pool: Data<db::Pool>, id: Identity) -> Response {
 }
 
 #[get("/admin/users/count")]
-async fn user_count(pool: Data<db::Pool>, id: Identity) -> Response {
+async fn user_count(state: Data<State>, id: Identity) -> Response {
     auth::verify_admin(&id)?;
 
-    let count = web::block(move || {
-        let conn = pool.get()?;
-        User::count(&conn)
-    })
-    .await?;
+    let count = User::count(&state.db).await?;
 
     http_ok_json!(count);
 }
