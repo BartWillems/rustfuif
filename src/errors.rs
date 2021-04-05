@@ -129,3 +129,26 @@ impl From<RedisError> for ServiceError {
         ServiceError::InternalServerError
     }
 }
+
+impl From<sqlx::Error> for ServiceError {
+    fn from(error: sqlx::Error) -> ServiceError {
+        debug!("SQLX error: {:?}", error);
+        match error {
+            sqlx::Error::Database(err) => {
+                err.downcast_ref::<sqlx::postgres::PgDatabaseError>().into()
+            }
+            sqlx::Error::RowNotFound => ServiceError::NotFound,
+            _ => ServiceError::InternalServerError,
+        }
+    }
+}
+
+impl From<&sqlx::postgres::PgDatabaseError> for ServiceError {
+    fn from(error: &sqlx::postgres::PgDatabaseError) -> ServiceError {
+        debug!("Postgres error: {:?}", error);
+        match error.code() {
+            "23505" => ServiceError::Conflict(error.to_string()),
+            _ => ServiceError::InternalServerError,
+        }
+    }
+}

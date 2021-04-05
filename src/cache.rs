@@ -28,10 +28,6 @@ lazy_static! {
     static ref CACHE_POOL: RwLock<Cache> = RwLock::new(Cache::new());
 }
 
-pub trait CacheIdentifier {
-    fn cache_key<T: Display>(id: T) -> String;
-}
-
 impl Cache {
     fn default() -> Self {
         Cache {
@@ -93,15 +89,18 @@ impl Cache {
         }
     }
 
-    #[tracing::instrument(name = "cache::get")]
-    pub(crate) async fn get<T: DeserializeOwned + CacheIdentifier, I: Display + Debug>(
-        id: I,
-    ) -> Option<T> {
-        let mut conn = Cache::connection().await?;
-        let cache_key: String = T::cache_key(id);
+    /// Get the key for a certain cache entry
+    fn key<T, Id: Display>(id: Id) -> String {
+        format!("{}.{}", std::any::type_name::<T>(), id)
+    }
 
-        let res: Result<Vec<u8>, RedisError> =
-            cmd("GET").arg(&cache_key).query_async(&mut conn).await;
+    #[tracing::instrument(name = "cache::get")]
+    pub(crate) async fn get<T: DeserializeOwned, Id: Display + Debug>(id: Id) -> Option<T> {
+        let mut conn = Cache::connection().await?;
+
+        let key = Cache::key::<T, _>(id);
+
+        let res: Result<Vec<u8>, RedisError> = cmd("GET").arg(&key).query_async(&mut conn).await;
 
         match res {
             Ok(res) => {
@@ -109,7 +108,7 @@ impl Cache {
 
                 if cache_hit.is_some() {
                     Stats::cache_hit();
-                    debug!("found {} in cache", &cache_key);
+                    debug!("found {} in cache", &key);
                 } else {
                     Stats::cache_miss();
                 }
@@ -117,20 +116,20 @@ impl Cache {
                 cache_hit
             }
             Err(err) => {
-                error!("unable to fetch {} from cache: {}", &cache_key, err);
+                error!("unable to fetch {} from cache: {}", &key, err);
                 None
             }
         }
     }
 
     #[tracing::instrument(name = "cache::set", skip(object))]
-    pub(crate) async fn set<T: Serialize + CacheIdentifier, I: Display + Debug>(object: &T, id: I) {
+    pub(crate) async fn set<T: Serialize, Id: Display + Debug>(object: &T, id: Id) {
         let mut conn = match Cache::connection().await {
             Some(conn) => conn,
             None => return,
         };
 
-        let cache_key: String = T::cache_key(id);
+        let key = Cache::key::<T, _>(id);
 
         let object_string = match serde_json::to_vec(object) {
             Ok(res) => res,
@@ -143,7 +142,7 @@ impl Cache {
         let ttl = CACHE_POOL.read().await.ttl;
 
         let res = cmd("SETEX")
-            .arg(cache_key)
+            .arg(key)
             .arg(ttl)
             .arg(object_string)
             .execute_async(&mut conn)

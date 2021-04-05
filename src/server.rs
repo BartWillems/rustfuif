@@ -9,6 +9,7 @@ use actix_web::error::JsonPayloadError;
 use actix_web::middleware::normalize::TrailingSlash;
 use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
 use actix_web_opentelemetry::RequestTracing;
+use sqlx::{Pool, Postgres};
 use time::Duration;
 
 use crate::admin;
@@ -40,7 +41,11 @@ fn json_error_handler(error: JsonPayloadError, _: &HttpRequest) -> actix_web::Er
     }
 }
 
-pub async fn launch(db_pool: db::Pool) -> std::io::Result<()> {
+pub(crate) struct State {
+    pub(crate) db: Pool<Postgres>,
+}
+
+pub async fn launch(db_pool: db::Pool) -> anyhow::Result<()> {
     let _guard = match Config::sentry_dsn() {
         Some(key) => sentry::init(key),
         None => {
@@ -59,15 +64,22 @@ pub async fn launch(db_pool: db::Pool) -> std::io::Result<()> {
         Some(exporter),
     );
 
+    let sqlx_db = Pool::<Postgres>::connect(Config::database_url()).await?;
+
     let notification_server = Arc::new(NotificationServer::new().start());
 
     debug!("launching price updater");
     prices::Updater::new(db_pool.clone(), notification_server.clone()).start();
 
     HttpServer::new(move || {
+        let state = State {
+            db: sqlx_db.clone(),
+        };
+
         App::new()
             .data(db_pool.clone())
             .data(notification_server.deref().clone())
+            .data(state)
             .wrap(sentry_actix::Sentry::new())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))
             .wrap(middleware::Compress::default())
@@ -113,5 +125,7 @@ pub async fn launch(db_pool: db::Pool) -> std::io::Result<()> {
     })
     .bind(format!("{}:{}", Config::api_host(), Config::api_port()))?
     .run()
-    .await
+    .await?;
+
+    Ok(())
 }

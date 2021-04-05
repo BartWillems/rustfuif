@@ -4,18 +4,18 @@ use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use rand::Rng;
 use regex::Regex;
+use sqlx::{Pool, Postgres};
 
 use crate::db;
 use crate::errors::ServiceError;
 
-#[derive(Deserialize, AsChangeset, Insertable)]
-#[table_name = "users"]
-pub struct UserMessage {
+#[derive(Deserialize)]
+pub struct Credentials {
     pub username: String,
     pub password: String,
 }
 
-impl std::fmt::Debug for UserMessage {
+impl std::fmt::Debug for Credentials {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("UserMessage")
             .field("username", &self.username)
@@ -63,53 +63,57 @@ impl User {
         Ok(users)
     }
 
-    pub fn find(id: i64, conn: &db::Conn) -> Result<Self, ServiceError> {
-        let user = users::table.filter(users::id.eq(id)).first(conn)?;
+    #[tracing::instrument(name = "user::find")]
+    pub async fn find(id: i64, db: &Pool<Postgres>) -> Result<Self, sqlx::Error> {
+        let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", id)
+            .fetch_one(db)
+            .await?;
 
         Ok(user)
     }
 
-    pub fn find_by_username(username: String, conn: &db::Conn) -> Result<Self, ServiceError> {
-        let user = users::table
-            .filter(users::username.eq(username))
-            .first(conn)?;
+    #[tracing::instrument(name = "user::find_by_name")]
+    pub async fn find_by_name(username: &str, db: &Pool<Postgres>) -> Result<Self, sqlx::Error> {
+        let user = sqlx::query_as!(User, "SELECT * FROM users WHERE username = $1", username)
+            .fetch_one(db)
+            .await?;
 
         Ok(user)
     }
 
-    pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Self, ServiceError> {
-        let user = users::table.filter(users::id.eq(id)).first(conn)?;
-
-        Ok(user)
-    }
-
-    /// Hash the user's password an store it in the database
-    pub fn create(user: &mut UserMessage, conn: &db::Conn) -> Result<Self, ServiceError> {
+    /// Store the user in the database after hashing it's password
+    #[tracing::instrument(name = "user::create")]
+    pub async fn create(user: &mut Credentials, db: &Pool<Postgres>) -> Result<Self, ServiceError> {
         user.hash_password()?;
 
-        let user: User = diesel::insert_into(users::table)
-            .values(&*user)
-            .get_result(conn)?;
+        let user = sqlx::query_as!(
+            User,
+            r"INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *;",
+            user.username,
+            user.password
+        )
+        .fetch_one(db)
+        .await?;
 
         Ok(user)
     }
 
-    pub fn update(&self, conn: &db::Conn) -> Result<Self, ServiceError> {
-        let user = diesel::update(users::table)
-            .filter(users::id.eq(self.id))
-            .set(self)
-            .get_result(conn)?;
+    /// Hash and store the user's changed password to the database
+    #[tracing::instrument(name = "user::update_password", skip(password))]
+    pub async fn update_password(
+        &mut self,
+        password: String,
+        db: &Pool<Postgres>,
+    ) -> Result<(), ServiceError> {
+        self.set_password(password).hash_password()?;
 
-        Ok(user)
-    }
-
-    pub fn update_password(&mut self, conn: &db::Conn) -> Result<(), ServiceError> {
-        self.hash_password()?;
-
-        diesel::update(users::table)
-            .filter(users::id.eq(self.id))
-            .set(users::password.eq(self.password.clone()))
-            .execute(conn)?;
+        sqlx::query!(
+            "UPDATE users SET password = $1 WHERE id = $2",
+            &self.password,
+            self.id
+        )
+        .execute(db)
+        .await?;
 
         Ok(())
     }
@@ -131,6 +135,7 @@ impl User {
         Ok(count)
     }
 
+    /// Returns Ok(()) if the user's hashed password matches the given password
     pub fn verify_password(&self, password: &[u8]) -> Result<(), ServiceError> {
         let is_match = argon2::verify_encoded(&self.password, password)?;
 
@@ -159,7 +164,7 @@ trait PasswordHash {
 
     /// Get the current password
     fn password(&self) -> &str;
-    fn set_password(&mut self, password: String);
+    fn set_password(&mut self, password: String) -> &mut Self;
 }
 
 impl PasswordHash for User {
@@ -167,22 +172,24 @@ impl PasswordHash for User {
         &self.password
     }
 
-    fn set_password(&mut self, password: String) {
+    fn set_password(&mut self, password: String) -> &mut Self {
         self.password = password;
+        self
     }
 }
 
-impl PasswordHash for UserMessage {
+impl PasswordHash for Credentials {
     fn password(&self) -> &str {
         &self.password
     }
 
-    fn set_password(&mut self, password: String) {
+    fn set_password(&mut self, password: String) -> &mut Self {
         self.password = password;
+        self
     }
 }
 
-impl crate::validator::Validate<UserMessage> for UserMessage {
+impl crate::validator::Validate<Credentials> for Credentials {
     fn validate(&self) -> Result<(), ServiceError> {
         if self.username.trim().is_empty() {
             bad_request!("username is too short");
@@ -231,7 +238,7 @@ mod tests {
 
     #[test]
     fn invalid_username() {
-        let user = UserMessage {
+        let user = Credentials {
             username: String::from("a€$b"),
             password: String::from("hunter2boogaloo"),
         };
@@ -241,7 +248,7 @@ mod tests {
 
     #[test]
     fn empty_username() {
-        let user = UserMessage {
+        let user = Credentials {
             username: String::from(""),
             password: String::from("hunter2boogaloo"),
         };
@@ -251,7 +258,7 @@ mod tests {
 
     #[test]
     fn valid_username() {
-        let user = UserMessage {
+        let user = Credentials {
             username: String::from("rickybobby"),
             password: String::from("hunter2boogaloo"),
         };
@@ -261,7 +268,7 @@ mod tests {
 
     #[test]
     fn valid_username_with_other_characters() {
-        let user = UserMessage {
+        let user = Credentials {
             username: String::from("a-b_c-0123"),
             password: String::from("hunter2boogaloo"),
         };

@@ -40,10 +40,10 @@ pub struct LoadedStats {
 impl Stats {
     pub fn new() -> Stats {
         Stats {
-            requests: AtomicU32::new(0u32),
-            errors: AtomicU32::new(0u32),
-            cache_hits: AtomicU32::new(0u32),
-            cache_misses: AtomicU32::new(0u32),
+            requests: AtomicU32::new(0),
+            errors: AtomicU32::new(0),
+            cache_hits: AtomicU32::new(0),
+            cache_misses: AtomicU32::new(0),
         }
     }
 

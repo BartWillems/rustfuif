@@ -4,7 +4,9 @@ on: [push]
 
 jobs:
   test:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
+    env:
+      SQLX_OFFLINE: true
     steps:
       - uses: actions/checkout@v2
 
@@ -13,9 +15,38 @@ jobs:
         with:
           command: test
 
+  DBSchema:
+    name: Verify DB Schema
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "postgres://postgres:password@localhost/postgres"
+    services:
+      postgres:
+        image: postgres:12
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Migrate database
+        run: |
+          cargo install diesel_cli
+          cargo install --version=0.5.1 sqlx-cli --no-default-features --features postgres
+          diesel migration run
+      - name: Check sqlx metadata file
+        run: cargo sqlx prepare --check
+
   publish:
-    runs-on: ubuntu-18.04
-    needs: ["test"]
+    runs-on: ubuntu-20.04
+    needs: ["test", "DBSchema"]
     steps:
       - uses: actions/checkout@v2
 

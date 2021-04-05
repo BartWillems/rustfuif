@@ -2,9 +2,11 @@ FROM rust:1.50 as builder
 
 WORKDIR /usr/src/rustfuif
 
+ENV SQLX_OFFLINE="true"
+
 RUN cargo install diesel_cli --no-default-features --features postgres
 
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock sqlx-data.json ./
 COPY migrations ./migrations
 COPY src ./src
 

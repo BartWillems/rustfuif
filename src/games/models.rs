@@ -119,27 +119,23 @@ impl Game {
     /// return the amount of active games at the moment
     #[tracing::instrument(skip(conn))]
     pub fn active_game_count(conn: &db::Conn) -> Result<i64, ServiceError> {
-        use diesel::dsl::{now, sql};
+        use diesel::dsl::now;
 
-        let count = games::table
+        games::table
             .filter(games::start_time.lt(now))
             .filter(games::close_time.gt(now))
-            .select(sql::<diesel::sql_types::BigInt>("COUNT(*)"))
-            .first::<i64>(conn)?;
-
-        Ok(count)
+            .count()
+            .first::<i64>(conn)
+            .map_err(|e| e.into())
     }
 
     /// return the total amount of created games
     #[tracing::instrument(skip(conn), name = "game::count")]
     pub fn count(conn: &db::Conn) -> Result<i64, ServiceError> {
-        use diesel::dsl::sql;
-
-        let count = games::table
-            .select(sql::<diesel::sql_types::BigInt>("COUNT(*)"))
-            .first::<i64>(conn)?;
-
-        Ok(count)
+        games::table
+            .count()
+            .first::<i64>(conn)
+            .map_err(|e| e.into())
     }
 
     #[tracing::instrument(skip(conn))]
@@ -325,8 +321,6 @@ impl Game {
     }
 
     /// returns if the game is going on at the moment
-    /// Should perhaps be changed to use database values
-    /// should be used to determine if the start/ending times could be altered
     pub fn is_in_progress(&self) -> bool {
         let now = chrono::offset::Utc::now();
         if self.start_time < now && self.close_time > now {
