@@ -22,13 +22,6 @@ pub struct Transaction {
     pub price: i64,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TransactionFilter {
-    pub user_id: Option<i64>,
-    pub game_id: Option<i64>,
-}
-
 #[derive(Debug, Deserialize, Insertable, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 #[table_name = "transactions"]
@@ -174,31 +167,13 @@ impl Sale {
 }
 
 impl Transaction {
-    pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Transaction, DBError> {
-        transactions::table
-            .filter(transactions::id.eq(id))
-            .first::<Transaction>(conn)
-    }
-
-    #[tracing::instrument(skip(conn), name = "Transaction::find_all")]
-    pub fn find_all(
-        filter: &TransactionFilter,
-        conn: &db::Conn,
-    ) -> Result<Vec<Transaction>, ServiceError> {
-        let mut query = transactions::table.into_boxed();
-
-        if let Some(game_id) = filter.game_id {
-            query = query.filter(transactions::game_id.eq(game_id));
-        }
-
-        if let Some(user_id) = filter.user_id {
-            query = query.filter(transactions::user_id.eq(user_id));
-        }
-
-        let transactions = query
-            .order(transactions::created_at.desc())
-            .load::<Transaction>(conn)?;
-        Ok(transactions)
+    #[tracing::instrument(name = "Transaction::find_all")]
+    pub async fn find_all(
+        user_id: i64,
+        game_id: i64,
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<Transaction>, sqlx::Error> {
+        sqlx::query_as!(Transaction, "SELECT * FROM transactions WHERE user_id = $1 AND game_id = $2 ORDER BY created_at DESC", user_id, game_id).fetch_all(db).await
     }
 
     /// Get the amount of sales each user has made in a game

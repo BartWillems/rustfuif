@@ -33,7 +33,7 @@ pub struct User {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize, Queryable)]
+#[derive(Debug, Serialize, Queryable, sqlx::Type)]
 pub struct UserResponse {
     pub id: i64,
     pub username: String,

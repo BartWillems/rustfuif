@@ -66,8 +66,9 @@ pub struct GameResponse {
     pub start_time: DateTime<Utc>,
     pub close_time: DateTime<Utc>,
     pub beverage_count: i16,
-    pub owner: crate::users::UserResponse,
+    pub owner: UserResponse,
 }
+
 
 /// minimum duration is 30 minutes
 const MIN_GAME_SECONDS: i64 = 60 * 30;
@@ -112,21 +113,16 @@ impl Game {
         Ok(game)
     }
 
-    #[tracing::instrument(skip(conn), name = "game::is_open")]
-    pub fn is_open(game_id: i64, user_id: i64, conn: &db::Conn) -> Result<bool, ServiceError> {
-        use diesel::dsl::now;
+    #[tracing::instrument(name = "game::available_for_purchases")]
+    pub async fn available_for_purchases(game_id: i64, user_id: i64, db: &Pool<Postgres>) -> Result<bool, ServiceError> {
+        let game = sqlx::query!(r#"
+            SELECT games.id
+            FROM (games INNER JOIN invitations ON invitations.game_id = games.id) 
+            WHERE games.id = $1 AND invitations.user_id = $2 AND invitations.state = $3 AND games.start_time < NOW() AND games.close_time > NOW()"#,
+            game_id, user_id, State::ACCEPTED.to_string()
+        ).fetch_optional(db).await?;
 
-        let game_id = games::table
-            .inner_join(invitations::table)
-            .filter(games::id.eq(game_id))
-            .filter(invitations::user_id.eq(user_id))
-            .filter(invitations::state.eq(State::ACCEPTED.to_string()))
-            .filter(games::start_time.lt(now))
-            .filter(games::close_time.gt(now))
-            .select(games::id)
-            .first::<i64>(conn)
-            .optional()?;
-        Ok(game_id.is_some())
+        Ok(game.is_some())
     }
 
     /// return the amount of active games at the moment
@@ -172,80 +168,62 @@ impl Game {
         Ok(game)
     }
 
-    #[tracing::instrument(skip(conn))]
-    pub fn find_all(
+    #[tracing::instrument(name = "game::find_all")]
+    pub async fn find_all(
         filter: GameFilter,
-        conn: &db::Conn,
-    ) -> Result<Vec<GameResponse>, ServiceError> {
-        let mut query = games::table
-            .inner_join(users::table)
-            .select((
-                games::id,
-                games::name,
-                games::start_time,
-                games::close_time,
-                games::beverage_count,
-                (users::id, users::username),
-            ))
-            .order(games::start_time)
-            .into_boxed();
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<GameResponse>, sqlx::Error> {
 
+        // Show only games that are in progress
         if !filter.completed.unwrap_or(true) {
-            query = query.filter(games::close_time.gt(diesel::dsl::now));
+            return sqlx::query_as!(
+                GameResponse,
+                r#"SELECT games.id, games.name, games.start_time, games.close_time, games.beverage_count, (users.id, users.username) as "owner!: UserResponse"
+                FROM (games INNER JOIN users ON games.owner_id = users.id)
+                WHERE games.close_time > NOW()
+                ORDER BY games.start_time DESC"#
+            ).fetch_all(db).await;
         }
 
-        if let Some(id) = filter.owner_id {
-            query = query.filter(games::owner_id.eq(id));
-        }
-
-        if let Some(name) = filter.name {
-            query = query.filter(games::name.ilike(format!("%{}%", name)));
-        }
-
-        let games = query.load::<GameResponse>(conn)?;
-        Ok(games)
+        sqlx::query_as!(
+            GameResponse,
+            r#"SELECT games.id, games.name, games.start_time, games.close_time, games.beverage_count, (users.id, users.username) as "owner!: UserResponse"
+            FROM (games INNER JOIN users ON games.owner_id = users.id)
+            ORDER BY games.start_time DESC"#
+        ).fetch_all(db).await
     }
 
-    #[tracing::instrument(skip(conn))]
-    pub fn find_by_user(
+    #[tracing::instrument(name = "game::find_by_user")]
+    pub async fn find_by_user(
         user_id: i64,
         filter: GameFilter,
-        conn: &db::Conn,
-    ) -> Result<Vec<GameResponse>, ServiceError> {
-        let invitations = invitations::table
-            .filter(invitations::user_id.eq(user_id))
-            .filter(invitations::state.eq(State::ACCEPTED.to_string()))
-            .select(invitations::game_id);
-
-        let mut query = games::table
-            .inner_join(users::table)
-            .select((
-                games::id,
-                games::name,
-                games::start_time,
-                games::close_time,
-                games::beverage_count,
-                (users::id, users::username),
-            ))
-            .into_boxed();
-
-        use diesel::dsl::any;
-
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<GameResponse>, sqlx::Error> {
+        // Show only games that are in progress
         if !filter.completed.unwrap_or(true) {
-            query = query.filter(games::close_time.gt(diesel::dsl::now));
+            return sqlx::query_as!(
+                GameResponse,
+                r#"SELECT games.id, games.name, games.start_time, games.close_time, games.beverage_count, (users.id, users.username) as "owner!: UserResponse"
+                FROM (games INNER JOIN users ON games.owner_id = users.id)
+                WHERE games.id IN (
+                    SELECT game_id FROM invitations WHERE user_id = $1 AND state = $2
+                ) AND games.close_time > NOW()
+                ORDER BY games.start_time DESC"#,
+                user_id, State::ACCEPTED.to_string()
+            ).fetch_all(db).await;
         }
 
-        if let Some(id) = filter.owner_id {
-            query = query.filter(games::owner_id.eq(id));
-        }
+        let games = sqlx::query_as!(
+            GameResponse,
+            r#"SELECT games.id, games.name, games.start_time, games.close_time, games.beverage_count, (users.id, users.username) as "owner!: UserResponse"
+            FROM (games INNER JOIN users ON games.owner_id = users.id)
+            WHERE games.id IN (
+                SELECT game_id FROM invitations WHERE user_id = $1 AND state = $2
+            )
+            ORDER BY games.start_time DESC"#,
+            user_id, State::ACCEPTED.to_string()
+        ).fetch_all(db).await?;
 
-        if let Some(name) = filter.name {
-            query = query.filter(games::name.ilike(format!("%{}%", name)));
-        }
-
-        let games = query
-            .filter(games::id.eq(any(invitations)))
-            .load::<GameResponse>(conn)?;
         Ok(games)
     }
 

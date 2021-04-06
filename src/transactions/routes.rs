@@ -10,22 +10,17 @@ use crate::db;
 use crate::games::Game;
 use crate::server;
 use crate::server::State;
-use crate::transactions::models::{NewSale, SalesCount, Transaction, TransactionFilter};
+use crate::transactions::models::{NewSale, SalesCount, Transaction};
 use crate::websocket::{Notification, Sale};
 
 #[get("/games/{id}/sales")]
-async fn get_sales(game_id: Path<i64>, id: Identity, pool: Data<db::Pool>) -> server::Response {
+async fn get_sales(game_id: Path<i64>, id: Identity, state: Data<State>) -> server::Response {
     let user = auth::get_user(&id)?;
     let game_id = game_id.into_inner();
 
-    let filter = TransactionFilter {
-        user_id: Some(user.id),
-        game_id: Some(game_id),
-    };
+    let sales = Transaction::find_all(user.id, game_id, &state.db).await?;
 
-    let transactions = web::block(move || Transaction::find_all(&filter, &pool.get()?)).await?;
-
-    http_ok_json!(transactions);
+    http_ok_json!(sales);
 }
 
 #[post("/games/{id}/sales")]
@@ -33,7 +28,6 @@ async fn create_sale(
     game_id: Path<i64>,
     slots: Json<HashMap<i16, i32>>,
     id: Identity,
-    pool: Data<db::Pool>,
     state: Data<State>,
 ) -> server::Response {
     let user = auth::get_user(&id)?;
@@ -41,16 +35,9 @@ async fn create_sale(
 
     let user_id = user.id;
 
-    // let (transactions, sale) = web::block(move || {
-    web::block(move || {
-        let conn = pool.get()?;
-
-        if !Game::is_open(game_id, user_id, &conn)? {
-            forbidden!("game is not available for purchases");
-        }
-        Ok(())
-    })
-    .await?;
+    if !Game::available_for_purchases(game_id, user_id, &state.db).await? {
+        forbidden!("game is not available for purchases");
+    }
 
     let sale = NewSale {
         user_id: user.id,
@@ -102,29 +89,6 @@ async fn user_sales(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> s
     http_ok_json!(sales);
 }
 
-#[get("/games/{id}/stats/transactions")]
-async fn get_transactions(
-    game_id: Path<i64>,
-    pool: Data<db::Pool>,
-    id: Identity,
-) -> server::Response {
-    let user = auth::get_user(&id)?;
-    let game_id = game_id.into_inner();
-
-    let transactions = web::block(move || {
-        Transaction::find_all(
-            &TransactionFilter {
-                user_id: Some(user.id),
-                game_id: Some(game_id),
-            },
-            &pool.get()?,
-        )
-    })
-    .await?;
-
-    http_ok_json!(transactions);
-}
-
 #[get("/games/{id}/stats/income")]
 async fn total_income(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
     auth::get_user(&id)?;
@@ -140,6 +104,5 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(create_sale);
     cfg.service(beverage_sales);
     cfg.service(user_sales);
-    cfg.service(get_transactions);
     cfg.service(total_income);
 }

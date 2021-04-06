@@ -12,22 +12,17 @@ use crate::server::{self, State};
 use crate::validator::Validator;
 
 #[get("/games")]
-async fn find_all(
-    query: Query<GameFilter>,
-    pool: Data<db::Pool>,
-    id: Identity,
-) -> server::Response {
+async fn find_all(query: Query<GameFilter>, state: Data<State>, id: Identity) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    let games = web::block(move || {
-        if user.is_admin {
-            debug!("user is admin, showing all games");
-            Game::find_all(query.into_inner(), &pool.get()?)
-        } else {
-            Game::find_by_user(user.id, query.into_inner(), &pool.get()?)
-        }
-    })
-    .await?;
+    let games;
+
+    if user.is_admin {
+        debug!("user is admin, showing all games");
+        games = Game::find_all(query.into_inner(), &state.db).await?;
+    } else {
+        games = Game::find_by_user(user.id, query.into_inner(), &state.db).await?;
+    }
 
     http_ok_json!(games);
 }
