@@ -11,6 +11,7 @@ repository = "https://github.com/bartwillems/rustfuif"
 actix = "0.10"
 actix-cors = "0.5"
 actix-identity = "0.3"
+actix-rt = "1.1.1"
 actix-service = "1.0.6"
 actix-threadpool = "0.3"
 actix-web = { version = "3.2", default-features = false }
@@ -61,9 +62,6 @@ tracing-attributes = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = "0.2"
 tracing-opentelemetry = "0.10.0"
-
-[dev-dependencies]
-actix-rt = "1.1.1"
 
 [profile.release]
 lto = "thin"

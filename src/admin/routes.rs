@@ -1,4 +1,3 @@
-use actix::Addr;
 use actix_identity::Identity;
 use actix_web::web::Data;
 use actix_web::{get, post, web};
@@ -9,7 +8,6 @@ use crate::games::Game;
 use crate::server::{Response, State};
 use crate::users::User;
 use crate::websocket::queries::{ActiveGames, ConnectedUsers};
-use crate::websocket::server::NotificationServer;
 
 #[get("/admin/games/count")]
 async fn game_count(pool: Data<db::Pool>, id: Identity) -> Response {
@@ -34,13 +32,10 @@ async fn user_count(state: Data<State>, id: Identity) -> Response {
 }
 
 #[get("/admin/websockets/connected-users")]
-async fn connected_users(
-    id: Identity,
-    websocket_server: Data<Addr<NotificationServer>>,
-) -> Response {
+async fn connected_users(id: Identity, state: Data<State>) -> Response {
     auth::verify_admin(&id)?;
 
-    let res = websocket_server.get_ref().send(ConnectedUsers).await?;
+    let res = state.notifier.send(ConnectedUsers).await?;
 
     match res {
         Ok(users) => http_ok_json!(users),
@@ -52,10 +47,10 @@ async fn connected_users(
 }
 
 #[get("/admin/websockets/active-games")]
-async fn active_games(id: Identity, websocket_server: Data<Addr<NotificationServer>>) -> Response {
+async fn active_games(id: Identity, state: Data<State>) -> Response {
     auth::verify_admin(&id)?;
 
-    let res = websocket_server.get_ref().send(ActiveGames).await?;
+    let res = state.notifier.send(ActiveGames).await?;
 
     match res {
         Ok(games) => http_ok_json!(games),

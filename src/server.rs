@@ -1,6 +1,3 @@
-use std::ops::Deref;
-use std::sync::Arc;
-
 use actix::prelude::*;
 use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
@@ -41,8 +38,9 @@ fn json_error_handler(error: JsonPayloadError, _: &HttpRequest) -> actix_web::Er
     }
 }
 
-pub(crate) struct State {
-    pub(crate) db: Pool<Postgres>,
+pub struct State {
+    pub db: Pool<Postgres>,
+    pub notifier: Addr<NotificationServer>,
 }
 
 pub async fn launch(db_pool: db::Pool) -> anyhow::Result<()> {
@@ -64,21 +62,23 @@ pub async fn launch(db_pool: db::Pool) -> anyhow::Result<()> {
         Some(exporter),
     );
 
-    let sqlx_db = Pool::<Postgres>::connect(Config::database_url()).await?;
+    let db = Pool::<Postgres>::connect(Config::database_url()).await?;
 
-    let notification_server = Arc::new(NotificationServer::new().start());
+    let notifier = NotificationServer::new().start();
 
     debug!("launching price updater");
-    prices::Updater::new(db_pool.clone(), notification_server.clone()).start();
+    prices::Updater::new(db.clone(), notifier.clone())
+        .start()
+        .await;
 
     HttpServer::new(move || {
         let state = State {
-            db: sqlx_db.clone(),
+            db: db.clone(),
+            notifier: notifier.clone(),
         };
 
         App::new()
             .data(db_pool.clone())
-            .data(notification_server.deref().clone())
             .data(state)
             .wrap(sentry_actix::Sentry::new())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))

@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use diesel::result::Error as DBError;
+use sqlx::{Pool, Postgres};
 
 use crate::db;
 use crate::errors::ServiceError;
 use crate::games::{Beverage, Game};
-use crate::schema::{beverages, sales_counts, transactions, users};
+use crate::schema::{sales_counts, transactions, users};
 
 #[derive(Debug, Serialize, Queryable, Identifiable, AsChangeset, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -70,76 +71,78 @@ pub struct SalesCount {
 }
 
 impl NewSale {
-    #[tracing::instrument(skip(conn), name = "transaction::purchase")]
-    pub fn save(&self, conn: &db::Conn) -> Result<Vec<Transaction>, ServiceError> {
-        let transactions = conn.transaction::<Vec<Transaction>, ServiceError, _>(|| {
-            // NEW SALES ORDER
+    #[tracing::instrument(name = "transaction::purchase")]
+    pub async fn save(&self, db: &Pool<Postgres>) -> Result<Vec<Transaction>, ServiceError> {
+        // NEW SALES ORDER
             // 1. Fetch beverage configs FOR UPDATE
             // 2. Fetch current sales_counts FOR UPDATE
             // 3. Calculate the prices for each beverage in the new sale
             // 4. update sales_counts
             // 5. insert in transactions with the current count
+        let tx = db.begin().await?;
+        let game = Game::find_by_id(self.game_id, db).await?;
 
-            let game = Game::find_by_id(self.game_id, conn)?;
+        for slot_no in self.slots.keys() {
+            if slot_no > &game.beverage_count || slot_no < &0 {
+                bad_request!("a beverage slot exceeds the maximum configured beverage slots");
+            }
+        }
 
-            for slot_no in self.slots.keys() {
-                if slot_no > &game.beverage_count || slot_no < &0 {
-                    bad_request!("a beverage slot exceeds the maximum configured beverage slots");
+        let mut sales: HashMap<i16, Sale> = self.unroll();
+        let keys: Vec<i16> = sales.keys().copied().collect();
+
+        // 1
+        let beverages = sqlx::query_as!(
+            Beverage, 
+            "SELECT * FROM beverages WHERE user_id = $1 AND game_id = $2 and slot_no = any($3) FOR UPDATE", 
+            self.user_id, self.game_id, &keys)
+            .fetch_all(db)
+            .await?;
+        
+        // 2
+        let mut sales_counts = SalesCount::find_by_game_for_update(self.game_id, db).await?;
+
+        // 3
+        for (_, sale) in sales.iter_mut() {
+            let mut beverage_config: Option<&Beverage> = None;
+            for beverage in &beverages {
+                if beverage.slot_no == sale.slot_no {
+                    beverage_config = Some(beverage);
+                    break;
                 }
             }
-
-            let mut sales: HashMap<i16, Sale> = self.unroll();
-            use diesel::dsl::any;
-
-            let keys: Vec<&i16> = sales.keys().collect();
-            // 1
-            let beverage_configs = beverages::table
-                .filter(beverages::user_id.eq(self.user_id))
-                .filter(beverages::game_id.eq(self.game_id))
-                .filter(beverages::slot_no.eq(any(keys)))
-                .for_update()
-                .load::<Beverage>(conn)?;
-
-            // 2
-            let mut sales_counts = SalesCount::find_by_game_for_update(self.game_id, conn)?;
-
-            // 3
-            for (_, sale) in sales.iter_mut() {
-                let mut beverage_config: Option<&Beverage> = None;
-                for cfg in &beverage_configs {
-                    if cfg.slot_no == sale.slot_no {
-                        beverage_config = Some(cfg);
-                        break;
-                    }
+            match beverage_config {
+                None => {
+                    error!("a sale was attempted without a pre-existing beverage config");
+                    bad_request!("unable to create purchase for beverage without a config");
                 }
-                match beverage_config {
-                    None => {
-                        error!("a sale was attempted without a pre-existing beverage config");
-                        bad_request!("unable to create purchase for beverage without a config");
-                    }
-                    Some(beverage) => {
-                        sale.set_price(beverage);
-                    }
+                Some(beverage) => {
+                    sale.set_price(beverage);
                 }
             }
+        }
 
-            // 4
-            for sale_count in sales_counts.iter_mut() {
-                if let Some(sale) = sales.get(&sale_count.slot_no) {
-                    sale_count.sales += sale.amount as i64;
-                    sale_count.update(conn)?;
-                }
+        // 4
+        for sale_count in sales_counts.iter_mut() {
+            if let Some(sale) = sales.get(&sale_count.slot_no) {
+                sale_count.sales += sale.amount as i64;
+                sale_count.update(db).await?;
             }
+        }
 
-            // 5
-            let sales: Vec<&Sale> = sales.values().collect();
+        // 5
+        let mut transactions: Vec<Transaction> = Vec::new();
 
-            let transactions = diesel::insert_into(transactions::table)
-                .values(sales)
-                .get_results::<Transaction>(conn)?;
+        for sale in sales.values() {
+            let transaction = sqlx::query_as!(
+                Transaction,
+                "INSERT INTO transactions (user_id, game_id, slot_no, amount, price) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+                sale.user_id, sale.game_id, sale.slot_no, sale.amount, sale.price
+            ).fetch_one(db).await?;
+            transactions.push(transaction);
+        }
 
-            Ok(transactions)
-        })?;
+        tx.commit().await?;
 
         Ok(transactions)
     }
@@ -177,7 +180,7 @@ impl Transaction {
             .first::<Transaction>(conn)
     }
 
-    #[tracing::instrument(skip(conn))]
+    #[tracing::instrument(skip(conn), name = "Transaction::find_all")]
     pub fn find_all(
         filter: &TransactionFilter,
         conn: &db::Conn,
@@ -237,34 +240,30 @@ impl Transaction {
 impl SalesCount {
     /// Create the empty beverage sale count rows
     /// Should be called when initializing the game
-    pub fn initialize_slots(game: &Game, conn: &db::Conn) -> Result<(), DBError> {
-        let mut empty_sales: Vec<SalesCount> = Vec::new();
+    pub async fn initialize_slots(game: &Game, db: &Pool<Postgres>) -> Result<(), sqlx::Error> {
+        // Inserting multiple values isn't supported yet sadly: https://github.com/launchbadge/sqlx/issues/294
         for slot_no in 0..game.beverage_count {
-            empty_sales.push(SalesCount {
-                game_id: game.id,
+            sqlx::query!(
+                "INSERT INTO sales_counts (game_id, slot_no, sales) VALUES ($1, $2, $3)",
+                game.id,
                 slot_no,
-                sales: 0,
-            });
+                0
+            )
+            .execute(db)
+            .await?;
         }
-
-        diesel::insert_into(sales_counts::table)
-            .values(&empty_sales)
-            .execute(conn)?;
 
         Ok(())
     }
 
     /// get salescount for a game while locking the rows during a transaction
-    #[tracing::instrument(skip(conn), name = "salescount::find_by_game_for_update")]
-    pub(crate) fn find_by_game_for_update(
+    #[tracing::instrument(name = "salescount::find_by_game_for_update")]
+    pub(crate) async fn find_by_game_for_update(
         game_id: i64,
-        conn: &db::Conn,
-    ) -> Result<Vec<SalesCount>, DBError> {
-        let res = sales_counts::table
-            .filter(sales_counts::game_id.eq(game_id))
-            .for_update()
-            .order_by(sales_counts::slot_no)
-            .load::<SalesCount>(conn)?;
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<SalesCount>, sqlx::Error> {
+
+        let res = sqlx::query_as!(SalesCount, "SELECT * FROM sales_counts WHERE game_id = $1 ORDER BY slot_no FOR UPDATE", game_id).fetch_all(db).await?;
 
         Ok(res)
     }
@@ -279,15 +278,9 @@ impl SalesCount {
         Ok(res)
     }
 
-    #[tracing::instrument(skip(conn))]
-    fn update(&self, conn: &db::Conn) -> Result<SalesCount, DBError> {
-        diesel::update(
-            sales_counts::table
-                .filter(sales_counts::game_id.eq(self.game_id))
-                .filter(sales_counts::slot_no.eq(self.slot_no)),
-        )
-        .set(sales_counts::sales.eq(self.sales))
-        .get_result(conn)
+    #[tracing::instrument(name = "SalesCount::update")]
+    async fn update(&self, db: &Pool<Postgres>) -> Result<SalesCount, sqlx::Error> {
+        sqlx::query_as!(SalesCount, "UPDATE sales_counts SET sales = $1 WHERE game_id = $2 AND slot_no = $3 RETURNING *", self.sales, self.game_id, self.slot_no).fetch_one(db).await
     }
 
     /// Returns the aveage sales for a game

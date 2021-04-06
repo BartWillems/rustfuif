@@ -1,16 +1,12 @@
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 
 use actix::Addr;
 use chrono::{DateTime, Utc};
-use diesel::prelude::*;
+use sqlx::{Pool, Postgres};
 
-use crate::db;
 use crate::errors::ServiceError;
 use crate::games::Game;
 use crate::market;
-use crate::schema::price_histories;
 use crate::websocket::server::NotificationServer;
 use crate::websocket::Notification;
 use crate::{config::Config, games::Beverage};
@@ -23,32 +19,32 @@ pub enum PriceUpdate {
     StockMarketCrash,
 }
 pub(crate) struct Updater {
-    pool: db::Pool,
+    db: Pool<Postgres>,
     interval: Duration,
-    notifier: Arc<Addr<NotificationServer>>,
+    notifier: Addr<NotificationServer>,
 }
 
 impl Updater {
-    pub fn new(pool: db::Pool, notifier: Arc<Addr<NotificationServer>>) -> Self {
+    pub fn new(db: Pool<Postgres>, notifier: Addr<NotificationServer>) -> Self {
         Updater {
-            pool,
+            db,
             interval: Config::price_update_interval(),
             notifier,
         }
     }
 
-    pub fn start(&self) {
+    pub async fn start(&self) {
         let interval = self.interval;
-        let pool = self.pool.clone();
+        let db = self.db.clone();
         let notifier = self.notifier.clone();
 
-        thread::spawn(move || {
+        actix::spawn(async move {
             let mut stock_market = market::StockMarket::new();
 
             loop {
-                thread::sleep(interval);
+                actix_rt::time::delay_for(interval).await;
 
-                match Updater::update_prices(pool.clone(), &mut stock_market) {
+                match Updater::update_prices(&db, &mut stock_market).await {
                     Err(e) => {
                         error!("unable to update prices: {}", e);
                     }
@@ -65,38 +61,36 @@ impl Updater {
         });
     }
 
-    #[tracing::instrument(skip(pool, stock_market))]
-    fn update_prices(
-        pool: db::Pool,
+    #[tracing::instrument(skip(stock_market), name = "StockMarket::update_prices")]
+    async fn update_prices(
+        db: &Pool<Postgres>,
         stock_market: &mut market::StockMarket,
     ) -> Result<PriceUpdate, ServiceError> {
-        use diesel::prelude::*;
         let start = std::time::Instant::now();
-        let conn = pool.get()?;
 
         let should_crash = stock_market.maybe_crash();
         info!("has stockmarket crashed: {}", should_crash);
 
-        conn.transaction::<(), ServiceError, _>(|| {
-            let games = Game::active_games(&conn)?;
+        let tx = db.begin().await?;
 
-            for game in &games {
-                let beverages;
-                if should_crash {
-                    beverages = game.crash_prices(&conn)?;
-                } else {
-                    beverages = game.update_prices(&conn)?;
-                }
+        let games = Game::active_games(db).await?;
 
-                let changes: Vec<PriceChange> =
-                    beverages.iter().map(|beverage| beverage.into()).collect();
-
-                PriceHistory::save(&changes, &conn)?;
+        for game in &games {
+            let beverages;
+            if should_crash {
+                beverages = game.crash_prices(db).await?;
+            } else {
+                beverages = game.update_prices(db).await?;
             }
-            info!("updated {} games in {:?}", games.len(), start.elapsed());
+            let changes: Vec<PriceChange> =
+                beverages.iter().map(|beverage| beverage.into()).collect();
 
-            Ok(())
-        })?;
+            PriceHistory::save(&changes, db).await?;
+        }
+
+        info!("updated {} games in {:?}", games.len(), start.elapsed());
+
+        tx.commit().await?;
 
         if should_crash {
             return Ok(PriceUpdate::StockMarketCrash);
@@ -106,8 +100,7 @@ impl Updater {
     }
 }
 
-#[derive(Debug, Serialize, Queryable, Identifiable)]
-#[table_name = "price_histories"]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PriceHistory {
     id: i64,
@@ -118,8 +111,7 @@ pub struct PriceHistory {
     created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Insertable)]
-#[table_name = "price_histories"]
+#[derive(Debug)]
 pub(crate) struct PriceChange {
     game_id: i64,
     user_id: i64,
@@ -130,24 +122,30 @@ pub(crate) struct PriceChange {
 
 impl PriceHistory {
     /// Return all price changes for a single beverage
-    pub fn load(
+    pub async fn load(
         user_id: i64,
         game_id: i64,
-        conn: &db::Conn,
-    ) -> Result<Vec<PriceHistory>, diesel::result::Error> {
-        price_histories::table
-            .filter(price_histories::user_id.eq(user_id))
-            .filter(price_histories::game_id.eq(game_id))
-            .load(conn)
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<PriceHistory>, sqlx::Error> {
+        sqlx::query_as!(
+            PriceHistory,
+            "SELECT * FROM price_histories WHERE user_id = $1 AND game_id = $2",
+            user_id,
+            game_id
+        )
+        .fetch_all(db)
+        .await
     }
 
-    fn save(
-        changes: &[PriceChange],
-        conn: &db::Conn,
-    ) -> Result<PriceHistory, diesel::result::Error> {
-        diesel::insert_into(price_histories::table)
-            .values(changes)
-            .get_result(conn)
+    async fn save(changes: &[PriceChange], db: &Pool<Postgres>) -> Result<(), sqlx::Error> {
+        for change in changes {
+            sqlx::query!(
+                "INSERT INTO price_histories (game_id, user_id, slot_no, price, created_at) VALUES ($1, $2, $3, $4, $5)", 
+                change.game_id, change.user_id, change.slot_no, change.price, change.created_at
+            ).execute(db).await?;
+        }
+
+        Ok(())
     }
 }
 

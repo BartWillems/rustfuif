@@ -1,7 +1,10 @@
+use std::fmt;
+
 use actix_web::Result;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use diesel::result::Error as DBError;
+use sqlx::{Pool, Postgres};
 
 use crate::db;
 use crate::errors::ServiceError;
@@ -29,8 +32,8 @@ pub struct InvitationQuery {
     pub state: Option<State>,
 }
 
-impl std::fmt::Display for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
@@ -66,11 +69,23 @@ impl NewInvitation {
         }
     }
 
-    pub fn save(&self, conn: &db::Conn) -> Result<Invitation, DBError> {
-        diesel::insert_into(invitations::table)
-            .values(self)
-            .get_result::<Invitation>(conn)
+    pub async fn save(&self, db: &Pool<Postgres>) -> Result<Invitation, sqlx::Error> {
+        sqlx::query_as!(
+            Invitation,
+            "INSERT INTO invitations (game_id, user_id, state) VALUES ($1, $2, $3) RETURNING *;",
+            self.game_id,
+            self.user_id,
+            self.state
+        )
+        .fetch_one(db)
+        .await
     }
+
+    // pub fn save(&self, conn: &db::Conn) -> Result<Invitation, DBError> {
+    //     diesel::insert_into(invitations::table)
+    //         .values(self)
+    //         .get_result::<Invitation>(conn)
+    // }
 
     pub fn accept(&mut self) -> &mut NewInvitation {
         self.state = State::ACCEPTED.to_string();

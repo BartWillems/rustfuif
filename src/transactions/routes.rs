@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use actix::Addr;
 use actix_identity::Identity;
 use actix_web::web;
 use actix_web::web::{Data, Json, Path};
@@ -10,8 +9,8 @@ use crate::auth;
 use crate::db;
 use crate::games::Game;
 use crate::server;
+use crate::server::State;
 use crate::transactions::models::{NewSale, SalesCount, Transaction, TransactionFilter};
-use crate::websocket::server::NotificationServer;
 use crate::websocket::{Notification, Sale};
 
 #[get("/games/{id}/sales")]
@@ -35,36 +34,40 @@ async fn create_sale(
     slots: Json<HashMap<i16, i32>>,
     id: Identity,
     pool: Data<db::Pool>,
-    websocket_server: Data<Addr<NotificationServer>>,
+    state: Data<State>,
 ) -> server::Response {
     let user = auth::get_user(&id)?;
     let game_id = game_id.into_inner();
 
-    let (transactions, sale) = web::block(move || {
-        let conn = pool.get()?;
-        let sale = NewSale {
-            user_id: user.id,
-            game_id,
-            slots: slots.into_inner(),
-        };
+    let user_id = user.id;
 
-        if !Game::is_open(sale.game_id, sale.user_id, &conn)? {
+    // let (transactions, sale) = web::block(move || {
+    web::block(move || {
+        let conn = pool.get()?;
+
+        if !Game::is_open(game_id, user_id, &conn)? {
             forbidden!("game is not available for purchases");
         }
-
-        let transactions = sale.save(&conn)?;
-
-        Ok((
-            transactions.clone(),
-            Notification::NewSale(Sale {
-                game_id,
-                transactions,
-            }),
-        ))
+        Ok(())
     })
     .await?;
 
-    if let Err(e) = websocket_server.send(sale).await {
+    let sale = NewSale {
+        user_id: user.id,
+        game_id,
+        slots: slots.into_inner(),
+    };
+
+    let transactions = sale.save(&state.db).await?;
+
+    if let Err(e) = state
+        .notifier
+        .send(Notification::NewSale(Sale {
+            game_id,
+            transactions: transactions.clone(),
+        }))
+        .await
+    {
         error!("unable to notify users about transaction: {}", e);
     }
 

@@ -2,6 +2,7 @@ use actix_web::Result;
 use chrono::Duration;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
+use sqlx::{Pool, Postgres};
 use url::Url;
 
 use crate::db;
@@ -24,9 +25,8 @@ pub struct Game {
     pub beverage_count: i16,
 }
 
-#[derive(Debug, Clone, Deserialize, Insertable)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[table_name = "games"]
 pub struct CreateGame {
     pub name: String,
     #[serde(skip)]
@@ -80,21 +80,34 @@ impl Game {
     ///
     /// When something fails, the transaction rolls-back, returns an error
     /// and nothing will have happened.
-    #[tracing::instrument(skip(conn), name = "game::create")]
-    pub fn create(new_game: CreateGame, conn: &db::Conn) -> Result<Game, ServiceError> {
-        let game = conn.transaction::<Game, diesel::result::Error, _>(|| {
-            let game: Game = diesel::insert_into(games::table)
-                .values(&new_game)
-                .get_result(conn)?;
+    #[tracing::instrument(name = "game::create")]
+    pub async fn create(new_game: CreateGame, db: &Pool<Postgres>) -> Result<Game, ServiceError> {
+        let transaction = db.begin().await?;
 
-            NewInvitation::new(game.id, game.owner_id)
-                .accept()
-                .save(conn)?;
+        let game: Game = sqlx::query_as!(
+            Game,
+            r#"
+            INSERT INTO games (name, owner_id, start_time, close_time, beverage_count)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *;
+            "#,
+            new_game.name,
+            new_game.owner_id,
+            new_game.start_time,
+            new_game.close_time,
+            new_game.beverage_count
+        )
+        .fetch_one(db)
+        .await?;
 
-            SalesCount::initialize_slots(&game, conn)?;
+        NewInvitation::new(game.id, game.owner_id)
+            .accept()
+            .save(db)
+            .await?;
 
-            Ok(game)
-        })?;
+        SalesCount::initialize_slots(&game, db).await?;
+
+        transaction.commit().await?;
 
         Ok(game)
     }
@@ -138,28 +151,23 @@ impl Game {
             .map_err(|e| e.into())
     }
 
-    #[tracing::instrument(skip(conn))]
-    pub fn active_games(conn: &db::Conn) -> Result<Vec<Game>, ServiceError> {
-        use diesel::dsl::now;
-
-        let games = games::table
-            .filter(games::start_time.lt(now))
-            .filter(games::close_time.gt(now))
-            .load(conn)?;
-
-        Ok(games)
+    #[tracing::instrument]
+    pub async fn active_games(db: &Pool<Postgres>) -> Result<Vec<Game>, sqlx::Error> {
+        sqlx::query_as!(Game, "SELECT * FROM games WHERE start_time < NOW() AND close_time > NOW()").fetch_all(db).await
     }
 
-    #[tracing::instrument(skip(conn))]
-    pub fn invite_user(&self, user_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
-        let invite = NewInvitation::new(self.id, user_id);
-        invite.save(conn)?;
+    #[tracing::instrument(name = "game::invite_user")]
+    pub async fn invite_user(&self, user_id: i64, db: &Pool<Postgres>) -> Result<(), sqlx::Error> {
+        NewInvitation::new(self.id, user_id).save(db).await?;
+
         Ok(())
     }
 
-    #[tracing::instrument(skip(conn), name = "game::find_by_id")]
-    pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Game, ServiceError> {
-        let game = games::table.filter(games::id.eq(id)).first::<Game>(conn)?;
+    #[tracing::instrument(name = "game::find_by_id")]
+    pub async fn find_by_id(id: i64, db: &Pool<Postgres>) -> Result<Game, sqlx::Error> {
+        let game = sqlx::query_as!(Game, "SELECT * FROM games WHERE id = $1", id)
+            .fetch_one(db)
+            .await?;
 
         Ok(game)
     }
@@ -284,17 +292,26 @@ impl Game {
     }
 
     /// validates if a user is actually partaking in a game (invited and accepted)
-    #[tracing::instrument(skip(conn))]
-    pub fn verify_user(game_id: i64, user_id: i64, conn: &db::Conn) -> Result<bool, ServiceError> {
-        let res = invitations::table
-            .filter(invitations::game_id.eq(game_id))
-            .filter(invitations::user_id.eq(user_id))
-            .filter(invitations::state.eq(State::ACCEPTED.to_string()))
-            .select(invitations::user_id)
-            .first::<i64>(conn)
-            .optional()?;
+    #[tracing::instrument(name = "Game::verify_user_participation")]
+    pub async fn verify_user_participation(
+        game_id: i64,
+        user_id: i64,
+        db: &Pool<Postgres>,
+    ) -> Result<bool, ServiceError> {
+        let row = sqlx::query!(
+            r#"
+            SELECT user_id
+            FROM invitations
+            WHERE game_id = $1 AND user_id = $2 AND state = $3
+            "#,
+            game_id,
+            user_id,
+            State::ACCEPTED.to_string()
+        )
+        .fetch_optional(db)
+        .await?;
 
-        Ok(res.is_some())
+        Ok(row.is_some())
     }
 
     /// returns true if a user is an admin or created the game
@@ -302,20 +319,23 @@ impl Game {
         user.is_admin || user.id == self.owner_id
     }
 
-    pub fn update(&self, conn: &db::Conn) -> Result<Game, ServiceError> {
-        let game: Game = diesel::update(self).set(self).get_result(conn)?;
+    pub async fn update(&self, db: &Pool<Postgres>) -> Result<Game, sqlx::Error> {
+        let game = sqlx::query_as!(
+            Game,
+            "UPDATE games SET name = $1 WHERE id = $2 RETURNING *",
+            self.name,
+            self.id
+        )
+        .fetch_one(db)
+        .await?;
 
         Ok(game)
     }
 
-    pub fn delete(&self, conn: &db::Conn) -> Result<(), ServiceError> {
-        diesel::delete(self).execute(conn)?;
-
-        Ok(())
-    }
-
-    pub fn delete_by_id(game_id: i64, conn: &db::Conn) -> Result<(), ServiceError> {
-        diesel::delete(games::table.filter(games::id.eq(game_id))).execute(conn)?;
+    pub async fn delete(&self, db: &Pool<Postgres>) -> Result<(), ServiceError> {
+        sqlx::query!("DELETE FROM games WHERE id = $1", self.id)
+            .execute(db)
+            .await?;
 
         Ok(())
     }
@@ -329,17 +349,17 @@ impl Game {
         false
     }
 
-    #[tracing::instrument(skip(conn))]
-    pub fn get_beverages(&self, conn: &db::Conn) -> Result<Vec<Beverage>, ServiceError> {
-        Beverage::find_by_game(self.id, conn)
+    #[tracing::instrument(name = "Game::get_beverages")]
+    pub async fn get_beverages(&self, db: &Pool<Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
+        Beverage::find_by_game(self.id, db).await
     }
 
     /// Update the prices for a game, returning the updated beverages
-    #[tracing::instrument(skip(conn))]
-    pub fn update_prices(&self, conn: &db::Conn) -> Result<Vec<Beverage>, ServiceError> {
-        let mut beverages = self.get_beverages(conn)?;
+    #[tracing::instrument]
+    pub async fn update_prices(&self, db: &Pool<Postgres>) -> Result<Vec<Beverage>, ServiceError> {
+        let mut beverages = self.get_beverages(db).await?;
 
-        let sales = SalesCount::find_by_game_for_update(self.id, conn)?;
+        let sales = SalesCount::find_by_game_for_update(self.id, db).await?;
         let average_sales = SalesCount::average_sales(&sales);
 
         for beverage in &mut beverages {
@@ -354,7 +374,7 @@ impl Game {
                 let price = beverage.calculate_price(offset);
                 debug!("setting price to: {}", price);
                 beverage.set_price(price);
-                beverage.save_price(conn)?;
+                beverage.save_price(db).await?;
             }
         }
 
@@ -362,13 +382,13 @@ impl Game {
     }
 
     /// Set all beverages for this game to their lowest possible value, returning the updated beverages
-    #[tracing::instrument(skip(conn))]
-    pub fn crash_prices(&self, conn: &db::Conn) -> Result<Vec<Beverage>, ServiceError> {
-        let mut beverages = self.get_beverages(conn)?;
+    #[tracing::instrument]
+    pub async fn crash_prices(&self, db: &Pool<Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
+        let mut beverages = self.get_beverages(db).await?;
 
         for beverage in &mut beverages {
             beverage.set_price(beverage.min_price);
-            beverage.save_price(conn)?;
+            beverage.save_price(db).await?;
         }
 
         Ok(beverages)
@@ -427,21 +447,25 @@ pub struct Beverage {
     pub starting_price: i64,
 
     #[serde(skip_deserializing)]
-    current_price: i64,
+    pub current_price: i64,
 }
 
 impl Beverage {
-    pub fn save(&self, conn: &db::Conn) -> Result<Beverage, ServiceError> {
-        let game = Game::find_by_id(self.game_id, conn)?;
+    pub async fn save(&self, db: &Pool<Postgres>) -> Result<Beverage, ServiceError> {
+        let game = Game::find_by_id(self.game_id, db).await?;
 
         if self.slot_no >= game.beverage_count {
             bad_request!("a beverage slot exceeds the maximum configured beverage slots");
         }
 
-        let config = diesel::insert_into(beverages::table)
-            .values(self)
-            .get_result::<Beverage>(conn)?;
-        Ok(config)
+        let beverage = sqlx::query_as!(Beverage, r#"
+            INSERT INTO beverages (game_id, user_id, slot_no, name, image_url, min_price, max_price, starting_price, current_price)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING *"#, 
+            self.game_id, self.user_id, self.slot_no, self.name, self.image_url, self.min_price, self.max_price, self.starting_price, self.current_price
+        ).fetch_one(db).await?;
+
+        Ok(beverage)
     }
 
     pub fn find(
@@ -458,45 +482,48 @@ impl Beverage {
         Ok(configs)
     }
 
-    pub fn find_by_game(game_id: i64, conn: &db::Conn) -> Result<Vec<Beverage>, ServiceError> {
-        let beverages = beverages::table
-            .filter(beverages::game_id.eq(game_id))
-            .order(beverages::slot_no)
-            .load::<Beverage>(conn)?;
-
-        Ok(beverages)
+    pub async fn find_by_game(
+        game_id: i64,
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<Beverage>, sqlx::Error> {
+        sqlx::query_as!(
+            Beverage,
+            "SELECT * FROM beverages WHERE game_id = $1 ORDER BY slot_no",
+            game_id
+        )
+        .fetch_all(db)
+        .await
     }
 
-    pub fn update(&self, conn: &db::Conn) -> Result<Beverage, ServiceError> {
-        use crate::schema::beverages::dsl::*;
-
-        let config = diesel::update(beverages)
-            .filter(slot_no.eq(self.slot_no))
-            .filter(game_id.eq(self.game_id))
-            .filter(user_id.eq(self.user_id))
-            .set((
-                name.eq(self.name.clone()),
-                image_url.eq(self.image_url.clone()),
-                min_price.eq(self.min_price),
-                max_price.eq(self.max_price),
-                starting_price.eq(self.starting_price),
-            ))
-            .get_result::<Beverage>(conn)?;
-
-        Ok(config)
+    pub async fn update(&self, db: &Pool<Postgres>) -> Result<Beverage, sqlx::Error> {
+        sqlx::query_as!(
+            Beverage,
+            r#"
+            UPDATE beverages
+            SET name = $1, image_url = $2, min_price = $3, max_price = $4, starting_price = $5
+            WHERE slot_no = $6 AND game_id = $7 AND user_id = $8
+            RETURNING *
+        "#,
+            self.name,
+            self.image_url,
+            self.min_price,
+            self.max_price,
+            self.starting_price,
+            self.slot_no,
+            self.game_id,
+            self.user_id
+        )
+        .fetch_one(db)
+        .await
     }
 
-    pub fn save_price(&self, conn: &db::Conn) -> Result<Beverage, ServiceError> {
-        use crate::schema::beverages::dsl::*;
-
-        let config = diesel::update(beverages)
-            .filter(slot_no.eq(self.slot_no))
-            .filter(game_id.eq(self.game_id))
-            .filter(user_id.eq(self.user_id))
-            .set((current_price.eq(self.price()),))
-            .get_result::<Beverage>(conn)?;
-
-        Ok(config)
+    #[tracing::instrument(name = "Beverage::save_price")]
+    pub async fn save_price(&self, db: &Pool<Postgres>) -> Result<Beverage, sqlx::Error> {
+        sqlx::query_as!(
+            Beverage, 
+            "UPDATE beverages SET current_price = $1 WHERE game_id = $2 AND user_id = $3 AND slot_no = $4 RETURNING *", 
+            self.price(), self.game_id, self.user_id, self.slot_no
+        ).fetch_one(db).await
     }
 
     /// calculate the price of a beverage based on it's offset from the average sales

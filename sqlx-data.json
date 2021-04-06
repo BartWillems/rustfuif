@@ -1,5 +1,269 @@
 {
   "db": "PostgreSQL",
+  "078a8e523a4bab713cf962905301590ed650e183db03e875b0e2d4f9642f56d4": {
+    "query": "\n            SELECT user_id\n            FROM invitations\n            WHERE game_id = $1 AND user_id = $2 AND state = $3\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "user_id",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "19b8e1e91a326674019156ad49b0c9e70282e36bb1acb7725456a8fba940cc71": {
+    "query": "INSERT INTO price_histories (game_id, user_id, slot_no, price, created_at) VALUES ($1, $2, $3, $4, $5)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Int2",
+          "Int8",
+          "Timestamptz"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "2118c34d745a10bfa022a40352166840e39caf084a3755cc4aa9dc0e12487f8a": {
+    "query": "SELECT * FROM beverages WHERE user_id = $1 AND game_id = $2 and slot_no = any($3) FOR UPDATE",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 3,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "image_url",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "min_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 6,
+          "name": "max_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "starting_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 8,
+          "name": "current_price",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Int2Array"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "21ce50d98524ec558ef36dfc8c28d800f895d1e4411990cbf81075184719fbe7": {
+    "query": "DELETE FROM games WHERE id = $1",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "244e45042eebd6d693a834e602e570144960192299235623cb4b30dc47d8b45d": {
+    "query": "\n            INSERT INTO beverages (game_id, user_id, slot_no, name, image_url, min_price, max_price, starting_price, current_price)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n            RETURNING *",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 3,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "image_url",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "min_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 6,
+          "name": "max_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "starting_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 8,
+          "name": "current_price",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Int2",
+          "Varchar",
+          "Varchar",
+          "Int8",
+          "Int8",
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "42c5ebc198c77c5fde9b01ff3020fe15a765259fb073e0ecd85879d858170994": {
+    "query": "SELECT * FROM beverages WHERE game_id = $1 ORDER BY slot_no",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 3,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "image_url",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "min_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 6,
+          "name": "max_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "starting_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 8,
+          "name": "current_price",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
   "606364c79e0990deb07dfbe6c32b3d302d083ec5333f3a5ce04113c38a041100": {
     "query": "SELECT * FROM users WHERE username = $1",
     "describe": {
@@ -50,6 +314,68 @@
       ]
     }
   },
+  "6a97dc0c93c4159e2fa7058964cba9468321f27bcb3196a2b480d782332d4924": {
+    "query": "SELECT * FROM games WHERE id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "owner_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "start_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "close_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 7,
+          "name": "beverage_count",
+          "type_info": "Int2"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false
+      ]
+    }
+  },
   "7332fbdcce19ebfd457d73302777c7a22f9fbe480a07ebe55c2fca689725d4da": {
     "query": "UPDATE users SET password = $1 WHERE id = $2",
     "describe": {
@@ -61,6 +387,58 @@
         ]
       },
       "nullable": []
+    }
+  },
+  "7ba565b675562c6b244102d7b840694005cdfab1fcd5cdf7cfab89c348decab9": {
+    "query": "INSERT INTO invitations (game_id, user_id, state) VALUES ($1, $2, $3) RETURNING *;",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "state",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Varchar"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
     }
   },
   "843923b9a0257cf80f1dff554e7dc8fdfc05f489328e8376513124dfb42996e3": {
@@ -110,6 +488,81 @@
         false,
         true,
         true
+      ]
+    }
+  },
+  "89126e892d946055e8ae903fed80f42b9b019a5b5f50e9c84e029bf44ee1c26f": {
+    "query": "\n            UPDATE beverages\n            SET name = $1, image_url = $2, min_price = $3, max_price = $4, starting_price = $5\n            WHERE slot_no = $6 AND game_id = $7 AND user_id = $8\n            RETURNING *\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 3,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "image_url",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "min_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 6,
+          "name": "max_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "starting_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 8,
+          "name": "current_price",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Int8",
+          "Int8",
+          "Int8",
+          "Int2",
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false
       ]
     }
   },
@@ -164,6 +617,77 @@
       ]
     }
   },
+  "9436c3bdf1ae926e96bb5ce13e9b2320e6744d6bb91389c4f654a2076856fd59": {
+    "query": "UPDATE beverages SET current_price = $1 WHERE game_id = $2 AND user_id = $3 AND slot_no = $4 RETURNING *",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 3,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "image_url",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "min_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 6,
+          "name": "max_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "starting_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 8,
+          "name": "current_price",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Int8",
+          "Int2"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
   "b2116f9843bb5c93c2a12a1475583cef7ddcd4910ed3f3881401c659d39f502c": {
     "query": "SELECT * FROM users WHERE username ilike $1",
     "describe": {
@@ -211,6 +735,386 @@
         false,
         true,
         true
+      ]
+    }
+  },
+  "ba86bcce42128e288a9855913a89a8b63a180cc9ed555a5160f397bae7f572a4": {
+    "query": "INSERT INTO sales_counts (game_id, slot_no, sales) VALUES ($1, $2, $3)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int2",
+          "Int8"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "c047ff1f442fb822a801b79fee8c26d6ff726b8eac265192c2a485551904ba9a": {
+    "query": "SELECT * FROM sales_counts WHERE game_id = $1 ORDER BY slot_no FOR UPDATE",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 2,
+          "name": "sales",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "db020ccf2e717aa33e4c0c64ac027089e88981e0ca4c04ba2822da5867ea679b": {
+    "query": "UPDATE sales_counts SET sales = $1 WHERE game_id = $2 AND slot_no = $3 RETURNING *",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 2,
+          "name": "sales",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Int2"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "dd73f3c44330a83923086d6ea85feb03592edf9cac376a13b4b0e7183ed9d934": {
+    "query": "SELECT * FROM price_histories WHERE user_id = $1 AND game_id = $2",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 4,
+          "name": "price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 5,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "df456fa3baae68d93bde5f90f5b0b1938cf0e60c889205e4d7bbc08d3130db20": {
+    "query": "UPDATE games SET name = $1 WHERE id = $2 RETURNING *",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "owner_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "start_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "close_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 7,
+          "name": "beverage_count",
+          "type_info": "Int2"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false
+      ]
+    }
+  },
+  "e35183941588da2c0471d8e1c7d57328e9a68d84a4f8a72963ee970e85812add": {
+    "query": "INSERT INTO transactions (user_id, game_id, slot_no, amount, price) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "amount",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 6,
+          "name": "price",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Int2",
+          "Int4",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false
+      ]
+    }
+  },
+  "e8d4c494a6c3ec1c24f5a3d7c62d1a50349beddeedeb0083b12a8ad58ad88fb0": {
+    "query": "SELECT * FROM games WHERE start_time < NOW() AND close_time > NOW()",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "owner_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "start_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "close_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 7,
+          "name": "beverage_count",
+          "type_info": "Int2"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false
+      ]
+    }
+  },
+  "f96c70e83faa3f5700ec1c6768b2cf26c658a567d49e0a8531e9d5eda3582f1e": {
+    "query": "\n            INSERT INTO games (name, owner_id, start_time, close_time, beverage_count)\n            VALUES ($1, $2, $3, $4, $5)\n            RETURNING *;\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "owner_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "start_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "close_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 7,
+          "name": "beverage_count",
+          "type_info": "Int2"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Int8",
+          "Timestamptz",
+          "Timestamptz",
+          "Int2"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false
       ]
     }
   }

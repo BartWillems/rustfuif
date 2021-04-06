@@ -48,6 +48,7 @@ pub struct Filter {
 }
 
 impl User {
+    #[tracing::instrument(name = "user::find_all")]
     pub async fn find_all(filter: Filter, db: &Pool<Postgres>) -> Result<Vec<Self>, sqlx::Error> {
         let users = sqlx::query_as!(
             User,
@@ -116,6 +117,7 @@ impl User {
     }
 
     /// return the total amount of registered users
+    #[tracing::instrument(name = "user::count")]
     pub async fn count(db: &Pool<Postgres>) -> Result<i64, sqlx::Error> {
         let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
             .fetch_one(db)

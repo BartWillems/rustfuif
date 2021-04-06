@@ -57,22 +57,17 @@ async fn invite_user(
     game_id: Path<i64>,
     invite: Json<UserInvite>,
     id: Identity,
-    pool: Data<db::Pool>,
+    state: Data<server::State>,
 ) -> server::Response {
     let user = auth::get_user(&id)?;
 
     let invite = invite.into_inner();
 
-    web::block(move || {
-        let conn = pool.get()?;
-        let game = Game::find_by_id(*game_id, &conn)?;
-        if !game.is_owner(&user) {
-            forbidden!("Only the game owner can invite users");
-        }
-
-        game.invite_user(invite.user_id, &conn)
-    })
-    .await?;
+    let game = Game::find_by_id(*game_id, &state.db).await?;
+    if !game.is_owner(&user) {
+        forbidden!("Only the game owner can invite users");
+    }
+    game.invite_user(invite.user_id, &state.db).await?;
 
     Ok(HttpResponse::new(StatusCode::CREATED))
 }

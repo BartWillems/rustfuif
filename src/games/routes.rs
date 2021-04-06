@@ -6,10 +6,9 @@ use actix_web::{delete, get, post, put};
 
 use crate::auth;
 use crate::db;
-use crate::errors::ServiceError;
 use crate::games::models::{Beverage, CreateGame, Game, GameFilter};
 use crate::prices::PriceHistory;
-use crate::server;
+use crate::server::{self, State};
 use crate::validator::Validator;
 
 #[get("/games")]
@@ -34,17 +33,13 @@ async fn find_all(
 }
 
 #[get("/games/{id}")]
-async fn find(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+async fn find(game_id: Path<i64>, state: Data<State>, id: Identity) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    let game = web::block(move || {
-        let conn = pool.get()?;
-        if !user.is_admin && !Game::verify_user(*game_id, user.id, &conn)? {
-            forbidden!("user is not in game");
-        }
-        Game::find_by_id(*game_id, &conn)
-    })
-    .await?;
+    if !user.is_admin && !Game::verify_user_participation(*game_id, user.id, &state.db).await? {
+        forbidden!("user is not in game");
+    }
+    let game = Game::find_by_id(*game_id, &state.db).await?;
 
     http_ok_json!(game);
 }
@@ -52,48 +47,42 @@ async fn find(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server:
 #[post("/games")]
 async fn create(
     game: Json<Validator<CreateGame>>,
-    pool: Data<db::Pool>,
+    state: Data<State>,
     id: Identity,
 ) -> server::Response {
     let mut game = game.into_inner().validate()?;
 
     game.owner_id = auth::get_user(&id)?.id;
 
-    let game = web::block(move || Game::create(game, &pool.get()?)).await?;
+    let game = Game::create(game, &state.db).await?;
 
     http_created_json!(game);
 }
 
 #[put("/games")]
-async fn update(game: Json<Game>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+async fn update(game: Json<Game>, state: Data<State>, id: Identity) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    let game = web::block(move || {
-        let conn = pool.get()?;
-        let old_game = Game::find_by_id(game.id, &conn)?;
-        if old_game.owner_id != user.id && !user.is_admin {
-            forbidden!("Only game owners can delete games");
-        }
-        game.update(&conn)
-    })
-    .await?;
+    let old_game = Game::find_by_id(game.id, &state.db).await?;
+    if old_game.owner_id != user.id && !user.is_admin {
+        forbidden!("Only game owners can delete games");
+    }
+
+    let game = game.update(&state.db).await?;
 
     http_ok_json!(game);
 }
 
 #[delete("/games/{id}")]
-async fn delete(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+async fn delete(game_id: Path<i64>, state: Data<State>, id: Identity) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    web::block(move || {
-        let conn = pool.get()?;
-        let game = Game::find_by_id(*game_id, &conn)?;
-        if game.owner_id != user.id && !user.is_admin {
-            forbidden!("Only game owners can delete games");
-        }
-        Game::delete_by_id(game.id, &conn)
-    })
-    .await?;
+    let game = Game::find_by_id(*game_id, &state.db).await?;
+    if game.owner_id != user.id && !user.is_admin {
+        forbidden!("Only game owners can delete games");
+    }
+
+    game.delete(&state.db).await?;
 
     Ok(HttpResponse::new(StatusCode::OK))
 }
@@ -112,39 +101,35 @@ async fn get_beverages(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -
 }
 
 #[post("/games/{id}/beverages")]
-async fn create_beverage_config(
+async fn create_beverage(
     game_id: Path<i64>,
-    config: Json<Validator<Beverage>>,
-    pool: Data<db::Pool>,
+    beverage: Json<Validator<Beverage>>,
+    state: Data<State>,
     id: Identity,
 ) -> server::Response {
     let user = auth::get_user(&id)?;
 
     let game_id = *game_id;
-    let mut config = config.into_inner().validate()?;
+    let mut beverage = beverage.into_inner().validate()?;
 
-    config.user_id = user.id;
-    config.game_id = game_id;
-    config.set_price(config.starting_price);
+    beverage.user_id = user.id;
+    beverage.game_id = game_id;
+    beverage.set_price(beverage.starting_price);
 
-    let config = web::block(move || {
-        let conn = pool.get()?;
-        if !Game::verify_user(game_id, user.id, &conn)? {
-            forbidden!("you are not in this game");
-        }
+    if !Game::verify_user_participation(game_id, user.id, &state.db).await? {
+        forbidden!("you are not in this game");
+    }
 
-        config.save(&conn)
-    })
-    .await?;
+    let beverage = beverage.save(&state.db).await?;
 
-    http_created_json!(config);
+    http_created_json!(beverage);
 }
 
 #[put("/games/{id}/beverages")]
 async fn update_beverage_config(
     game_id: Path<i64>,
     config: Json<Validator<Beverage>>,
-    pool: Data<db::Pool>,
+    state: Data<State>,
     id: Identity,
 ) -> server::Response {
     let user = auth::get_user(&id)?;
@@ -155,30 +140,20 @@ async fn update_beverage_config(
     config.user_id = user.id;
     config.game_id = game_id;
 
-    let config = web::block(move || {
-        let conn = pool.get()?;
-        if !Game::verify_user(game_id, user.id, &conn)? {
-            forbidden!("you are not in this game");
-        }
+    if !Game::verify_user_participation(game_id, user.id, &state.db).await? {
+        forbidden!("you are not in this game");
+    }
 
-        config.update(&conn)
-    })
-    .await?;
+    let config = config.update(&state.db).await?;
 
     http_created_json!(config);
 }
 
 #[get("/games/{id}/stats/price-history")]
-async fn price_history(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+async fn price_history(game_id: Path<i64>, state: Data<State>, id: Identity) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    let prices = web::block(move || {
-        let conn = pool.get()?;
-        let res: Result<Vec<PriceHistory>, ServiceError> =
-            PriceHistory::load(user.id, *game_id, &conn).map_err(|err| err.into());
-        res
-    })
-    .await?;
+    let prices = PriceHistory::load(user.id, *game_id, &state.db).await?;
 
     http_ok_json!(prices);
 }
@@ -190,7 +165,7 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(update);
     cfg.service(delete);
 
-    cfg.service(create_beverage_config);
+    cfg.service(create_beverage);
     cfg.service(get_beverages);
     cfg.service(update_beverage_config);
 

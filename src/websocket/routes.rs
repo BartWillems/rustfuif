@@ -7,8 +7,8 @@ use actix_web::{web, HttpRequest};
 use actix_web_actors::ws;
 
 use crate::auth;
-use crate::db;
 use crate::games::Game;
+use crate::server::State;
 use crate::users::User;
 use crate::websocket::server;
 use crate::websocket::server::ConnectionType;
@@ -22,40 +22,27 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 pub async fn game_route(
     req: HttpRequest,
     stream: web::Payload,
-    srv: Data<Addr<server::NotificationServer>>,
     game_id: Path<i64>,
     id: Identity,
-    pool: Data<db::Pool>,
+    state: Data<State>,
 ) -> crate::server::Response {
     let mut user = auth::get_user(&id)?;
 
-    let game_id = *game_id;
-
-    let auth_user = user.clone();
+    if !Game::verify_user_participation(*game_id, user.id, &state.db).await? && !user.is_admin {
+        forbidden!("you are not in this game");
+    }
 
     // When an administrator connects to this route, his admin flag is set to false so he only receives normal user notifications
     // This is a temporary workaround and should be changed once the server knows if a connected user wants game updates or admin updates
     user.is_admin = false;
 
-    web::block(move || {
-        if auth_user.is_admin {
-            return Ok(());
-        }
-        let conn = pool.get()?;
-        if !Game::verify_user(game_id, auth_user.id, &conn)? {
-            forbidden!("you are not in this game");
-        }
-        Ok(())
-    })
-    .await?;
-
     ws::start(
         WebsocketConnection {
             id: 0,
             hb: Instant::now(),
-            connection_type: ConnectionType::GameConnection(game_id),
+            connection_type: ConnectionType::GameConnection(*game_id),
             user,
-            server: srv.get_ref().clone(),
+            notifier: state.notifier.clone(),
         },
         &req,
         stream,
@@ -67,7 +54,7 @@ pub async fn game_route(
 pub async fn admin_route(
     req: HttpRequest,
     stream: web::Payload,
-    srv: Data<Addr<server::NotificationServer>>,
+    state: Data<State>,
     id: Identity,
 ) -> crate::server::Response {
     let user = auth::get_user(&id)?;
@@ -82,7 +69,7 @@ pub async fn admin_route(
             hb: Instant::now(),
             connection_type: ConnectionType::AdminConnection,
             user,
-            server: srv.get_ref().clone(),
+            notifier: state.notifier.clone(),
         },
         &req,
         stream,
@@ -102,7 +89,7 @@ struct WebsocketConnection {
     /// Connected user
     user: User,
     /// notification server
-    server: Addr<server::NotificationServer>,
+    notifier: Addr<server::NotificationServer>,
 }
 
 impl Actor for WebsocketConnection {
@@ -120,7 +107,7 @@ impl Actor for WebsocketConnection {
         // HttpContext::state() is instance of WebsocketConnection, state is shared
         // across all routes within application
         let addr = ctx.address();
-        self.server
+        self.notifier
             .send(server::Connect {
                 addr: addr.recipient(),
                 user: self.user.clone(),
@@ -143,7 +130,7 @@ impl Actor for WebsocketConnection {
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        self.server.do_send(server::Disconnect { id: self.id });
+        self.notifier.do_send(server::Disconnect { id: self.id });
         Running::Stop
     }
 }
@@ -224,7 +211,7 @@ impl WebsocketConnection {
                 error!("Websocket Client heartbeat failed, disconnecting!");
 
                 // notify server
-                act.server.do_send(server::Disconnect { id: act.id });
+                act.notifier.do_send(server::Disconnect { id: act.id });
 
                 // stop actor
                 ctx.stop();
