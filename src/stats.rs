@@ -2,7 +2,6 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::task::{Context, Poll};
 
-use actix::Addr;
 use actix_service::{Service, Transform};
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::web::Data;
@@ -12,9 +11,8 @@ use futures::future::{ok, Ready};
 use futures::Future;
 
 use crate::db;
-use crate::server::Response;
+use crate::server::{Response, State};
 use crate::websocket::queries::ActiveSessionCount;
-use crate::websocket::server::NotificationServer;
 
 lazy_static! {
     static ref STATS: Stats = Stats::new();
@@ -87,8 +85,8 @@ pub struct StatsResponse {
 }
 
 #[get("/stats")]
-pub async fn route(sessions: Data<Addr<NotificationServer>>, pool: Data<db::Pool>) -> Response {
-    let state = pool.clone().into_inner().state();
+pub async fn route(state: Data<State>, pool: Data<db::Pool>) -> Response {
+    let rd2d_state = pool.clone().into_inner().state();
 
     let active_games = web::block(move || {
         let conn = pool.get()?;
@@ -99,10 +97,10 @@ pub async fn route(sessions: Data<Addr<NotificationServer>>, pool: Data<db::Pool
     http_ok_json!(StatsResponse {
         requests: STATS.requests.load(Ordering::Relaxed),
         errors: STATS.errors.load(Ordering::Relaxed),
-        active_ws_sessions: sessions.get_ref().send(ActiveSessionCount).await?,
+        active_ws_sessions: state.notifier.send(ActiveSessionCount).await?,
         active_games,
-        active_db_connections: state.connections,
-        idle_db_connections: state.idle_connections,
+        active_db_connections: rd2d_state.connections,
+        idle_db_connections: rd2d_state.idle_connections,
         cache_hits: STATS.cache_hits.load(Ordering::Relaxed),
         cache_misses: STATS.cache_misses.load(Ordering::Relaxed),
     });

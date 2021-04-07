@@ -243,7 +243,7 @@ impl SalesCount {
         Ok(res)
     }
 
-    #[tracing::instrument(skip(conn))]
+    #[tracing::instrument(skip(conn), name = "salescount::find_by_game")]
     pub fn find_by_game(game_id: i64, conn: &db::Conn) -> Result<Vec<SalesCount>, DBError> {
         let res = sales_counts::table
             .filter(sales_counts::game_id.eq(game_id))

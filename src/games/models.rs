@@ -12,7 +12,7 @@ use crate::schema::{beverages, games, invitations, users};
 use crate::transactions::models::SalesCount;
 use crate::users::{User, UserResponse};
 
-#[derive(Debug, Serialize, Deserialize, Queryable, Identifiable, AsChangeset)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Game {
     pub id: i64,
@@ -334,7 +334,7 @@ impl Game {
 
     /// Update the prices for a game, returning the updated beverages
     #[tracing::instrument]
-    pub async fn update_prices(&self, db: &Pool<Postgres>) -> Result<Vec<Beverage>, ServiceError> {
+    pub async fn update_prices(&self, db: &Pool<Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
         let mut beverages = self.get_beverages(db).await?;
 
         let sales = SalesCount::find_by_game_for_update(self.id, db).await?;
@@ -481,7 +481,7 @@ impl Beverage {
             SET name = $1, image_url = $2, min_price = $3, max_price = $4, starting_price = $5
             WHERE slot_no = $6 AND game_id = $7 AND user_id = $8
             RETURNING *
-        "#,
+            "#,
             self.name,
             self.image_url,
             self.min_price,

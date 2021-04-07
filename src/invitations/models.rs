@@ -81,12 +81,6 @@ impl NewInvitation {
         .await
     }
 
-    // pub fn save(&self, conn: &db::Conn) -> Result<Invitation, DBError> {
-    //     diesel::insert_into(invitations::table)
-    //         .values(self)
-    //         .get_result::<Invitation>(conn)
-    // }
-
     pub fn accept(&mut self) -> &mut NewInvitation {
         self.state = State::ACCEPTED.to_string();
         self
