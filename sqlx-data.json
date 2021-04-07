@@ -22,6 +22,28 @@
       ]
     }
   },
+  "0d6e7afd7031dc0dfc0e49008d87e8f1d1d6a39150a908bfd4656de2d17ea792": {
+    "query": "\n            SELECT games.id\n            FROM (games INNER JOIN invitations ON invitations.game_id = games.id) \n            WHERE games.id = $1 AND invitations.user_id = $2 AND invitations.state = $3 AND games.start_time < NOW() AND games.close_time > NOW()",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
   "19b8e1e91a326674019156ad49b0c9e70282e36bb1acb7725456a8fba940cc71": {
     "query": "INSERT INTO price_histories (game_id, user_id, slot_no, price, created_at) VALUES ($1, $2, $3, $4, $5)",
     "describe": {
@@ -36,6 +58,81 @@
         ]
       },
       "nullable": []
+    }
+  },
+  "1e911dcbc8d5335012b8288ff99bf02a6322f49fb144e5ecc03b967b0184b4fb": {
+    "query": "\n            UPDATE beverages\n            SET name = $1, image_url = $2, min_price = $3, max_price = $4, starting_price = $5\n            WHERE slot_no = $6 AND game_id = $7 AND user_id = $8\n            RETURNING *\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 3,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "image_url",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "min_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 6,
+          "name": "max_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "starting_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 8,
+          "name": "current_price",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Int8",
+          "Int8",
+          "Int8",
+          "Int2",
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false
+      ]
     }
   },
   "2118c34d745a10bfa022a40352166840e39caf084a3755cc4aa9dc0e12487f8a": {
@@ -196,6 +293,63 @@
       ]
     }
   },
+  "3e84f9de455b33c98f3814f666ae324afe0d34ba9c0af5d772a4b6cd724c06eb": {
+    "query": "SELECT * FROM transactions WHERE user_id = $1 AND game_id = $2 ORDER BY created_at DESC",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "amount",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 6,
+          "name": "price",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false
+      ]
+    }
+  },
   "42c5ebc198c77c5fde9b01ff3020fe15a765259fb073e0ecd85879d858170994": {
     "query": "SELECT * FROM beverages WHERE game_id = $1 ORDER BY slot_no",
     "describe": {
@@ -264,6 +418,57 @@
       ]
     }
   },
+  "51b6921179757041600749fd164ca8438cf520424f9d1611e9d2bbafd4df7592": {
+    "query": "SELECT games.id, games.name, games.start_time, games.close_time, games.beverage_count, (users.id, users.username) as \"owner!: UserResponse\"\n                FROM (games INNER JOIN users ON games.owner_id = users.id)\n                WHERE games.id IN (\n                    SELECT game_id FROM invitations WHERE user_id = $1 AND state = $2\n                ) AND games.close_time > NOW()\n                ORDER BY games.start_time DESC",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "start_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 3,
+          "name": "close_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "beverage_count",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 5,
+          "name": "owner!: UserResponse",
+          "type_info": "Record"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        null
+      ]
+    }
+  },
   "606364c79e0990deb07dfbe6c32b3d302d083ec5333f3a5ce04113c38a041100": {
     "query": "SELECT * FROM users WHERE username = $1",
     "describe": {
@@ -311,6 +516,54 @@
         false,
         true,
         true
+      ]
+    }
+  },
+  "62ecb66f8d28cd2f0626a99ea8eb386a15d7c0cbbb0eedb765847b68030f8ffd": {
+    "query": "SELECT games.id, games.name, games.start_time, games.close_time, games.beverage_count, (users.id, users.username) as \"owner!: UserResponse\"\n            FROM (games INNER JOIN users ON games.owner_id = users.id)\n            ORDER BY games.start_time DESC",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "start_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 3,
+          "name": "close_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "beverage_count",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 5,
+          "name": "owner!: UserResponse",
+          "type_info": "Record"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        null
       ]
     }
   },
@@ -488,81 +741,6 @@
         false,
         true,
         true
-      ]
-    }
-  },
-  "89126e892d946055e8ae903fed80f42b9b019a5b5f50e9c84e029bf44ee1c26f": {
-    "query": "\n            UPDATE beverages\n            SET name = $1, image_url = $2, min_price = $3, max_price = $4, starting_price = $5\n            WHERE slot_no = $6 AND game_id = $7 AND user_id = $8\n            RETURNING *\n        ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "game_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "user_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 2,
-          "name": "slot_no",
-          "type_info": "Int2"
-        },
-        {
-          "ordinal": 3,
-          "name": "name",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 4,
-          "name": "image_url",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 5,
-          "name": "min_price",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 6,
-          "name": "max_price",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 7,
-          "name": "starting_price",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 8,
-          "name": "current_price",
-          "type_info": "Int8"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Varchar",
-          "Varchar",
-          "Int8",
-          "Int8",
-          "Int8",
-          "Int2",
-          "Int8",
-          "Int8"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        false
       ]
     }
   },
@@ -781,6 +959,57 @@
         false,
         false,
         false
+      ]
+    }
+  },
+  "d703a19f7044d2bd9cc38429a5cc2b6ebd41fe1ea12d40b0df27749ffef0310b": {
+    "query": "SELECT games.id, games.name, games.start_time, games.close_time, games.beverage_count, (users.id, users.username) as \"owner!: UserResponse\"\n            FROM (games INNER JOIN users ON games.owner_id = users.id)\n            WHERE games.id IN (\n                SELECT game_id FROM invitations WHERE user_id = $1 AND state = $2\n            )\n            ORDER BY games.start_time DESC",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "start_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 3,
+          "name": "close_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "beverage_count",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 5,
+          "name": "owner!: UserResponse",
+          "type_info": "Record"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        null
       ]
     }
   },
@@ -1049,6 +1278,54 @@
         true,
         true,
         false
+      ]
+    }
+  },
+  "f6a544dca69697c9a4dced013594dc9d710fb148d8d7fb6d989903fe32f6be65": {
+    "query": "SELECT games.id, games.name, games.start_time, games.close_time, games.beverage_count, (users.id, users.username) as \"owner!: UserResponse\"\n                FROM (games INNER JOIN users ON games.owner_id = users.id)\n                WHERE games.close_time > NOW()\n                ORDER BY games.start_time DESC",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "start_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 3,
+          "name": "close_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "beverage_count",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 5,
+          "name": "owner!: UserResponse",
+          "type_info": "Record"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        null
       ]
     }
   },
