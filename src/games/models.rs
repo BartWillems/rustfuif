@@ -7,7 +7,7 @@ use url::Url;
 
 use crate::db;
 use crate::errors::ServiceError;
-use crate::invitations::{InvitationQuery, NewInvitation, State};
+use crate::invitations::{NewInvitation, State};
 use crate::schema::{beverages, invitations, users};
 use crate::transactions::models::SalesCount;
 use crate::users::{User, UserResponse};
@@ -226,17 +226,12 @@ impl Game {
     #[tracing::instrument(skip(conn))]
     pub fn find_users(
         game_id: i64,
-        filter: InvitationQuery,
         conn: &db::Conn,
     ) -> Result<Vec<GameUser>, ServiceError> {
-        let mut query = invitations::table
+        let query = invitations::table
             .inner_join(users::table)
             .filter(invitations::game_id.eq(game_id))
             .into_boxed();
-
-        if let Some(state) = filter.state {
-            query = query.filter(invitations::state.eq(state.to_string()));
-        }
 
         let users = query
             .select((users::id, users::username, invitations::state))
@@ -245,22 +240,9 @@ impl Game {
         Ok(users)
     }
 
-    /// show users who are not yet invited in a game
-    #[tracing::instrument(skip(conn))]
-    pub fn find_available_users(
-        game_id: i64,
-        conn: &db::Conn,
-    ) -> Result<Vec<UserResponse>, ServiceError> {
-        let participants = invitations::table
-            .select(invitations::user_id)
-            .filter(invitations::game_id.eq(game_id));
-
-        let users = users::table
-            .select((users::id, users::username))
-            .filter(users::id.ne_all(participants))
-            .load::<UserResponse>(conn)?;
-
-        Ok(users)
+    #[tracing::instrument(name = "Game::find_available_users")]
+    pub async fn find_available_users(game_id: i64, db: &Pool<Postgres>) -> Result<Vec<UserResponse>, sqlx::Error> {
+        sqlx::query_as!(UserResponse, "SELECT id, username FROM users WHERE id NOT IN (SELECT user_id FROM invitations WHERE game_id = $1)", game_id).fetch_all(db).await
     }
 
     /// validates if a user is actually partaking in a game (invited and accepted)
@@ -291,6 +273,7 @@ impl Game {
         user.is_admin || user.id == self.owner_id
     }
 
+    #[tracing::instrument(name = "Game::update")]
     pub async fn update(&self, db: &Pool<Postgres>) -> Result<Game, sqlx::Error> {
         let game = sqlx::query_as!(
             Game,
@@ -304,6 +287,7 @@ impl Game {
         Ok(game)
     }
 
+    #[tracing::instrument(name = "Game::delete")]
     pub async fn delete(&self, db: &Pool<Postgres>) -> Result<(), ServiceError> {
         sqlx::query!("DELETE FROM games WHERE id = $1", self.id)
             .execute(db)

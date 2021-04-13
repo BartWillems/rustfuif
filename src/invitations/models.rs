@@ -26,12 +26,6 @@ impl Default for State {
     }
 }
 
-/// InvitationQuery is used to filter invited users
-#[derive(Debug, Deserialize)]
-pub struct InvitationQuery {
-    pub state: Option<State>,
-}
-
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
@@ -118,12 +112,8 @@ impl Invitation {
 
     /// get your game invites
     #[tracing::instrument(skip(conn))]
-    pub fn find(
-        user_id: i64,
-        filter: InvitationQuery,
-        conn: &db::Conn,
-    ) -> Result<Vec<InvitationResponse>, ServiceError> {
-        let mut query = invitations::table
+    pub fn find(user_id: i64, conn: &db::Conn) -> Result<Vec<InvitationResponse>, ServiceError> {
+        let query = invitations::table
             .inner_join(games::table.inner_join(users::table))
             .select((
                 invitations::id,
@@ -142,10 +132,6 @@ impl Invitation {
             // do not show your own created games as invites
             .filter(games::owner_id.ne(user_id))
             .into_boxed();
-
-        if let Some(state) = filter.state {
-            query = query.filter(invitations::state.eq(state.to_string()));
-        }
 
         let invitations = query
             .order(games::start_time)

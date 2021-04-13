@@ -1386,6 +1386,32 @@
       ]
     }
   },
+  "f1a0f93c6591d0008657d1e17a230d0d4c0f467c4b8e4b1453c861ebc8ba617d": {
+    "query": "SELECT id, username FROM users WHERE id NOT IN (SELECT user_id FROM invitations WHERE game_id = $1)",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "username",
+          "type_info": "Varchar"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false
+      ]
+    }
+  },
   "f6a544dca69697c9a4dced013594dc9d710fb148d8d7fb6d989903fe32f6be65": {
     "query": "SELECT games.id, games.name, games.start_time, games.close_time, games.beverage_count, (users.id, users.username) as \"owner!: UserResponse\"\n                FROM (games INNER JOIN users ON games.owner_id = users.id)\n                WHERE games.close_time > NOW()\n                ORDER BY games.start_time DESC",
     "describe": {

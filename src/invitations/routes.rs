@@ -1,39 +1,29 @@
 use actix_identity::Identity;
 use actix_web::http::StatusCode;
-use actix_web::web::{Data, HttpResponse, Json, Path, Query};
+use actix_web::web::{Data, HttpResponse, Json, Path};
 use actix_web::{get, post, web};
 
 use crate::auth;
 use crate::db;
 use crate::games::Game;
-use crate::invitations::{Invitation, InvitationQuery, State, UserInvite};
+use crate::invitations::{Invitation, State, UserInvite};
 use crate::server;
 
 #[get("/invitations")]
-async fn my_invitations(
-    id: Identity,
-    query: Query<InvitationQuery>,
-    pool: Data<db::Pool>,
-) -> server::Response {
+async fn my_invitations(id: Identity, pool: Data<db::Pool>) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    let invitations =
-        web::block(move || Invitation::find(user.id, query.into_inner(), &pool.get()?)).await?;
+    let invitations = web::block(move || Invitation::find(user.id, &pool.get()?)).await?;
 
     http_ok_json!(invitations);
 }
 
 /// show users who are invited for a specific game
 #[get("/games/{id}/users")]
-async fn find_users(
-    game_id: Path<i64>,
-    query: Query<InvitationQuery>,
-    pool: Data<db::Pool>,
-    id: Identity,
-) -> server::Response {
+async fn find_users(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
     auth::get_user(&id)?;
-    let users =
-        web::block(move || Game::find_users(*game_id, query.into_inner(), &pool.get()?)).await?;
+
+    let users = web::block(move || Game::find_users(*game_id, &pool.get()?)).await?;
 
     http_ok_json!(users);
 }
@@ -41,12 +31,12 @@ async fn find_users(
 #[get("/games/{id}/available-users")]
 async fn find_available_users(
     game_id: Path<i64>,
-    pool: Data<db::Pool>,
+    state: Data<server::State>,
     id: Identity,
 ) -> server::Response {
     auth::get_user(&id)?;
 
-    let users = web::block(move || Game::find_available_users(*game_id, &pool.get()?)).await?;
+    let users = Game::find_available_users(*game_id, &state.db).await?;
 
     http_ok_json!(users);
 }
