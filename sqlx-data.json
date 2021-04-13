@@ -550,74 +550,6 @@
       ]
     }
   },
-  "488b377c9df8817262e9536147c6f4e787d073d088a737dd1d2a3642f68ddaf3": {
-    "query": "\n            SELECT invitations.id, invitations.state, games.id AS \"game_id\", games.name, games.start_time, games.close_time, games.beverage_count, users.id AS \"user_id\", users.username\n            FROM invitations\n            INNER JOIN games ON invitations.game_id = games.id\n            INNER JOIN users ON invitations.user_id = users.id\n            WHERE invitations.user_id = $1 AND games.close_time > NOW() AND games.owner_id != $1\n            ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "state",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 2,
-          "name": "game_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 3,
-          "name": "name",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 4,
-          "name": "start_time",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 5,
-          "name": "close_time",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 6,
-          "name": "beverage_count",
-          "type_info": "Int2"
-        },
-        {
-          "ordinal": 7,
-          "name": "user_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 8,
-          "name": "username",
-          "type_info": "Varchar"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
-      ]
-    }
-  },
   "4a586d4acd1502cb48be4e3a56ba0575b836efd71666451e481e78f57649f841": {
     "query": "UPDATE invitations SET state = $1 WHERE id = $2 RETURNING *",
     "describe": {
@@ -1154,6 +1086,74 @@
         false,
         false,
         true,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "a6e1dc3456d5e6957e5a854e2bd61f27b616e0085188340da338267bc70580df": {
+    "query": "\n            SELECT invitations.id, invitations.state, games.id AS \"game_id\", games.name, games.start_time, games.close_time, games.beverage_count, users.id AS \"user_id\", users.username\n            FROM invitations\n            INNER JOIN games ON invitations.game_id = games.id\n            INNER JOIN users ON games.owner_id = users.id\n            WHERE \n                invitations.user_id = $1 \n                AND games.close_time > NOW() \n                AND games.owner_id != $1\n            ORDER BY games.start_time\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "state",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "start_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "close_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "beverage_count",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 7,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 8,
+          "name": "username",
+          "type_info": "Varchar"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
         false,
         false,
         false,
