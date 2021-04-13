@@ -33,28 +33,26 @@ impl Updater {
         }
     }
 
-    pub async fn start(&self) {
-        let interval = self.interval;
-        let db = self.db.clone();
-        let notifier = self.notifier.clone();
-
+    pub async fn start(self) {
         actix::spawn(async move {
             let mut stock_market = market::StockMarket::new();
 
             loop {
-                actix_rt::time::delay_for(interval).await;
+                actix_rt::time::delay_for(self.interval).await;
 
-                match Updater::update_prices(&db, &mut stock_market).await {
+                match Updater::update_prices(&self.db, &mut stock_market).await {
                     Err(e) => {
                         error!("unable to update prices: {}", e);
                     }
                     Ok(PriceUpdate::Regular) => {
                         info!("succesfully updated the prices");
-                        notifier.do_send(Notification::PriceUpdate(PriceUpdate::Regular));
+                        self.notifier
+                            .do_send(Notification::PriceUpdate(PriceUpdate::Regular));
                     }
                     Ok(PriceUpdate::StockMarketCrash) => {
                         info!("succesfully updated the prices, with stock market crash");
-                        notifier.do_send(Notification::PriceUpdate(PriceUpdate::StockMarketCrash));
+                        self.notifier
+                            .do_send(Notification::PriceUpdate(PriceUpdate::StockMarketCrash));
                     }
                 };
             }
