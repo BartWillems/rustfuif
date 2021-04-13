@@ -1,7 +1,6 @@
 use actix_web::error::Error as ActixError;
 use actix_web::{error::ResponseError, HttpResponse};
 use derive_more::Display;
-use diesel::result::{DatabaseErrorKind, Error as DBError};
 use redis::RedisError;
 use std::convert::From;
 
@@ -58,34 +57,6 @@ impl From<ActixError> for ServiceError {
 impl From<actix::MailboxError> for ServiceError {
     fn from(error: actix::MailboxError) -> ServiceError {
         error!("actix mailbox error: {}", error);
-        ServiceError::InternalServerError
-    }
-}
-
-impl From<DBError> for ServiceError {
-    fn from(error: DBError) -> ServiceError {
-        error!("db error: {}", error);
-        match error {
-            DBError::NotFound => ServiceError::NotFound,
-            DBError::DatabaseError(kind, info) => match kind {
-                DatabaseErrorKind::UniqueViolation => {
-                    debug!("unique violation");
-                    ServiceError::Conflict(info.message().to_string())
-                }
-                DatabaseErrorKind::ForeignKeyViolation => {
-                    debug!("foreign key violation");
-                    ServiceError::BadRequest(info.message().to_string())
-                }
-                _ => ServiceError::InternalServerError,
-            },
-            _ => ServiceError::InternalServerError,
-        }
-    }
-}
-
-impl From<r2d2::Error> for ServiceError {
-    fn from(error: r2d2::Error) -> ServiceError {
-        error!("r2d2 connection pool error: {}", error);
         ServiceError::InternalServerError
     }
 }

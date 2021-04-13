@@ -55,7 +55,7 @@ pub struct GameUser {
     pub invitation_state: String,
 }
 
-#[derive(Debug, Serialize, Queryable)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameResponse {
     pub id: i64,

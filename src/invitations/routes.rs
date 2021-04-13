@@ -4,16 +4,15 @@ use actix_web::web::{Data, HttpResponse, Json, Path};
 use actix_web::{get, post, web};
 
 use crate::auth;
-use crate::db;
 use crate::games::Game;
 use crate::invitations::{Invitation, State, UserInvite};
 use crate::server;
 
 #[get("/invitations")]
-async fn my_invitations(id: Identity, pool: Data<db::Pool>) -> server::Response {
+async fn my_invitations(id: Identity, state: Data<server::State>) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    let invitations = web::block(move || Invitation::find(user.id, &pool.get()?)).await?;
+    let invitations = Invitation::my_invitations(user.id, &state.db).await?;
 
     http_ok_json!(invitations);
 }

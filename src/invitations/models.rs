@@ -2,13 +2,10 @@ use std::fmt;
 
 use actix_web::Result;
 use chrono::{DateTime, Utc};
-use diesel::prelude::*;
 use sqlx::{Pool, Postgres};
 
-use crate::db;
-use crate::errors::ServiceError;
 use crate::games::GameResponse;
-use crate::schema::{games, invitations, users};
+use crate::users::UserResponse;
 
 /// The state shows wether a user has accepted, declined or not yet
 /// responded to an invitation.
@@ -33,7 +30,7 @@ impl fmt::Display for State {
 
 /// Game invite for a user.
 /// When you create a game, you're also instantly invited and accepted
-#[derive(Debug, Serialize, Queryable, Identifiable)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Invitation {
     pub id: i64,
@@ -79,7 +76,7 @@ impl NewInvitation {
     }
 }
 
-#[derive(Debug, Serialize, Queryable)]
+#[derive(Debug, Serialize)]
 pub struct InvitationResponse {
     pub id: i64,
     pub game: GameResponse,
@@ -105,32 +102,45 @@ impl Invitation {
             .await
     }
 
-    /// get your game invites
-    #[tracing::instrument(skip(conn))]
-    pub fn find(user_id: i64, conn: &db::Conn) -> Result<Vec<InvitationResponse>, ServiceError> {
-        let query = invitations::table
-            .inner_join(games::table.inner_join(users::table))
-            .select((
-                invitations::id,
-                (
-                    games::id,
-                    games::name,
-                    games::start_time,
-                    games::close_time,
-                    games::beverage_count,
-                    (users::id, users::username),
-                ),
-                invitations::state,
-            ))
-            .filter(invitations::user_id.eq(user_id))
-            .filter(games::close_time.gt(diesel::dsl::now))
-            // do not show your own created games as invites
-            .filter(games::owner_id.ne(user_id))
-            .into_boxed();
+    /// returns list of game invitations for a user
+    #[tracing::instrument(name = "Invitation::find")]
+    pub async fn my_invitations(
+        user_id: i64,
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<InvitationResponse>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT invitations.id, invitations.state, games.id AS "game_id", games.name, games.start_time, games.close_time, games.beverage_count, users.id AS "user_id", users.username
+            FROM invitations
+            INNER JOIN games ON invitations.game_id = games.id
+            INNER JOIN users ON games.owner_id = users.id
+            WHERE 
+                invitations.user_id = $1 
+                AND games.close_time > NOW() 
+                AND games.owner_id != $1
+            ORDER BY games.start_time
+            "#, 
+            user_id
+        ).fetch_all(db).await?;
 
-        let invitations = query
-            .order(games::start_time)
-            .load::<InvitationResponse>(conn)?;
+        let invitations: Vec<InvitationResponse> = rows
+            .into_iter()
+            .map(|record| InvitationResponse {
+                id: record.id,
+                state: record.state,
+                game: GameResponse {
+                    id: record.game_id,
+                    beverage_count: record.beverage_count,
+                    name: record.name,
+                    start_time: record.start_time,
+                    close_time: record.close_time,
+                    owner: UserResponse {
+                        id: record.user_id,
+                        username: record.username,
+                    },
+                },
+            })
+            .collect();
 
         Ok(invitations)
     }

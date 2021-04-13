@@ -12,7 +12,6 @@ use time::Duration;
 use crate::admin;
 use crate::auth;
 use crate::config::Config;
-use crate::db;
 use crate::ddg;
 use crate::errors::ServiceError;
 use crate::games;
@@ -43,7 +42,7 @@ pub struct State {
     pub notifier: Addr<NotificationServer>,
 }
 
-pub async fn launch(db_pool: db::Pool) -> anyhow::Result<()> {
+pub async fn launch() -> anyhow::Result<()> {
     let _guard = match Config::sentry_dsn() {
         Some(key) => sentry::init(key),
         None => {
@@ -78,7 +77,6 @@ pub async fn launch(db_pool: db::Pool) -> anyhow::Result<()> {
         };
 
         App::new()
-            .data(db_pool.clone())
             .data(state)
             .wrap(sentry_actix::Sentry::new())
             .wrap(middleware::DefaultHeaders::new().header("X-Version", env!("CARGO_PKG_VERSION")))

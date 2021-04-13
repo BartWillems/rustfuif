@@ -2,12 +2,6 @@
 #![warn(missing_debug_implementations, rust_2018_idioms, missing_docs)]
 
 #[macro_use]
-extern crate diesel;
-
-#[macro_use]
-extern crate diesel_migrations;
-
-#[macro_use]
 extern crate lazy_static;
 
 #[macro_use]
@@ -29,14 +23,12 @@ mod admin;
 mod auth;
 mod cache;
 mod config;
-mod db;
 mod ddg;
 mod errors;
 mod games;
 mod invitations;
 mod market;
 mod prices;
-mod schema;
 mod server;
 mod stats;
 mod transactions;
@@ -70,16 +62,16 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
         .try_init()
         .expect("unable to initialize the tokio tracer");
 
-    debug!("building database connection pool");
-    let pool = db::build_connection_pool(config::Config::database_url())?;
+    // debug!("building database connection pool");
+    // let pool = db::build_connection_pool(config::Config::database_url())?;
 
-    info!("running database migrations");
-    db::migrate(&pool)?;
+    // info!("running database migrations");
+    // db::migrate(&pool)?;
 
     cache::Cache::init();
 
     debug!("launching the actix webserver");
-    server::launch(pool.clone()).await?;
+    server::launch().await?;
 
     Ok(())
 }
