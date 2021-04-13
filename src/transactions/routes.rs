@@ -62,19 +62,11 @@ async fn create_sale(
 }
 
 #[get("/games/{id}/stats/sales")]
-async fn beverage_sales(
-    game_id: Path<i64>,
-    pool: Data<db::Pool>,
-    id: Identity,
-) -> server::Response {
+async fn beverage_sales(game_id: Path<i64>, state: Data<State>, id: Identity) -> server::Response {
     auth::get_user(&id)?;
     let game_id = game_id.into_inner();
 
-    let sales = web::block(move || {
-        let conn = &pool.get()?;
-        SalesCount::find_by_game(game_id, &conn).map_err(crate::errors::ServiceError::from)
-    })
-    .await?;
+    let sales = SalesCount::find_by_game(game_id, &state.db).await?;
 
     http_ok_json!(sales);
 }

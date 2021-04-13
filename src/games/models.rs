@@ -1,14 +1,11 @@
 use actix_web::Result;
 use chrono::Duration;
 use chrono::{DateTime, Utc};
-use diesel::prelude::*;
 use sqlx::{Pool, Postgres};
 use url::Url;
 
-use crate::db;
 use crate::errors::ServiceError;
 use crate::invitations::{NewInvitation, State};
-use crate::schema::{beverages, invitations, users};
 use crate::transactions::models::SalesCount;
 use crate::users::{User, UserResponse};
 
@@ -50,7 +47,7 @@ pub struct GameFilter {
 }
 
 /// A GameUser is a user who is invited for a game
-#[derive(Debug, Serialize, Queryable)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameUser {
     pub user_id: i64,
@@ -222,24 +219,22 @@ impl Game {
     }
 
     /// returns a list of users who have been invited for a game
-    /// filter by changing the invitation state
-    #[tracing::instrument(skip(conn))]
-    pub fn find_users(
+    #[tracing::instrument(name = "Game::invited_users")]
+    pub async fn invited_users(
         game_id: i64,
-        conn: &db::Conn,
-    ) -> Result<Vec<GameUser>, ServiceError> {
-        let query = invitations::table
-            .inner_join(users::table)
-            .filter(invitations::game_id.eq(game_id))
-            .into_boxed();
-
-        let users = query
-            .select((users::id, users::username, invitations::state))
-            .load::<GameUser>(conn)?;
-
-        Ok(users)
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<GameUser>, sqlx::Error> {
+        sqlx::query_as!(
+            GameUser,
+            r#"SELECT users.id as "user_id", username, invitations.state as "invitation_state"
+            FROM users
+            INNER JOIN invitations ON invitations.user_id = users.id
+            WHERE invitations.game_id = $1"#, 
+            game_id
+        ).fetch_all(db).await        
     }
 
+    /// Returns a list of users who have not yet been invited for a game
     #[tracing::instrument(name = "Game::find_available_users")]
     pub async fn find_available_users(game_id: i64, db: &Pool<Postgres>) -> Result<Vec<UserResponse>, sqlx::Error> {
         sqlx::query_as!(UserResponse, "SELECT id, username FROM users WHERE id NOT IN (SELECT user_id FROM invitations WHERE game_id = $1)", game_id).fetch_all(db).await
@@ -294,15 +289,6 @@ impl Game {
             .await?;
 
         Ok(())
-    }
-
-    /// returns if the game is going on at the moment
-    pub fn is_in_progress(&self) -> bool {
-        let now = chrono::offset::Utc::now();
-        if self.start_time < now && self.close_time > now {
-            return true;
-        }
-        false
     }
 
     #[tracing::instrument(name = "Game::get_beverages")]
@@ -386,7 +372,7 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
     }
 }
 
-#[derive(Insertable, Deserialize, Serialize, Queryable, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Beverage {
     #[serde(skip_deserializing)]

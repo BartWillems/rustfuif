@@ -2,15 +2,14 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
-use diesel::result::Error as DBError;
 use sqlx::{Pool, Postgres};
 
 use crate::db;
 use crate::errors::ServiceError;
 use crate::games::{Beverage, Game};
-use crate::schema::{sales_counts, transactions, users};
+use crate::schema::{transactions, users};
 
-#[derive(Debug, Serialize, Queryable, Identifiable, AsChangeset, Clone)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub id: i64,
@@ -22,9 +21,8 @@ pub struct Transaction {
     pub price: i64,
 }
 
-#[derive(Debug, Deserialize, Insertable, Clone, Copy)]
+#[derive(Debug, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
-#[table_name = "transactions"]
 pub struct Sale {
     pub user_id: i64,
     pub game_id: i64,
@@ -42,7 +40,7 @@ pub struct NewSale {
 }
 
 /// contains how many sales have been made for a given slot
-#[derive(Serialize, Queryable, Clone, Copy, Debug, Default)]
+#[derive(Serialize, Clone, Copy, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SlotSale {
     pub slot_no: i16,
@@ -55,7 +53,7 @@ pub struct UserSales {
     pub sales: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Insertable, Queryable)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SalesCount {
     pub game_id: i64,
@@ -243,14 +241,9 @@ impl SalesCount {
         Ok(res)
     }
 
-    #[tracing::instrument(skip(conn), name = "salescount::find_by_game")]
-    pub fn find_by_game(game_id: i64, conn: &db::Conn) -> Result<Vec<SalesCount>, DBError> {
-        let res = sales_counts::table
-            .filter(sales_counts::game_id.eq(game_id))
-            .order_by(sales_counts::slot_no)
-            .load::<SalesCount>(conn)?;
-
-        Ok(res)
+    #[tracing::instrument(name = "salescount::find_by_game")]
+    pub async fn find_by_game(game_id: i64, db: &Pool<Postgres>) -> Result<Vec<SalesCount>, sqlx::Error> {
+        sqlx::query_as!(SalesCount, "SELECT * FROM sales_counts WHERE game_id = $1 ORDER BY slot_no", game_id).fetch_all(db).await
     }
 
     #[tracing::instrument(name = "SalesCount::update")]

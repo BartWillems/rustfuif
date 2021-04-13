@@ -62,6 +62,38 @@
       ]
     }
   },
+  "11b93dfc944a2ef93d6838297e3db3ee8e1aa3041e41c07d7bac0481ac97c727": {
+    "query": "SELECT users.id as \"user_id\", username, invitations.state as \"invitation_state\"\n            FROM users\n            INNER JOIN invitations ON invitations.user_id = users.id\n            WHERE invitations.game_id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "username",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "invitation_state",
+          "type_info": "Varchar"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false
+      ]
+    }
+  },
   "19b8e1e91a326674019156ad49b0c9e70282e36bb1acb7725456a8fba940cc71": {
     "query": "INSERT INTO price_histories (game_id, user_id, slot_no, price, created_at) VALUES ($1, $2, $3, $4, $5)",
     "describe": {
@@ -76,6 +108,56 @@
         ]
       },
       "nullable": []
+    }
+  },
+  "1bdaa1db3eb0a7aad8ac3c742770801cb0505653dda663abbc447d4d968749a4": {
+    "query": "SELECT * FROM invitations WHERE id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "state",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
     }
   },
   "1e911dcbc8d5335012b8288ff99bf02a6322f49fb144e5ecc03b967b0184b4fb": {
@@ -311,6 +393,38 @@
       ]
     }
   },
+  "395cbf5664bf3442ef362151edee40ffe45a7d4ca70a693d918f717bb69e54dd": {
+    "query": "SELECT * FROM sales_counts WHERE game_id = $1 ORDER BY slot_no",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 2,
+          "name": "sales",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false
+      ]
+    }
+  },
   "3e84f9de455b33c98f3814f666ae324afe0d34ba9c0af5d772a4b6cd724c06eb": {
     "query": "SELECT * FROM transactions WHERE user_id = $1 AND game_id = $2 ORDER BY created_at DESC",
     "describe": {
@@ -433,6 +547,57 @@
         false,
         false,
         false
+      ]
+    }
+  },
+  "4a586d4acd1502cb48be4e3a56ba0575b836efd71666451e481e78f57649f841": {
+    "query": "UPDATE invitations SET state = $1 WHERE id = $2 RETURNING *",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "state",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
       ]
     }
   },

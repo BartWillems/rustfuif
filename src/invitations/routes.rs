@@ -20,10 +20,14 @@ async fn my_invitations(id: Identity, pool: Data<db::Pool>) -> server::Response 
 
 /// show users who are invited for a specific game
 #[get("/games/{id}/users")]
-async fn find_users(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+async fn find_users(
+    game_id: Path<i64>,
+    state: Data<server::State>,
+    id: Identity,
+) -> server::Response {
     auth::get_user(&id)?;
 
-    let users = web::block(move || Game::find_users(*game_id, &pool.get()?)).await?;
+    let users = Game::invited_users(*game_id, &state.db).await?;
 
     http_ok_json!(users);
 }
@@ -63,30 +67,29 @@ async fn invite_user(
 }
 
 #[post("/invitations/{id}/{response}")]
-async fn respond(info: Path<(i64, State)>, id: Identity, pool: Data<db::Pool>) -> server::Response {
+async fn respond(
+    info: Path<(i64, State)>,
+    id: Identity,
+    state: Data<server::State>,
+) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    let invite = web::block(move || {
-        let conn = pool.get()?;
-        let info = info.into_inner();
-        let response = &info.1;
+    let info = info.into_inner();
+    let response = &info.1;
 
-        let mut invite = Invitation::find_by_id(info.0, &conn)?;
+    let mut invite = Invitation::find_by_id(info.0, &state.db).await?;
 
-        if user.id != invite.user_id && !user.is_admin {
-            forbidden!("this is not the invite you're looking for");
-        }
+    if user.id != invite.user_id && !user.is_admin {
+        forbidden!("this is not the invite you're looking for");
+    }
 
-        match response {
-            State::ACCEPTED => invite.accept(),
-            State::DECLINED => invite.decline(),
-            _ => bad_request!("you can only accept or decline an invite"),
-        };
+    match response {
+        State::ACCEPTED => invite.accept(),
+        State::DECLINED => invite.decline(),
+        _ => bad_request!("you can only accept or decline an invite"),
+    };
 
-        let invite = invite.update(&conn)?;
-        Ok(invite)
-    })
-    .await?;
+    let invite = invite.update(&state.db).await?;
 
     http_ok_json!(invite);
 }

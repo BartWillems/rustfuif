@@ -3,7 +3,6 @@ use std::fmt;
 use actix_web::Result;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
-use diesel::result::Error as DBError;
 use sqlx::{Pool, Postgres};
 
 use crate::db;
@@ -34,7 +33,7 @@ impl fmt::Display for State {
 
 /// Game invite for a user.
 /// When you create a game, you're also instantly invited and accepted
-#[derive(Debug, Serialize, Insertable, Queryable, Identifiable, AsChangeset)]
+#[derive(Debug, Serialize, Queryable, Identifiable)]
 #[serde(rename_all = "camelCase")]
 pub struct Invitation {
     pub id: i64,
@@ -45,8 +44,7 @@ pub struct Invitation {
     pub updated_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize, Insertable)]
-#[table_name = "invitations"]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NewInvitation {
     game_id: i64,
@@ -89,25 +87,22 @@ pub struct InvitationResponse {
 }
 
 impl Invitation {
-    /// Store an invitation in the database, returns the persisted invitation, or a database error
-    pub fn save(&self, conn: &db::Conn) -> Result<Invitation, DBError> {
-        // This has to return the actual database error, because it's used in transactions.
-        diesel::insert_into(invitations::table)
-            .values(self)
-            .get_result::<Invitation>(conn)
-    }
-
     /// Update the invitation, returns the persisted invitation
-    pub fn update(&self, conn: &db::Conn) -> Result<Invitation, ServiceError> {
-        let invitation = diesel::update(self)
-            .set(self)
-            .get_result::<Invitation>(conn)?;
-        Ok(invitation)
+    pub async fn update(&self, db: &Pool<Postgres>) -> Result<Invitation, sqlx::Error> {
+        sqlx::query_as!(
+            Invitation,
+            "UPDATE invitations SET state = $1 WHERE id = $2 RETURNING *",
+            self.state,
+            self.id
+        )
+        .fetch_one(db)
+        .await
     }
 
-    pub fn find_by_id(id: i64, conn: &db::Conn) -> Result<Invitation, ServiceError> {
-        let invitation = invitations::table.find(id).first(conn)?;
-        Ok(invitation)
+    pub async fn find_by_id(id: i64, db: &Pool<Postgres>) -> Result<Invitation, sqlx::Error> {
+        sqlx::query_as!(Invitation, "SELECT * FROM invitations WHERE id = $1", id)
+            .fetch_one(db)
+            .await
     }
 
     /// get your game invites
@@ -141,13 +136,13 @@ impl Invitation {
     }
 
     /// mark a game as accepted, this does not automatically persist
-    pub fn accept(&mut self) -> &mut Invitation {
+    pub fn accept(&mut self) -> &mut Self {
         self.state = State::ACCEPTED.to_string();
         self
     }
 
     /// mark a game as accepted, this does not automatically persist
-    pub fn decline(&mut self) -> &mut Invitation {
+    pub fn decline(&mut self) -> &mut Self {
         self.state = State::DECLINED.to_string();
         self
     }
