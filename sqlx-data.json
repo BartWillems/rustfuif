@@ -652,6 +652,32 @@
       ]
     }
   },
+  "58fa7812c08c2818134e396d91be4ce9e8b3bd97009b2d2fcc9f7b5e3804a6b1": {
+    "query": "\n            SELECT users.username, SUM(transactions.amount) as \"sales!\"\n            FROM transactions\n            INNER JOIN users ON users.id = transactions.user_id\n            WHERE transactions.game_id = $1\n            GROUP BY users.username\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "username",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 1,
+          "name": "sales!",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        null
+      ]
+    }
+  },
   "606364c79e0990deb07dfbe6c32b3d302d083ec5333f3a5ce04113c38a041100": {
     "query": "SELECT * FROM users WHERE username = $1",
     "describe": {

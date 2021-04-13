@@ -1,13 +1,10 @@
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-use diesel::prelude::*;
 use sqlx::{Pool, Postgres};
 
-use crate::db;
 use crate::errors::ServiceError;
 use crate::games::{Beverage, Game};
-use crate::schema::{transactions, users};
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -47,7 +44,7 @@ pub struct SlotSale {
     pub sales: i64,
 }
 
-#[derive(Debug, Serialize, Queryable)]
+#[derive(Debug, Serialize)]
 pub struct UserSales {
     pub username: String,
     pub sales: i64,
@@ -175,38 +172,22 @@ impl Transaction {
     }
 
     /// Get the amount of sales each user has made in a game
-    #[tracing::instrument(skip(conn))]
-    pub fn get_sales_per_user(
+    #[tracing::instrument]
+    pub async fn get_sales_per_user(
         game_id: i64,
-        conn: &db::Conn,
-    ) -> Result<Vec<UserSales>, ServiceError> {
-        use diesel::dsl::sql;
-
-        let sale_count = transactions::table
-            .inner_join(users::table)
-            .select((
-                users::username,
-                sql::<diesel::sql_types::BigInt>("CAST (SUM(amount) AS BIGINT)"),
-            ))
-            .filter(transactions::game_id.eq(game_id))
-            .group_by(users::username)
-            .load::<UserSales>(conn)?;
-
-        Ok(sale_count)
-    }
-
-    /// show the total money spend for everyone in a game
-    #[tracing::instrument(skip(conn))]
-    pub fn total_income(game_id: i64, conn: &db::Conn) -> Result<i64, ServiceError> {
-        use diesel::dsl::sql;
-        let res = transactions::table
-            .select(sql::<diesel::sql_types::BigInt>(
-                "CAST (SUM(price) AS BIGINT)",
-            ))
-            .filter(transactions::game_id.eq(game_id))
-            .first(conn)?;
-
-        Ok(res)
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<UserSales>, sqlx::Error> {
+        sqlx::query_as!(
+            UserSales, 
+            r#"
+            SELECT users.username, SUM(transactions.amount) as "sales!"
+            FROM transactions
+            INNER JOIN users ON users.id = transactions.user_id
+            WHERE transactions.game_id = $1
+            GROUP BY users.username
+            "#, 
+            game_id
+        ).fetch_all(db).await
     }
 }
 
