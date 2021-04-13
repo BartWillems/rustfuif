@@ -22,6 +22,24 @@
       ]
     }
   },
+  "0ce5230dd43edd8dd4c5b3904ab77f91bfdd853c4a0b916e97edf7c58c864bb6": {
+    "query": "SELECT COUNT(*) as \"count!\" FROM games",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "count!",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        null
+      ]
+    }
+  },
   "0d6e7afd7031dc0dfc0e49008d87e8f1d1d6a39150a908bfd4656de2d17ea792": {
     "query": "\n            SELECT games.id\n            FROM (games INNER JOIN invitations ON invitations.game_id = games.id) \n            WHERE games.id = $1 AND invitations.user_id = $2 AND invitations.state = $3 AND games.start_time < NOW() AND games.close_time > NOW()",
     "describe": {
@@ -642,6 +660,24 @@
       "nullable": []
     }
   },
+  "73f1d14f99ded4c24c7d43bef826d1300da076dfe9d3c9dc73c19811f2a8c297": {
+    "query": "SELECT COUNT(*) as \"count!\" FROM games WHERE start_time < NOW() AND close_time > NOW()",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "count!",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        null
+      ]
+    }
+  },
   "7ba565b675562c6b244102d7b840694005cdfab1fcd5cdf7cfab89c348decab9": {
     "query": "INSERT INTO invitations (game_id, user_id, state) VALUES ($1, $2, $3) RETURNING *;",
     "describe": {
@@ -956,6 +992,75 @@
         ]
       },
       "nullable": [
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "c6ed9f3f3004c90dc289d542ecb72e342fe05c9d4e274e5ce9863f7fbefd7c7c": {
+    "query": "\n            SELECT * FROM beverages\n            WHERE user_id = $1 AND game_id = $2\n            ORDER BY slot_no\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 3,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "image_url",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "min_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 6,
+          "name": "max_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "starting_price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 8,
+          "name": "current_price",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
         false,
         false,
         false

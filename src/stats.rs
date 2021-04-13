@@ -1,16 +1,16 @@
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
 use actix_web::dev::{ServiceRequest, ServiceResponse};
+use actix_web::get;
 use actix_web::web::Data;
 use actix_web::Error;
-use actix_web::{get, web};
 use futures::future::{ok, Ready};
 use futures::Future;
 
-use crate::db;
+use crate::games::Game;
 use crate::server::{Response, State};
 use crate::websocket::queries::ActiveSessionCount;
 
@@ -19,29 +19,29 @@ lazy_static! {
 }
 
 pub struct Stats {
-    requests: AtomicU32,
-    errors: AtomicU32,
-    cache_hits: AtomicU32,
-    cache_misses: AtomicU32,
+    requests: AtomicUsize,
+    errors: AtomicUsize,
+    cache_hits: AtomicUsize,
+    cache_misses: AtomicUsize,
 }
 
 /// This is used to expose the raw stats without needing to declare new
 /// atomic variables
 #[derive(Serialize)]
 pub struct LoadedStats {
-    requests: u32,
-    errors: u32,
-    cache_hits: u32,
-    cache_misses: u32,
+    requests: usize,
+    errors: usize,
+    cache_hits: usize,
+    cache_misses: usize,
 }
 
 impl Stats {
     pub fn new() -> Stats {
         Stats {
-            requests: AtomicU32::new(0),
-            errors: AtomicU32::new(0),
-            cache_hits: AtomicU32::new(0),
-            cache_misses: AtomicU32::new(0),
+            requests: AtomicUsize::new(0),
+            errors: AtomicUsize::new(0),
+            cache_hits: AtomicUsize::new(0),
+            cache_misses: AtomicUsize::new(0),
         }
     }
 
@@ -74,33 +74,27 @@ impl Stats {
 
 #[derive(Serialize)]
 pub struct StatsResponse {
-    requests: u32,
-    errors: u32,
+    requests: usize,
+    errors: usize,
     active_ws_sessions: usize,
     active_games: i64,
-    active_db_connections: u32,
-    idle_db_connections: u32,
-    cache_hits: u32,
-    cache_misses: u32,
+    active_db_connections: usize,
+    idle_db_connections: usize,
+    cache_hits: usize,
+    cache_misses: usize,
 }
 
 #[get("/stats")]
-pub async fn route(state: Data<State>, pool: Data<db::Pool>) -> Response {
-    let rd2d_state = pool.clone().into_inner().state();
-
-    let active_games = web::block(move || {
-        let conn = pool.get()?;
-        crate::games::Game::active_game_count(&conn)
-    })
-    .await?;
+pub async fn route(state: Data<State>) -> Response {
+    let db = &state.db;
 
     http_ok_json!(StatsResponse {
         requests: STATS.requests.load(Ordering::Relaxed),
         errors: STATS.errors.load(Ordering::Relaxed),
         active_ws_sessions: state.notifier.send(ActiveSessionCount).await?,
-        active_games,
-        active_db_connections: rd2d_state.connections,
-        idle_db_connections: rd2d_state.idle_connections,
+        active_games: Game::active_game_count(&db).await?,
+        active_db_connections: db.size() as usize,
+        idle_db_connections: db.num_idle(),
         cache_hits: STATS.cache_hits.load(Ordering::Relaxed),
         cache_misses: STATS.cache_misses.load(Ordering::Relaxed),
     });

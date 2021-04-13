@@ -8,7 +8,7 @@ use url::Url;
 use crate::db;
 use crate::errors::ServiceError;
 use crate::invitations::{InvitationQuery, NewInvitation, State};
-use crate::schema::{beverages, games, invitations, users};
+use crate::schema::{beverages, invitations, users};
 use crate::transactions::models::SalesCount;
 use crate::users::{User, UserResponse};
 
@@ -126,25 +126,19 @@ impl Game {
     }
 
     /// return the amount of active games at the moment
-    #[tracing::instrument(skip(conn))]
-    pub fn active_game_count(conn: &db::Conn) -> Result<i64, ServiceError> {
-        use diesel::dsl::now;
+    #[tracing::instrument]
+    pub async fn active_game_count(db: &Pool<Postgres>) -> Result<i64, sqlx::Error> {
+        let res = sqlx::query!(r#"SELECT COUNT(*) as "count!" FROM games WHERE start_time < NOW() AND close_time > NOW()"#).fetch_one(db).await?;
 
-        games::table
-            .filter(games::start_time.lt(now))
-            .filter(games::close_time.gt(now))
-            .count()
-            .first::<i64>(conn)
-            .map_err(|e| e.into())
+        Ok(res.count)
     }
 
     /// return the total amount of created games
-    #[tracing::instrument(skip(conn), name = "game::count")]
-    pub fn count(conn: &db::Conn) -> Result<i64, ServiceError> {
-        games::table
-            .count()
-            .first::<i64>(conn)
-            .map_err(|e| e.into())
+    #[tracing::instrument(name = "game::count")]
+    pub async fn count(db: &Pool<Postgres>) -> Result<i64, sqlx::Error> {
+        let res = sqlx::query!(r#"SELECT COUNT(*) as "count!" FROM games"#).fetch_one(db).await?;
+
+        Ok(res.count)
     }
 
     #[tracing::instrument]
@@ -446,18 +440,20 @@ impl Beverage {
         Ok(beverage)
     }
 
-    pub fn find(
+    pub async fn find(
         game_id: i64,
         user_id: i64,
-        conn: &db::Conn,
-    ) -> Result<Vec<Beverage>, ServiceError> {
-        let configs = beverages::table
-            .filter(beverages::user_id.eq(user_id))
-            .filter(beverages::game_id.eq(game_id))
-            .order(beverages::slot_no)
-            .load::<Beverage>(conn)?;
-
-        Ok(configs)
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<Beverage>, sqlx::Error> {
+        sqlx::query_as!(
+            Beverage, 
+            r#"
+            SELECT * FROM beverages
+            WHERE user_id = $1 AND game_id = $2
+            ORDER BY slot_no
+            "#,
+            user_id, game_id
+        ).fetch_all(db).await
     }
 
     pub async fn find_by_game(

@@ -5,7 +5,6 @@ use actix_web::web::{Data, HttpResponse, Json, Path, Query};
 use actix_web::{delete, get, post, put};
 
 use crate::auth;
-use crate::db;
 use crate::games::models::{Beverage, CreateGame, Game, GameFilter};
 use crate::prices::PriceHistory;
 use crate::server::{self, State};
@@ -83,14 +82,10 @@ async fn delete(game_id: Path<i64>, state: Data<State>, id: Identity) -> server:
 }
 
 #[get("/games/{id}/beverages")]
-async fn get_beverages(game_id: Path<i64>, pool: Data<db::Pool>, id: Identity) -> server::Response {
+async fn get_beverages(game_id: Path<i64>, state: Data<State>, id: Identity) -> server::Response {
     let user = auth::get_user(&id)?;
 
-    let beverages = web::block(move || {
-        let conn = pool.get()?;
-        Beverage::find(*game_id, user.id, &conn)
-    })
-    .await?;
+    let beverages = Beverage::find(*game_id, user.id, &state.db).await?;
 
     http_ok_json!(beverages);
 }

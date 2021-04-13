@@ -3,21 +3,16 @@ use actix_web::web::Data;
 use actix_web::{get, post, web};
 
 use crate::auth;
-use crate::db;
 use crate::games::Game;
 use crate::server::{Response, State};
 use crate::users::User;
 use crate::websocket::queries::{ActiveGames, ConnectedUsers};
 
 #[get("/admin/games/count")]
-async fn game_count(pool: Data<db::Pool>, id: Identity) -> Response {
+async fn game_count(state: Data<State>, id: Identity) -> Response {
     auth::verify_admin(&id)?;
 
-    let count = web::block(move || {
-        let conn = pool.get()?;
-        Game::count(&conn)
-    })
-    .await?;
+    let count = Game::count(&state.db).await?;
 
     http_ok_json!(count);
 }
