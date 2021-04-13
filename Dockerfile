@@ -10,6 +10,8 @@ COPY src ./src
 
 RUN cargo build --release
 
+RUN cargo install --version=0.5.1 sqlx-cli --no-default-features --features postgres
+
 FROM debian:buster-slim
 
 WORKDIR /usr/src/rustfuif
@@ -21,7 +23,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY ./migrations ./migrations
-COPY --from=builder /usr/local/cargo/bin/diesel /usr/bin/diesel
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/bin/sqlx
 COPY --from=builder /usr/src/rustfuif/target/release/rustfuif /usr/bin/rustfuif
 
 CMD [ "rustfuif" ]
