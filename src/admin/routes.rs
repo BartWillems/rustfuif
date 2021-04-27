@@ -85,7 +85,20 @@ async fn enable_cache(id: Identity) -> Response {
 async fn server_stats(id: Identity) -> Response {
     auth::verify_admin(&id)?;
 
-    http_ok_json!(crate::stats::Stats::load());
+    #[derive(Serialize)]
+    struct Stats {
+        requests: usize,
+        errors: usize,
+        cache_hits: usize,
+        cache_misses: usize,
+    }
+
+    http_ok_json!(Stats {
+        requests: crate::stats::Stats::load_requests(),
+        errors: crate::stats::Stats::load_errors(),
+        cache_hits: crate::cache::Stats::load_hits(),
+        cache_misses: crate::cache::Stats::load_misses(),
+    });
 }
 
 pub fn register(cfg: &mut web::ServiceConfig) {

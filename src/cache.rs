@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Display};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use deadpool_redis::cmd;
 use deadpool_redis::Connection;
@@ -9,7 +10,11 @@ use serde::Serialize;
 use tokio::sync::RwLock;
 
 use crate::config::Config;
-use crate::stats::Stats;
+
+lazy_static! {
+    static ref CACHE_POOL: RwLock<Cache> = RwLock::new(Cache::new());
+    static ref STATS: Stats = Stats::new();
+}
 
 pub struct Cache {
     pool: Option<RedisPool>,
@@ -24,8 +29,35 @@ pub struct CacheStatus {
     healthy: bool,
 }
 
-lazy_static! {
-    static ref CACHE_POOL: RwLock<Cache> = RwLock::new(Cache::new());
+#[derive(Debug)]
+pub struct Stats {
+    hits: AtomicUsize,
+    misses: AtomicUsize,
+}
+
+impl Stats {
+    fn new() -> Self {
+        Stats {
+            hits: AtomicUsize::default(),
+            misses: AtomicUsize::default(),
+        }
+    }
+
+    fn cache_hit() {
+        STATS.hits.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn cache_miss() {
+        STATS.misses.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn load_hits() -> usize {
+        STATS.hits.load(Ordering::Relaxed)
+    }
+
+    pub fn load_misses() -> usize {
+        STATS.misses.load(Ordering::Relaxed)
+    }
 }
 
 impl Cache {
@@ -76,7 +108,7 @@ impl Cache {
         cache.pool.is_some()
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(name = "cache::connection")]
     async fn connection() -> Option<Connection> {
         let cache = CACHE_POOL.read().await;
 

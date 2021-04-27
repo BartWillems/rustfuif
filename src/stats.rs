@@ -10,6 +10,7 @@ use actix_web::Error;
 use futures::future::{ok, Ready};
 use futures::Future;
 
+use crate::cache;
 use crate::games::Game;
 use crate::server::{Response, State};
 use crate::websocket::queries::ActiveSessionCount;
@@ -21,18 +22,6 @@ lazy_static! {
 pub struct Stats {
     requests: AtomicUsize,
     errors: AtomicUsize,
-    cache_hits: AtomicUsize,
-    cache_misses: AtomicUsize,
-}
-
-/// This is used to expose the raw stats without needing to declare new
-/// atomic variables
-#[derive(Serialize)]
-pub struct LoadedStats {
-    requests: usize,
-    errors: usize,
-    cache_hits: usize,
-    cache_misses: usize,
 }
 
 impl Stats {
@@ -40,35 +29,23 @@ impl Stats {
         Stats {
             requests: AtomicUsize::new(0),
             errors: AtomicUsize::new(0),
-            cache_hits: AtomicUsize::new(0),
-            cache_misses: AtomicUsize::new(0),
         }
     }
 
-    pub fn add_request() {
+    fn add_request() {
         STATS.requests.fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn add_error() {
+    fn add_error() {
         STATS.errors.fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn cache_hit() {
-        STATS.cache_hits.fetch_add(1, Ordering::Relaxed);
+    pub fn load_requests() -> usize {
+        STATS.requests.load(Ordering::Relaxed)
     }
 
-    pub fn cache_miss() {
-        STATS.cache_misses.fetch_add(1, Ordering::Relaxed);
-    }
-
-    /// Load the atomic stats variables as regular u32's
-    pub fn load() -> LoadedStats {
-        LoadedStats {
-            requests: STATS.requests.load(Ordering::Relaxed),
-            errors: STATS.errors.load(Ordering::Relaxed),
-            cache_hits: STATS.cache_hits.load(Ordering::Relaxed),
-            cache_misses: STATS.cache_misses.load(Ordering::Relaxed),
-        }
+    pub fn load_errors() -> usize {
+        STATS.errors.load(Ordering::Relaxed)
     }
 }
 
@@ -95,8 +72,8 @@ pub async fn route(state: Data<State>) -> Response {
         active_games: Game::active_game_count(&db).await?,
         active_db_connections: db.size() as usize,
         idle_db_connections: db.num_idle(),
-        cache_hits: STATS.cache_hits.load(Ordering::Relaxed),
-        cache_misses: STATS.cache_misses.load(Ordering::Relaxed),
+        cache_hits: cache::Stats::load_hits(),
+        cache_misses: cache::Stats::load_misses(),
     });
 }
 
