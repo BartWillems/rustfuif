@@ -118,6 +118,9 @@ impl From<&sqlx::postgres::PgDatabaseError> for ServiceError {
     fn from(error: &sqlx::postgres::PgDatabaseError) -> ServiceError {
         debug!("Postgres error: {:?}", error);
         match error.code() {
+            // Foreign Key Violation | Check Violation
+            "23503" | "23514" => ServiceError::BadRequest(error.to_string()),
+            // Unique Violation
             "23505" => ServiceError::Conflict(error.to_string()),
             _ => ServiceError::InternalServerError,
         }
