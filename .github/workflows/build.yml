@@ -39,7 +39,7 @@ jobs:
       - name: Migrate database
         run: |
           cargo install diesel_cli
-          cargo install --version=0.5.1 sqlx-cli --no-default-features --features postgres
+          cargo install --version=0.5.2 sqlx-cli --no-default-features --features postgres
           diesel migration run
       - name: Check sqlx metadata file
         run: cargo sqlx prepare --check
