@@ -1,3 +1,5 @@
 target
-!target/release/rustfuif
 .env
+docker-compose.yml
+screenshots
+.github
