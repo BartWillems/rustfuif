@@ -38,8 +38,8 @@ jobs:
           override: true
       - name: Migrate database
         run: |
-          cargo install diesel_cli
-          cargo install --version=0.5.2 sqlx-cli --no-default-features --features postgres
+          cargo install diesel_cli --debug
+          cargo install --version=0.5.2 sqlx-cli --no-default-features --features postgres --debug
           diesel migration run
       - name: Check sqlx metadata file
         run: cargo sqlx prepare --check
