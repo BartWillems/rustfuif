@@ -51,9 +51,6 @@ impl StockMarket {
 
     /// Returns true if a market crash is happening
     pub(crate) fn has_crashed(&self) -> bool {
-        match self.status {
-            MarketStatus::Crash => true,
-            _ => false,
-        }
+        matches!(self.status, MarketStatus::Crash)
     }
 }

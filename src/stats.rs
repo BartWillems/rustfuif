@@ -9,8 +9,10 @@ use actix_web::web::Data;
 use actix_web::Error;
 use futures::future::{ok, Ready};
 use futures::Future;
+use futures::{future::TryFutureExt, try_join};
 
 use crate::cache;
+use crate::errors::ServiceError;
 use crate::games::Game;
 use crate::server::{Response, State};
 use crate::websocket::queries::ActiveSessionCount;
@@ -65,11 +67,19 @@ pub struct StatsResponse {
 pub async fn route(state: Data<State>) -> Response {
     let db = &state.db;
 
+    let active_ws_sessions = state
+        .notifier
+        .send(ActiveSessionCount)
+        .map_err(ServiceError::from);
+    let active_games = Game::active_game_count(&db).map_err(ServiceError::from);
+
+    let (active_ws_sessions, active_games) = try_join!(active_ws_sessions, active_games)?;
+
     http_ok_json!(StatsResponse {
         requests: STATS.requests.load(Ordering::Relaxed),
         errors: STATS.errors.load(Ordering::Relaxed),
-        active_ws_sessions: state.notifier.send(ActiveSessionCount).await?,
-        active_games: Game::active_game_count(&db).await?,
+        active_ws_sessions,
+        active_games,
         active_db_connections: db.size() as usize,
         idle_db_connections: db.num_idle(),
         cache_hits: cache::Stats::load_hits(),
