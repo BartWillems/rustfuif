@@ -36,10 +36,10 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - name: Install SQLx CLI
+        run: cargo install --version=0.5.2 sqlx-cli --no-default-features --features postgres --debug
       - name: Migrate database
-        run: |
-          cargo install --version=0.5.2 sqlx-cli --no-default-features --features postgres --debug
-          sqlx migrate run
+        run: sqlx migrate run
       - name: Check sqlx metadata file
         run: cargo sqlx prepare --check
 
