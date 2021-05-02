@@ -25,5 +25,10 @@ RUN apt-get update && \
 COPY ./migrations ./migrations
 COPY --from=builder /usr/local/cargo/bin/sqlx /usr/bin/sqlx
 COPY --from=builder /usr/src/rustfuif/target/release/rustfuif /usr/bin/rustfuif
+COPY ./entrypoint.sh /entrypoint.sh
+
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT [ "/entrypoint.sh" ]
 
 CMD [ "rustfuif" ]

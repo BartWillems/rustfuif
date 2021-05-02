@@ -63,9 +63,9 @@ CREATE TABLE beverage_configs (
 );
 
 -- automatically update `updated_at` columns
-SELECT diesel_manage_updated_at('games');
-SELECT diesel_manage_updated_at('users');
-SELECT diesel_manage_updated_at('invitations');
+SELECT rustfuif_manage_updated_at('games');
+SELECT rustfuif_manage_updated_at('users');
+SELECT rustfuif_manage_updated_at('invitations');
 
 -- create initial admin:admin account
 INSERT INTO users (username, password, is_admin)

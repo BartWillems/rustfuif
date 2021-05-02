@@ -39,7 +39,7 @@ cargo watch -x run
 
 - [actix/actix-web](https://github.com/actix/actix-web)
 - [bikeshedder/deadpool](https://github.com/bikeshedder/deadpool)
-- [diesel-rs/diesel](https://github.com/diesel-rs/diesel)
+- [launchbadge/sqlx](https://github.com/launchbadge/sqlx)
 - [mitsuhiko/redis-rs](https://github.com/mitsuhiko/redis-rs)
 - [open-telemetry/opentelemetry-rust](https://github.com/open-telemetry/opentelemetry-rust)
 - [seanmonstar/reqwest](https://github.com/seanmonstar/reqwest)
