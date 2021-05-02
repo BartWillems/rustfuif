@@ -1,44 +1,59 @@
 use std::time::Instant;
 
-/// how many price updates a stock market crash takes
-// const PRICE_ITER: u8 = 2;
+#[must_use = "this `MarketStatus` may be a `Crash` variant, which should be handled"]
+#[derive(Debug, Copy, Clone)]
+pub(crate) enum MarketStatus {
+    Regular,
+    Crash,
+}
 
 /// holds the current state of the stock market
 ///
 /// when the stock market is crashed, all beverages will be
 /// set to their lowest price
+#[derive(Debug)]
 pub(crate) struct StockMarket {
-    /// the time when te crash started
-    crash_instant: Instant,
+    last_crash: Instant,
+    status: MarketStatus,
 }
 
 impl StockMarket {
     pub(crate) fn new() -> Self {
         StockMarket {
-            crash_instant: Instant::now(),
+            // Make sure the market doesn't instantly crash
+            last_crash: Instant::now(),
+            status: MarketStatus::Regular,
         }
     }
 
     /// instantly crash the stockmarket
     /// this should only be used by administrators
     fn crash(&mut self) {
-        self.crash_instant = Instant::now();
+        self.last_crash = Instant::now();
+        self.status = MarketStatus::Crash;
     }
 
     /// returns true if the last stock market crash was at least
     /// 20 minutes ago
     pub(crate) fn can_crash(&self) -> bool {
-        self.crash_instant.elapsed().as_secs() > 60 * 20
+        self.last_crash.elapsed().as_secs() > 60 * 20
     }
 
     /// crash the stock market if it has been a while since the last crash
     ///
     /// Returns `true` if it has crashed
-    pub(crate) fn maybe_crash(&mut self) -> bool {
+    pub(crate) fn update(&mut self) -> MarketStatus {
         if self.can_crash() {
             self.crash();
-            return true;
         }
-        false
+        self.status
+    }
+
+    /// Returns true if a market crash is happening
+    pub(crate) fn has_crashed(&self) -> bool {
+        match self.status {
+            MarketStatus::Crash => true,
+            _ => false,
+        }
     }
 }

@@ -6,7 +6,7 @@ use sqlx::{Pool, Postgres};
 
 use crate::errors::ServiceError;
 use crate::games::Game;
-use crate::market;
+use crate::market::{MarketStatus, StockMarket};
 use crate::websocket::server::NotificationServer;
 use crate::websocket::Notification;
 use crate::{config::Config, games::Beverage};
@@ -35,7 +35,7 @@ impl Updater {
 
     pub async fn start(self) {
         actix::spawn(async move {
-            let mut stock_market = market::StockMarket::new();
+            let mut stock_market = StockMarket::new();
 
             loop {
                 actix_rt::time::delay_for(self.interval).await;
@@ -59,15 +59,15 @@ impl Updater {
         });
     }
 
-    #[tracing::instrument(skip(stock_market), name = "StockMarket::update_prices")]
+    #[tracing::instrument(name = "StockMarket::update_prices")]
     async fn update_prices(
         db: &Pool<Postgres>,
-        stock_market: &mut market::StockMarket,
+        stock_market: &mut StockMarket,
     ) -> Result<PriceUpdate, ServiceError> {
         let start = std::time::Instant::now();
 
-        let should_crash = stock_market.maybe_crash();
-        info!("has stockmarket crashed: {}", should_crash);
+        let market_status = stock_market.update();
+        info!("Stock Market Status: {:?}", market_status);
 
         let tx = db.begin().await?;
 
@@ -75,11 +75,12 @@ impl Updater {
 
         for game in &games {
             let beverages;
-            if should_crash {
-                beverages = game.crash_prices(db).await?;
-            } else {
-                beverages = game.update_prices(db).await?;
-            }
+
+            beverages = match market_status {
+                MarketStatus::Crash => game.crash_prices(db).await?,
+                MarketStatus::Regular => game.update_prices(db).await?,
+            };
+
             let changes: Vec<PriceChange> =
                 beverages.iter().map(|beverage| beverage.into()).collect();
 
@@ -90,7 +91,7 @@ impl Updater {
 
         tx.commit().await?;
 
-        if should_crash {
+        if stock_market.has_crashed() {
             return Ok(PriceUpdate::StockMarketCrash);
         }
 
