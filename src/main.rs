@@ -13,8 +13,8 @@ extern crate serde_derive;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
 
+use anyhow::Error;
 use dotenv::dotenv;
-use terminator::Terminator;
 
 #[macro_use]
 mod macros;
@@ -37,13 +37,13 @@ mod validator;
 mod websocket;
 
 #[actix_web::main]
-async fn main() -> Result<(), Terminator> {
+async fn main() -> anyhow::Result<(), Error> {
     init().await?;
 
     Ok(())
 }
 
-async fn init() -> Result<(), Box<dyn std::error::Error>> {
+async fn init() -> anyhow::Result<(), Error> {
     dotenv().ok();
 
     let (tracer, _uninstall) = opentelemetry_jaeger::new_pipeline()
@@ -61,12 +61,6 @@ async fn init() -> Result<(), Box<dyn std::error::Error>> {
         .with(opentelemetry)
         .try_init()
         .expect("unable to initialize the tokio tracer");
-
-    // debug!("building database connection pool");
-    // let pool = db::build_connection_pool(config::Config::database_url())?;
-
-    // info!("running database migrations");
-    // db::migrate(&pool)?;
 
     cache::Cache::init();
 
