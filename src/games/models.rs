@@ -300,11 +300,10 @@ impl Game {
     #[tracing::instrument]
     pub async fn update_prices(&self, db: &Pool<Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
         let mut beverages = self.get_beverages(db).await?;
-
         let sales = SalesCount::find_by_game_for_update(self.id, db).await?;
         let average_sales = SalesCount::average_sales(&sales);
 
-        for beverage in &mut beverages {
+        let futures: Vec<_> = beverages.iter_mut().map(|beverage| {
             for sale in &sales {
                 if sale.slot_no != beverage.slot_no {
                     continue;
@@ -316,9 +315,13 @@ impl Game {
                 let price = beverage.calculate_price(offset);
                 debug!("setting price to: {}", price);
                 beverage.set_price(price);
-                beverage.save_price(db).await?;
+                return beverage.save_price(db);
             }
-        }
+            // When a game is created, empty sales counts should also be created
+            unreachable!("SaleCount was NOT created for beverage: {:?}", beverage);
+        }).collect();
+
+        let beverages: Vec<Beverage> = futures::future::try_join_all(futures).await?;
 
         Ok(beverages)
     }
@@ -328,10 +331,15 @@ impl Game {
     pub async fn crash_prices(&self, db: &Pool<Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
         let mut beverages = self.get_beverages(db).await?;
 
-        for beverage in &mut beverages {
-            beverage.set_price(beverage.min_price);
-            beverage.save_price(db).await?;
-        }
+        let futures: Vec<_> = beverages
+            .iter_mut()
+            .map(|beverage| {
+                beverage.set_price(beverage.min_price);
+                beverage.save_price(db)
+            })
+            .collect();
+
+        let beverages: Vec<Beverage> = futures::future::try_join_all(futures).await?;
 
         Ok(beverages)
     }
@@ -372,7 +380,7 @@ impl crate::validator::Validate<CreateGame> for CreateGame {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Beverage {
     #[serde(skip_deserializing)]
