@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -82,7 +83,7 @@ impl StockMarket {
 #[derive(Clone)]
 pub struct MarketAgent {
     db: Pool<Postgres>,
-    interval: Arc<RwLock<Duration>>,
+    interval: Arc<AtomicU64>,
     notifier: Addr<NotificationServer>,
     market: Arc<RwLock<StockMarket>>,
 }
@@ -91,7 +92,7 @@ impl MarketAgent {
     pub fn new(db: Pool<Postgres>, notifier: Addr<NotificationServer>) -> Self {
         Self {
             db,
-            interval: Arc::new(RwLock::new(Config::price_update_interval())),
+            interval: Arc::new(Config::price_update_interval()),
             notifier,
             market: Arc::new(RwLock::new(StockMarket::new())),
         }
@@ -103,8 +104,7 @@ impl MarketAgent {
         let agent = self.clone();
         actix::spawn(async move {
             loop {
-                let duration = agent.interval.read().await;
-                actix_rt::time::delay_for(*duration).await;
+                actix_rt::time::delay_for(agent.interval()).await;
 
                 agent.update().await;
             }
@@ -132,7 +132,7 @@ impl MarketAgent {
 
     #[tracing::instrument(name = "StockMarket::update_prices", skip(self))]
     async fn update_prices(&self) -> Result<MarketStatus, ServiceError> {
-        let start = std::time::Instant::now();
+        let start = Instant::now();
 
         // Acquire write lock
         let mut market = self.market.write().await;
@@ -156,15 +156,25 @@ impl MarketAgent {
             PriceHistory::save(&changes, &self.db).await?;
         }
 
-        info!("updated {} games in {:?}", games.len(), start.elapsed());
-
         tx.commit().await?;
+        info!("updated {} games in {:?}", games.len(), start.elapsed());
 
         if market.has_crashed() {
             return Ok(MarketStatus::Crash);
         }
 
         Ok(MarketStatus::Regular)
+    }
+
+    /// Overwrite the current price update interval
+    /// This takes effect after 1 price update iteration
+    pub(crate) async fn set_interval(&self, new_interval: u64) {
+        self.interval.store(new_interval, Ordering::SeqCst);
+    }
+
+    /// Retrieve the current price update interval
+    pub(crate) fn interval(&self) -> Duration {
+        Duration::from_secs(self.interval.load(Ordering::SeqCst))
     }
 }
 
@@ -190,6 +200,7 @@ pub(crate) struct PriceChange {
 
 impl PriceHistory {
     /// Return all price changes for a single beverage
+    #[tracing::instrument(name = "PriceHistory::load")]
     pub async fn load(
         user_id: i64,
         game_id: i64,
@@ -205,13 +216,16 @@ impl PriceHistory {
         .await
     }
 
+    #[tracing::instrument(name = "PriceHistory::save", skip(db))]
     async fn save(changes: &[PriceChange], db: &Pool<Postgres>) -> Result<(), sqlx::Error> {
-        for change in changes {
+        let futures: Vec<_> = changes.iter().map(|change| {
             sqlx::query!(
                 "INSERT INTO price_histories (game_id, user_id, slot_no, price, created_at) VALUES ($1, $2, $3, $4, $5)", 
                 change.game_id, change.user_id, change.slot_no, change.price, change.created_at
-            ).execute(db).await?;
-        }
+            ).execute(db)
+        }).collect();
+
+        futures::future::try_join_all(futures).await?;
 
         Ok(())
     }

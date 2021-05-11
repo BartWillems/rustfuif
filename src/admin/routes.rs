@@ -1,5 +1,5 @@
 use actix_identity::Identity;
-use actix_web::web::Data;
+use actix_web::web::{Data, Json};
 use actix_web::{get, post, web};
 
 use crate::auth;
@@ -126,6 +126,26 @@ async fn update_prices(id: Identity, state: Data<State>) -> Response {
     http_ok_json!("Prices have been updates succesfully");
 }
 
+#[get("/admin/market/update-interval")]
+async fn get_price_update_interval(id: Identity, state: Data<State>) -> Response {
+    auth::verify_admin(&id)?;
+
+    http_ok_json!(state.market.interval().as_secs());
+}
+
+#[post("/admin/market/update-interval")]
+async fn set_price_update_interval(
+    id: Identity,
+    seconds: Json<u64>,
+    state: Data<State>,
+) -> Response {
+    auth::verify_admin(&id)?;
+
+    state.market.set_interval(*seconds).await;
+
+    http_ok_json!(state.market.interval().as_secs());
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(game_count);
     cfg.service(user_count);
@@ -137,4 +157,6 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(server_stats);
     cfg.service(database_stats);
     cfg.service(update_prices);
+    cfg.service(get_price_update_interval);
+    cfg.service(set_price_update_interval);
 }

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::sync::atomic::AtomicU64;
 
 use validator::Validate;
 
@@ -63,10 +63,10 @@ impl Config {
         }
     }
 
-    pub fn price_update_interval() -> Duration {
+    pub fn price_update_interval() -> AtomicU64 {
         match CONFIG.price_update_interval {
-            Some(interval) => Duration::from_secs(interval),
-            None => Duration::from_secs(120),
+            Some(interval) => AtomicU64::new(interval),
+            None => AtomicU64::new(120),
         }
     }
 
