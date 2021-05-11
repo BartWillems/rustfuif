@@ -62,11 +62,11 @@ impl NewSale {
     #[tracing::instrument(name = "transaction::purchase")]
     pub async fn save(&self, db: &Pool<Postgres>) -> Result<Vec<Transaction>, ServiceError> {
         // NEW SALES ORDER
-            // 1. Fetch beverage configs FOR UPDATE
-            // 2. Fetch current sales_counts FOR UPDATE
-            // 3. Calculate the prices for each beverage in the new sale
-            // 4. update sales_counts
-            // 5. insert in transactions with the current count
+        // 1. Fetch beverage configs FOR UPDATE
+        // 2. Fetch current sales_counts FOR UPDATE
+        // 3. Calculate the prices for each beverage in the new sale
+        // 4. update sales_counts
+        // 5. insert in transactions with the current count
         let tx = db.begin().await?;
         let game = Game::find_by_id(self.game_id, db).await?;
 
@@ -86,7 +86,7 @@ impl NewSale {
             self.user_id, self.game_id, &keys)
             .fetch_all(db)
             .await?;
-        
+
         // 2
         let mut sales_counts = SalesCount::find_by_game_for_update(self.game_id, db).await?;
 
@@ -216,7 +216,6 @@ impl SalesCount {
         game_id: i64,
         db: &Pool<Postgres>,
     ) -> Result<Vec<SalesCount>, sqlx::Error> {
-
         let res = sqlx::query_as!(SalesCount, "SELECT * FROM sales_counts WHERE game_id = $1 ORDER BY slot_no FOR UPDATE", game_id).fetch_all(db).await?;
 
         Ok(res)

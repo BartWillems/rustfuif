@@ -28,7 +28,6 @@ mod errors;
 mod games;
 mod invitations;
 mod market;
-mod prices;
 mod server;
 mod stats;
 mod transactions;

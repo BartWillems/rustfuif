@@ -6,7 +6,7 @@ use actix_web::{delete, get, post, put};
 
 use crate::auth;
 use crate::games::models::{Beverage, CreateGame, Game, GameFilter};
-use crate::prices::PriceHistory;
+use crate::market::PriceHistory;
 use crate::server::{self, State};
 use crate::validator::Validator;
 

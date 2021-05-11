@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 
-use crate::prices::PriceUpdate;
+use crate::market::MarketStatus;
 use crate::transactions::Transaction;
 use crate::users::User;
 use crate::websocket::queries::ActiveGamesResponse;
@@ -206,7 +206,7 @@ pub enum Notification {
     /// Notify users in a game when a new sale happened
     NewSale(Sale),
     /// Notify all connected users that he prices are updated
-    PriceUpdate(PriceUpdate),
+    PriceUpdate(MarketStatus),
     /// Notify users in a certain game that someone joined
     /// This is done by sending the ConnectionCount
     UserConnected(ConnectionType),

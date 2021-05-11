@@ -101,6 +101,31 @@ async fn server_stats(id: Identity) -> Response {
     });
 }
 
+#[get("/admin/server/database")]
+async fn database_stats(id: Identity, state: Data<State>) -> Response {
+    auth::verify_admin(&id)?;
+
+    #[derive(Serialize)]
+    struct Stats {
+        active_db_connections: usize,
+        idle_db_connections: usize,
+    }
+
+    http_ok_json!(Stats {
+        active_db_connections: state.db.size() as usize,
+        idle_db_connections: state.db.num_idle(),
+    })
+}
+
+#[post("/admin/market/update-prices")]
+async fn update_prices(id: Identity, state: Data<State>) -> Response {
+    auth::verify_admin(&id)?;
+
+    state.market.update().await;
+
+    http_ok_json!("Prices have been updates succesfully");
+}
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(game_count);
     cfg.service(user_count);
@@ -110,4 +135,6 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(disable_cache);
     cfg.service(enable_cache);
     cfg.service(server_stats);
+    cfg.service(database_stats);
+    cfg.service(update_prices);
 }
