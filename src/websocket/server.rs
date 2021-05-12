@@ -104,8 +104,8 @@ impl NotificationServer {
         self.sessions
             .iter()
             .filter(|&(_, user)| user.is_admin())
-            .for_each(|(_, user)| {
-                let _ = user.send(notification.clone());
+            .for_each(|(_, admin)| {
+                let _ = admin.send(notification.clone());
             });
     }
 
@@ -254,18 +254,24 @@ impl Handler<Disconnect> for NotificationServer {
     fn handle(&mut self, msg: Disconnect, ctx: &mut Context<Self>) {
         let mut stale_game: Option<GameId> = None;
         // remove address
-        if self.sessions.remove(&msg.id).is_some() {
+        if let Some(session) = self.sessions.remove(&msg.id) {
             // remove session from all games
-            for (game_id, sessions) in self.games.iter_mut() {
-                if sessions.remove(&msg.id) {
+            for (game_id, game_sessions) in self.games.iter_mut() {
+                if game_sessions.remove(&msg.id) {
                     ctx.notify(Notification::UserDisconnected(
                         ConnectionType::GameConnection(*game_id),
                     ));
                     // this was the last user in the game
-                    if sessions.is_empty() {
+                    if game_sessions.is_empty() {
                         stale_game = Some(*game_id);
                     }
                 }
+            }
+
+            if session.is_admin() {
+                ctx.notify(Notification::UserDisconnected(
+                    ConnectionType::AdminConnection,
+                ));
             }
         }
 
