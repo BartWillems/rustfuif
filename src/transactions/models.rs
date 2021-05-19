@@ -6,6 +6,7 @@ use sqlx::{Pool, Postgres};
 use crate::errors::ServiceError;
 use crate::games::{Beverage, Game};
 
+// TODO: Next migration: remove game_id,created_at & user_id columns from transactions
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
@@ -13,6 +14,7 @@ pub struct Transaction {
     pub user_id: i64,
     pub game_id: i64,
     pub slot_no: i16,
+    pub order_id: i64,
     pub created_at: Option<DateTime<Utc>>,
     pub amount: i32,
     pub price: i64,
@@ -62,6 +64,7 @@ impl NewSale {
     #[tracing::instrument(name = "transaction::purchase")]
     pub async fn save(&self, db: &Pool<Postgres>) -> Result<Vec<Transaction>, ServiceError> {
         // NEW SALES ORDER
+        // 0. Create the order
         // 1. Fetch beverage configs FOR UPDATE
         // 2. Fetch current sales_counts FOR UPDATE
         // 3. Calculate the prices for each beverage in the new sale
@@ -78,6 +81,15 @@ impl NewSale {
 
         let mut sales: HashMap<i16, Sale> = self.unroll();
         let keys: Vec<i16> = sales.keys().copied().collect();
+
+        // Create the order
+        let order_id: i64 = sqlx::query!(
+                "INSERT INTO orders (user_id, game_id) VALUES ($1, $2) RETURNING id",
+                self.user_id, self.game_id
+            )
+            .fetch_one(db)
+            .await?
+            .id;
 
         // 1
         let beverages = sqlx::query_as!(
@@ -124,8 +136,8 @@ impl NewSale {
         for sale in sales.values() {
             let transaction = sqlx::query_as!(
                 Transaction,
-                "INSERT INTO transactions (user_id, game_id, slot_no, amount, price) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-                sale.user_id, sale.game_id, sale.slot_no, sale.amount, sale.price
+                "INSERT INTO transactions (user_id, game_id, slot_no, amount, price, order_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+                sale.user_id, sale.game_id, sale.slot_no, sale.amount, sale.price, order_id
             ).fetch_one(db).await?;
             transactions.push(transaction);
         }
@@ -161,7 +173,74 @@ impl Sale {
     }
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Order {
+    id: i64,
+    created_at: DateTime<Utc>,
+    total_price: i64,
+    items: Vec<Transaction>,
+}
+
+
+impl Order {
+    fn new(id: i64, created_at: DateTime<Utc>) -> Self {
+        Self {
+            id,
+            created_at,
+            total_price: 0,
+            items: Vec::new(),
+        }
+    }
+
+    /// Fetches the list of transactions(items) linked to this order
+    /// Update the order's total price after fetching the transactions
+    #[tracing::instrument(name = "Order::load_order_items")]
+    async fn load_order_items(&mut self, db: &Pool<Postgres>) -> Result<&mut Self, sqlx::Error> {
+        self.items =  Transaction::find_by_order(self, db).await?;
+
+        for item in &self.items {
+            self.total_price += item.price * item.amount as i64;
+        }
+
+        Ok(self)
+    }
+}
+
 impl Transaction {
+    #[tracing::instrument(name = "Transaction::orders")]
+    pub async fn orders(
+        user_id: i64,
+        game_id: i64,
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<Order>, sqlx::Error> {
+        let records = sqlx::query!(
+            "SELECT id, created_at FROM orders
+            WHERE user_id = $1 AND game_id = $2
+            ORDER BY created_at DESC", 
+            user_id, 
+            game_id
+        ).fetch_all(db).await?;
+
+        let mut orders = Vec::new();
+
+        for record in records {
+            let mut order = Order::new(record.id, record.created_at);
+            order.load_order_items(db).await?;
+            orders.push(order);
+        }
+
+        Ok(orders)
+    }
+
+    #[tracing::instrument(name = "Transaction::find_by_order")]
+    pub async fn find_by_order(
+        order: &Order,
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<Transaction>, sqlx::Error> {
+        sqlx::query_as!(Transaction, "SELECT * FROM transactions WHERE order_id = $1 ORDER BY id DESC", order.id).fetch_all(db).await
+    }
+
     #[tracing::instrument(name = "Transaction::find_all")]
     pub async fn find_all(
         user_id: i64,
@@ -178,16 +257,18 @@ impl Transaction {
         db: &Pool<Postgres>,
     ) -> Result<Vec<UserSales>, sqlx::Error> {
         sqlx::query_as!(
-            UserSales, 
+            UserSales,
             r#"
             SELECT users.username, SUM(transactions.amount) as "sales!"
             FROM transactions
             INNER JOIN users ON users.id = transactions.user_id
             WHERE transactions.game_id = $1
             GROUP BY users.username
-            "#, 
+            "#,
             game_id
-        ).fetch_all(db).await
+        )
+        .fetch_all(db)
+        .await
     }
 }
 
@@ -216,19 +297,42 @@ impl SalesCount {
         game_id: i64,
         db: &Pool<Postgres>,
     ) -> Result<Vec<SalesCount>, sqlx::Error> {
-        let res = sqlx::query_as!(SalesCount, "SELECT * FROM sales_counts WHERE game_id = $1 ORDER BY slot_no FOR UPDATE", game_id).fetch_all(db).await?;
+        let res = sqlx::query_as!(
+            SalesCount,
+            "SELECT * FROM sales_counts WHERE game_id = $1 ORDER BY slot_no FOR UPDATE",
+            game_id
+        )
+        .fetch_all(db)
+        .await?;
 
         Ok(res)
     }
 
     #[tracing::instrument(name = "salescount::find_by_game")]
-    pub async fn find_by_game(game_id: i64, db: &Pool<Postgres>) -> Result<Vec<SalesCount>, sqlx::Error> {
-        sqlx::query_as!(SalesCount, "SELECT * FROM sales_counts WHERE game_id = $1 ORDER BY slot_no", game_id).fetch_all(db).await
+    pub async fn find_by_game(
+        game_id: i64,
+        db: &Pool<Postgres>,
+    ) -> Result<Vec<SalesCount>, sqlx::Error> {
+        sqlx::query_as!(
+            SalesCount,
+            "SELECT * FROM sales_counts WHERE game_id = $1 ORDER BY slot_no",
+            game_id
+        )
+        .fetch_all(db)
+        .await
     }
 
     #[tracing::instrument(name = "SalesCount::update")]
     async fn update(&self, db: &Pool<Postgres>) -> Result<SalesCount, sqlx::Error> {
-        sqlx::query_as!(SalesCount, "UPDATE sales_counts SET sales = $1 WHERE game_id = $2 AND slot_no = $3 RETURNING *", self.sales, self.game_id, self.slot_no).fetch_one(db).await
+        sqlx::query_as!(
+            SalesCount,
+            "UPDATE sales_counts SET sales = $1 WHERE game_id = $2 AND slot_no = $3 RETURNING *",
+            self.sales,
+            self.game_id,
+            self.slot_no
+        )
+        .fetch_one(db)
+        .await
     }
 
     /// Returns the aveage sales for a game

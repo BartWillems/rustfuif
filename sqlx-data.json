@@ -463,6 +463,11 @@
           "ordinal": 6,
           "name": "price",
           "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "order_id",
+          "type_info": "Int8"
         }
       ],
       "parameters": {
@@ -477,6 +482,7 @@
         false,
         false,
         true,
+        false,
         false,
         false
       ]
@@ -838,6 +844,73 @@
       ]
     }
   },
+  "6cae6462323884359406c94ea33575b37c7274bef47d44cbd8384f3e1263577f": {
+    "query": "INSERT INTO transactions (user_id, game_id, slot_no, amount, price, order_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "amount",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 6,
+          "name": "price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "order_id",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Int2",
+          "Int4",
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    }
+  },
   "7332fbdcce19ebfd457d73302777c7a22f9fbe480a07ebe55c2fca689725d4da": {
     "query": "UPDATE users SET password = $1 WHERE id = $2",
     "describe": {
@@ -866,6 +939,33 @@
       },
       "nullable": [
         null
+      ]
+    }
+  },
+  "78685f47dd3a629e9040535908c4d48386f00606ba7cb69353ee661ddb68a739": {
+    "query": "SELECT id, created_at FROM orders\n            WHERE user_id = $1 AND game_id = $2\n            ORDER BY created_at DESC",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false
       ]
     }
   },
@@ -1093,6 +1193,68 @@
       ]
     }
   },
+  "99748ff3a1276a17004d9dc590caa611e04e1bbe776cad1c0cc8a89245f5bfb1": {
+    "query": "SELECT * FROM transactions WHERE order_id = $1 ORDER BY id DESC",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "amount",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 6,
+          "name": "price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 7,
+          "name": "order_id",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ]
+    }
+  },
   "a6e1dc3456d5e6957e5a854e2bd61f27b616e0085188340da338267bc70580df": {
     "query": "\n            SELECT invitations.id, invitations.state, games.id AS \"game_id\", games.name, games.start_time, games.close_time, games.beverage_count, users.id AS \"user_id\", users.username\n            FROM invitations\n            INNER JOIN games ON invitations.game_id = games.id\n            INNER JOIN users ON games.owner_id = users.id\n            WHERE \n                invitations.user_id = $1 \n                AND games.close_time > NOW() \n                AND games.owner_id != $1\n            ORDER BY games.start_time\n            ",
     "describe": {
@@ -1223,6 +1385,27 @@
         ]
       },
       "nullable": []
+    }
+  },
+  "bd0bca9d6021a77ca5c5713fb86279497c12b83d0048c20f8b3160fe635e7bce": {
+    "query": "INSERT INTO orders (user_id, game_id) VALUES ($1, $2) RETURNING id",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false
+      ]
     }
   },
   "c047ff1f442fb822a801b79fee8c26d6ff726b8eac265192c2a485551904ba9a": {
@@ -1521,66 +1704,6 @@
         false,
         true,
         true,
-        false
-      ]
-    }
-  },
-  "e35183941588da2c0471d8e1c7d57328e9a68d84a4f8a72963ee970e85812add": {
-    "query": "INSERT INTO transactions (user_id, game_id, slot_no, amount, price) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "user_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 2,
-          "name": "game_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 3,
-          "name": "slot_no",
-          "type_info": "Int2"
-        },
-        {
-          "ordinal": 4,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 5,
-          "name": "amount",
-          "type_info": "Int4"
-        },
-        {
-          "ordinal": 6,
-          "name": "price",
-          "type_info": "Int8"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int8",
-          "Int2",
-          "Int4",
-          "Int8"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
         false
       ]
     }

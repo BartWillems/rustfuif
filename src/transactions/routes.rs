@@ -12,13 +12,28 @@ use crate::server::State;
 use crate::transactions::models::{NewSale, SalesCount, Transaction};
 use crate::websocket::{Notification, Sale};
 
-#[get("/games/{id}/sales")]
+/// Get the total amount of sold beverages
+#[get("/games/{id}/sales/beverages")]
 async fn get_sales(game_id: Path<i64>, id: Identity, state: Data<State>) -> server::Response {
     let user = auth::get_user(&id)?;
     let game_id = game_id.into_inner();
 
-    let sales = Transaction::find_all(user.id, game_id, &state.db).await?;
+    let sales = Transaction::orders(user.id, game_id, &state.db).await?;
 
+    http_ok_json!(sales);
+}
+
+/// Get the total amount of purchases/orders
+/// 1 order can contain multiple beverages
+#[get("/games/{id}/sales/orders")]
+async fn get_order_beverages(
+    path: Path<i64>,
+    id: Identity,
+    state: Data<State>,
+) -> server::Response {
+    let user = auth::get_user(&id)?;
+    let game_id = path.into_inner();
+    let sales = Transaction::orders(user.id, game_id, &state.db).await?;
     http_ok_json!(sales);
 }
 
@@ -82,6 +97,7 @@ async fn user_sales(game_id: Path<i64>, state: Data<State>, id: Identity) -> ser
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(get_sales);
+    cfg.service(get_order_beverages);
     cfg.service(create_sale);
     cfg.service(beverage_sales);
     cfg.service(user_sales);
