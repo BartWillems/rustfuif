@@ -425,69 +425,6 @@
       ]
     }
   },
-  "3e84f9de455b33c98f3814f666ae324afe0d34ba9c0af5d772a4b6cd724c06eb": {
-    "query": "SELECT * FROM transactions WHERE user_id = $1 AND game_id = $2 ORDER BY created_at DESC",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "user_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 2,
-          "name": "game_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 3,
-          "name": "slot_no",
-          "type_info": "Int2"
-        },
-        {
-          "ordinal": 4,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 5,
-          "name": "amount",
-          "type_info": "Int4"
-        },
-        {
-          "ordinal": 6,
-          "name": "price",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 7,
-          "name": "order_id",
-          "type_info": "Int8"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int8"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false
-      ]
-    }
-  },
   "42c5ebc198c77c5fde9b01ff3020fe15a765259fb073e0ecd85879d858170994": {
     "query": "SELECT * FROM beverages WHERE game_id = $1 ORDER BY slot_no",
     "describe": {
@@ -658,32 +595,6 @@
       ]
     }
   },
-  "58fa7812c08c2818134e396d91be4ce9e8b3bd97009b2d2fcc9f7b5e3804a6b1": {
-    "query": "\n            SELECT users.username, SUM(transactions.amount) as \"sales!\"\n            FROM transactions\n            INNER JOIN users ON users.id = transactions.user_id\n            WHERE transactions.game_id = $1\n            GROUP BY users.username\n            ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "username",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 1,
-          "name": "sales!",
-          "type_info": "Int8"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      },
-      "nullable": [
-        false,
-        null
-      ]
-    }
-  },
   "606364c79e0990deb07dfbe6c32b3d302d083ec5333f3a5ce04113c38a041100": {
     "query": "SELECT * FROM users WHERE username = $1",
     "describe": {
@@ -844,73 +755,6 @@
       ]
     }
   },
-  "6cae6462323884359406c94ea33575b37c7274bef47d44cbd8384f3e1263577f": {
-    "query": "INSERT INTO transactions (user_id, game_id, slot_no, amount, price, order_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "user_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 2,
-          "name": "game_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 3,
-          "name": "slot_no",
-          "type_info": "Int2"
-        },
-        {
-          "ordinal": 4,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 5,
-          "name": "amount",
-          "type_info": "Int4"
-        },
-        {
-          "ordinal": 6,
-          "name": "price",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 7,
-          "name": "order_id",
-          "type_info": "Int8"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int8",
-          "Int2",
-          "Int4",
-          "Int8",
-          "Int8"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false
-      ]
-    }
-  },
   "7332fbdcce19ebfd457d73302777c7a22f9fbe480a07ebe55c2fca689725d4da": {
     "query": "UPDATE users SET password = $1 WHERE id = $2",
     "describe": {
@@ -939,6 +783,53 @@
       },
       "nullable": [
         null
+      ]
+    }
+  },
+  "763ec8c510366ebc9d47a6fff119f9137e2c84e55b93c9e27441c1292565e983": {
+    "query": "INSERT INTO transactions (slot_no, amount, price, order_id) VALUES ($1, $2, $3, $4) RETURNING *",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "slot_no",
+          "type_info": "Int2"
+        },
+        {
+          "ordinal": 2,
+          "name": "amount",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 3,
+          "name": "price",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 4,
+          "name": "order_id",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int2",
+          "Int4",
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
       ]
     }
   },
@@ -1193,6 +1084,32 @@
       ]
     }
   },
+  "95b702fa57e4d7316b725e509089866430281a324a6fdc17b704acfc3606bc65": {
+    "query": "\n            SELECT users.username, SUM(transactions.amount) as \"sales!\"\n            FROM transactions\n            INNER JOIN orders ON orders.id = transactions.order_id\n            INNER JOIN users ON users.id = orders.user_id\n            WHERE orders.game_id = $1\n            GROUP BY users.username\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "username",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 1,
+          "name": "sales!",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        null
+      ]
+    }
+  },
   "99748ff3a1276a17004d9dc590caa611e04e1bbe776cad1c0cc8a89245f5bfb1": {
     "query": "SELECT * FROM transactions WHERE order_id = $1 ORDER BY id DESC",
     "describe": {
@@ -1204,36 +1121,21 @@
         },
         {
           "ordinal": 1,
-          "name": "user_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 2,
-          "name": "game_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 3,
           "name": "slot_no",
           "type_info": "Int2"
         },
         {
-          "ordinal": 4,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 5,
+          "ordinal": 2,
           "name": "amount",
           "type_info": "Int4"
         },
         {
-          "ordinal": 6,
+          "ordinal": 3,
           "name": "price",
           "type_info": "Int8"
         },
         {
-          "ordinal": 7,
+          "ordinal": 4,
           "name": "order_id",
           "type_info": "Int8"
         }
@@ -1246,9 +1148,6 @@
       "nullable": [
         false,
         false,
-        false,
-        false,
-        true,
         false,
         false,
         false

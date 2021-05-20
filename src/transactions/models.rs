@@ -11,11 +11,8 @@ use crate::games::{Beverage, Game};
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub id: i64,
-    pub user_id: i64,
-    pub game_id: i64,
     pub slot_no: i16,
     pub order_id: i64,
-    pub created_at: Option<DateTime<Utc>>,
     pub amount: i32,
     pub price: i64,
 }
@@ -136,8 +133,8 @@ impl NewSale {
         for sale in sales.values() {
             let transaction = sqlx::query_as!(
                 Transaction,
-                "INSERT INTO transactions (user_id, game_id, slot_no, amount, price, order_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-                sale.user_id, sale.game_id, sale.slot_no, sale.amount, sale.price, order_id
+                "INSERT INTO transactions (slot_no, amount, price, order_id) VALUES ($1, $2, $3, $4) RETURNING *",
+                sale.slot_no, sale.amount, sale.price, order_id
             ).fetch_one(db).await?;
             transactions.push(transaction);
         }
@@ -233,21 +230,13 @@ impl Transaction {
         Ok(orders)
     }
 
+    /// Return all items purchased in 1 order
     #[tracing::instrument(name = "Transaction::find_by_order")]
     pub async fn find_by_order(
         order: &Order,
         db: &Pool<Postgres>,
     ) -> Result<Vec<Transaction>, sqlx::Error> {
         sqlx::query_as!(Transaction, "SELECT * FROM transactions WHERE order_id = $1 ORDER BY id DESC", order.id).fetch_all(db).await
-    }
-
-    #[tracing::instrument(name = "Transaction::find_all")]
-    pub async fn find_all(
-        user_id: i64,
-        game_id: i64,
-        db: &Pool<Postgres>,
-    ) -> Result<Vec<Transaction>, sqlx::Error> {
-        sqlx::query_as!(Transaction, "SELECT * FROM transactions WHERE user_id = $1 AND game_id = $2 ORDER BY created_at DESC", user_id, game_id).fetch_all(db).await
     }
 
     /// Get the amount of sales each user has made in a game
@@ -261,8 +250,9 @@ impl Transaction {
             r#"
             SELECT users.username, SUM(transactions.amount) as "sales!"
             FROM transactions
-            INNER JOIN users ON users.id = transactions.user_id
-            WHERE transactions.game_id = $1
+            INNER JOIN orders ON orders.id = transactions.order_id
+            INNER JOIN users ON users.id = orders.user_id
+            WHERE orders.game_id = $1
             GROUP BY users.username
             "#,
             game_id
