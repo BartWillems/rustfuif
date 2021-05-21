@@ -83,8 +83,8 @@ async fn respond(
     }
 
     match response {
-        State::ACCEPTED => invite.accept(),
-        State::DECLINED => invite.decline(),
+        State::Accepted => invite.accept(),
+        State::Declined => invite.decline(),
         _ => bad_request!("you can only accept or decline an invite"),
     };
 

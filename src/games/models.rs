@@ -52,7 +52,7 @@ pub struct GameFilter {
 pub struct GameUser {
     pub user_id: i64,
     pub username: String,
-    pub invitation_state: String,
+    pub invitation_state: State,
 }
 
 #[derive(Debug, Serialize)]
@@ -116,7 +116,9 @@ impl Game {
             SELECT games.id
             FROM (games INNER JOIN invitations ON invitations.game_id = games.id) 
             WHERE games.id = $1 AND invitations.user_id = $2 AND invitations.state = $3 AND games.start_time < NOW() AND games.close_time > NOW()"#,
-            game_id, user_id, State::ACCEPTED.to_string()
+            game_id,
+            user_id,
+            State::Accepted as _,
         ).fetch_optional(db).await?;
 
         Ok(game.is_some())
@@ -200,7 +202,8 @@ impl Game {
                     SELECT game_id FROM invitations WHERE user_id = $1 AND state = $2
                 ) AND games.close_time > NOW()
                 ORDER BY games.start_time DESC"#,
-                user_id, State::ACCEPTED.to_string()
+                user_id,
+                State::Accepted as _,
             ).fetch_all(db).await;
         }
 
@@ -212,7 +215,7 @@ impl Game {
                 SELECT game_id FROM invitations WHERE user_id = $1 AND state = $2
             )
             ORDER BY games.start_time DESC"#,
-            user_id, State::ACCEPTED.to_string()
+            user_id, State::Accepted as _
         ).fetch_all(db).await?;
 
         Ok(games)
@@ -226,7 +229,7 @@ impl Game {
     ) -> Result<Vec<GameUser>, sqlx::Error> {
         sqlx::query_as!(
             GameUser,
-            r#"SELECT users.id as "user_id", username, invitations.state as "invitation_state"
+            r#"SELECT users.id as "user_id", username, invitations.state as "invitation_state: State"
             FROM users
             INNER JOIN invitations ON invitations.user_id = users.id
             WHERE invitations.game_id = $1"#, 
@@ -255,7 +258,7 @@ impl Game {
             "#,
             game_id,
             user_id,
-            State::ACCEPTED.to_string()
+            State::Accepted as _
         )
         .fetch_optional(db)
         .await?;

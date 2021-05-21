@@ -13,7 +13,7 @@ impl crate::validator::Validate<PasswordChange> for PasswordChange {
         }
 
         if self.new.len() < 8 {
-            bad_request!("your password should at least be 8 characters long");
+            bad_request!("your password should be at least 8 characters long");
         }
 
         Ok(())

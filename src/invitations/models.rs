@@ -1,5 +1,3 @@
-use std::fmt;
-
 use actix_web::Result;
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres};
@@ -9,22 +7,18 @@ use crate::users::UserResponse;
 
 /// The state shows wether a user has accepted, declined or not yet
 /// responded to an invitation.
-#[derive(Debug, Deserialize)]
+#[derive(sqlx::Type, Debug, Deserialize, Serialize)]
+#[sqlx(rename = "invitation_state", rename_all = "UPPERCASE")]
+#[serde(rename_all = "UPPERCASE")]
 pub enum State {
-    PENDING,
-    ACCEPTED,
-    DECLINED,
+    Pending,
+    Accepted,
+    Declined,
 }
 
 impl Default for State {
     fn default() -> Self {
-        State::PENDING
-    }
-}
-
-impl fmt::Display for State {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        State::Pending
     }
 }
 
@@ -36,7 +30,7 @@ pub struct Invitation {
     pub id: i64,
     pub game_id: i64,
     pub user_id: i64,
-    pub state: String,
+    pub state: State,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }
@@ -46,7 +40,7 @@ pub struct Invitation {
 pub struct NewInvitation {
     game_id: i64,
     user_id: i64,
-    state: String,
+    state: State,
 }
 
 impl NewInvitation {
@@ -54,24 +48,27 @@ impl NewInvitation {
         NewInvitation {
             game_id,
             user_id,
-            state: State::PENDING.to_string(),
+            state: State::default(),
         }
     }
 
     pub async fn save(&self, db: &Pool<Postgres>) -> Result<Invitation, sqlx::Error> {
         sqlx::query_as!(
             Invitation,
-            "INSERT INTO invitations (game_id, user_id, state) VALUES ($1, $2, $3) RETURNING *;",
+            r#"
+            INSERT INTO invitations (game_id, user_id, state)
+            VALUES ($1, $2, $3)
+            RETURNING id, game_id, user_id, state as "state!: State", created_at, updated_at;"#,
             self.game_id,
             self.user_id,
-            self.state
+            self.state as _,
         )
         .fetch_one(db)
         .await
     }
 
     pub fn accept(&mut self) -> &mut NewInvitation {
-        self.state = State::ACCEPTED.to_string();
+        self.state = State::Accepted;
         self
     }
 }
@@ -80,7 +77,7 @@ impl NewInvitation {
 pub struct InvitationResponse {
     pub id: i64,
     pub game: GameResponse,
-    pub state: String,
+    pub state: State,
 }
 
 impl Invitation {
@@ -88,8 +85,12 @@ impl Invitation {
     pub async fn update(&self, db: &Pool<Postgres>) -> Result<Invitation, sqlx::Error> {
         sqlx::query_as!(
             Invitation,
-            "UPDATE invitations SET state = $1 WHERE id = $2 RETURNING *",
-            self.state,
+            r#"
+            UPDATE invitations 
+            SET state = $1 
+            WHERE id = $2 
+            RETURNING id, game_id, user_id, state as "state!: State", created_at, updated_at;"#,
+            self.state as _,
             self.id
         )
         .fetch_one(db)
@@ -97,9 +98,16 @@ impl Invitation {
     }
 
     pub async fn find_by_id(id: i64, db: &Pool<Postgres>) -> Result<Invitation, sqlx::Error> {
-        sqlx::query_as!(Invitation, "SELECT * FROM invitations WHERE id = $1", id)
-            .fetch_one(db)
-            .await
+        sqlx::query_as!(
+            Invitation,
+            r#"
+                SELECT id, game_id, user_id, state as "state!: State", created_at, updated_at
+                FROM invitations
+                WHERE id = $1"#,
+            id,
+        )
+        .fetch_one(db)
+        .await
     }
 
     /// returns list of game invitations for a user
@@ -110,7 +118,7 @@ impl Invitation {
     ) -> Result<Vec<InvitationResponse>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"
-            SELECT invitations.id, invitations.state, games.id AS "game_id", games.name, games.start_time, games.close_time, games.beverage_count, users.id AS "user_id", users.username
+            SELECT invitations.id, invitations.state as "state!: State", games.id AS "game_id", games.name, games.start_time, games.close_time, games.beverage_count, users.id AS "user_id", users.username
             FROM invitations
             INNER JOIN games ON invitations.game_id = games.id
             INNER JOIN users ON games.owner_id = users.id
@@ -147,13 +155,13 @@ impl Invitation {
 
     /// mark a game as accepted, this does not automatically persist
     pub fn accept(&mut self) -> &mut Self {
-        self.state = State::ACCEPTED.to_string();
+        self.state = State::Accepted;
         self
     }
 
     /// mark a game as accepted, this does not automatically persist
     pub fn decline(&mut self) -> &mut Self {
-        self.state = State::DECLINED.to_string();
+        self.state = State::Declined;
         self
     }
 }

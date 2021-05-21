@@ -14,7 +14,18 @@
         "Left": [
           "Int8",
           "Int8",
-          "Text"
+          {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          }
         ]
       },
       "nullable": [
@@ -54,7 +65,18 @@
         "Left": [
           "Int8",
           "Int8",
-          "Text"
+          {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          }
         ]
       },
       "nullable": [
@@ -62,56 +84,8 @@
       ]
     }
   },
-  "11b93dfc944a2ef93d6838297e3db3ee8e1aa3041e41c07d7bac0481ac97c727": {
-    "query": "SELECT users.id as \"user_id\", username, invitations.state as \"invitation_state\"\n            FROM users\n            INNER JOIN invitations ON invitations.user_id = users.id\n            WHERE invitations.game_id = $1",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "user_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "username",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 2,
-          "name": "invitation_state",
-          "type_info": "Varchar"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false
-      ]
-    }
-  },
-  "19b8e1e91a326674019156ad49b0c9e70282e36bb1acb7725456a8fba940cc71": {
-    "query": "INSERT INTO price_histories (game_id, user_id, slot_no, price, created_at) VALUES ($1, $2, $3, $4, $5)",
-    "describe": {
-      "columns": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int8",
-          "Int2",
-          "Int8",
-          "Timestamptz"
-        ]
-      },
-      "nullable": []
-    }
-  },
-  "1bdaa1db3eb0a7aad8ac3c742770801cb0505653dda663abbc447d4d968749a4": {
-    "query": "SELECT * FROM invitations WHERE id = $1",
+  "0f453decc209f2a6d3ae1b6b003aac815c32729e44cc89682d6e50a4c3428681": {
+    "query": "\n            INSERT INTO invitations (game_id, user_id, state)\n            VALUES ($1, $2, $3)\n            RETURNING id, game_id, user_id, state as \"state!: State\", created_at, updated_at;",
     "describe": {
       "columns": [
         {
@@ -131,8 +105,19 @@
         },
         {
           "ordinal": 3,
-          "name": "state",
-          "type_info": "Varchar"
+          "name": "state!: State",
+          "type_info": {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          }
         },
         {
           "ordinal": 4,
@@ -147,7 +132,20 @@
       ],
       "parameters": {
         "Left": [
-          "Int8"
+          "Int8",
+          "Int8",
+          {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          }
         ]
       },
       "nullable": [
@@ -158,6 +156,22 @@
         true,
         true
       ]
+    }
+  },
+  "19b8e1e91a326674019156ad49b0c9e70282e36bb1acb7725456a8fba940cc71": {
+    "query": "INSERT INTO price_histories (game_id, user_id, slot_no, price, created_at) VALUES ($1, $2, $3, $4, $5)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8",
+          "Int2",
+          "Int8",
+          "Timestamptz"
+        ]
+      },
+      "nullable": []
     }
   },
   "1e911dcbc8d5335012b8288ff99bf02a6322f49fb144e5ecc03b967b0184b4fb": {
@@ -493,57 +507,6 @@
       ]
     }
   },
-  "4a586d4acd1502cb48be4e3a56ba0575b836efd71666451e481e78f57649f841": {
-    "query": "UPDATE invitations SET state = $1 WHERE id = $2 RETURNING *",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "game_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 2,
-          "name": "user_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 3,
-          "name": "state",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 4,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 5,
-          "name": "updated_at",
-          "type_info": "Timestamptz"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Varchar",
-          "Int8"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        true,
-        true
-      ]
-    }
-  },
   "51b6921179757041600749fd164ca8438cf520424f9d1611e9d2bbafd4df7592": {
     "query": "SELECT games.id, games.name, games.start_time, games.close_time, games.beverage_count, (users.id, users.username) as \"owner!: UserResponse\"\n                FROM (games INNER JOIN users ON games.owner_id = users.id)\n                WHERE games.id IN (\n                    SELECT game_id FROM invitations WHERE user_id = $1 AND state = $2\n                ) AND games.close_time > NOW()\n                ORDER BY games.start_time DESC",
     "describe": {
@@ -582,7 +545,18 @@
       "parameters": {
         "Left": [
           "Int8",
-          "Text"
+          {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          }
         ]
       },
       "nullable": [
@@ -860,58 +834,6 @@
       ]
     }
   },
-  "7ba565b675562c6b244102d7b840694005cdfab1fcd5cdf7cfab89c348decab9": {
-    "query": "INSERT INTO invitations (game_id, user_id, state) VALUES ($1, $2, $3) RETURNING *;",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "game_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 2,
-          "name": "user_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 3,
-          "name": "state",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 4,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 5,
-          "name": "updated_at",
-          "type_info": "Timestamptz"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int8",
-          "Varchar"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        true,
-        true
-      ]
-    }
-  },
   "843923b9a0257cf80f1dff554e7dc8fdfc05f489328e8376513124dfb42996e3": {
     "query": "SELECT * FROM users WHERE id = $1",
     "describe": {
@@ -1154,8 +1076,8 @@
       ]
     }
   },
-  "a6e1dc3456d5e6957e5a854e2bd61f27b616e0085188340da338267bc70580df": {
-    "query": "\n            SELECT invitations.id, invitations.state, games.id AS \"game_id\", games.name, games.start_time, games.close_time, games.beverage_count, users.id AS \"user_id\", users.username\n            FROM invitations\n            INNER JOIN games ON invitations.game_id = games.id\n            INNER JOIN users ON games.owner_id = users.id\n            WHERE \n                invitations.user_id = $1 \n                AND games.close_time > NOW() \n                AND games.owner_id != $1\n            ORDER BY games.start_time\n            ",
+  "9b52dceb88f6bc733fa19ce383815e0460f2757c750f8a869a80d469b2f2d201": {
+    "query": "\n            UPDATE invitations \n            SET state = $1 \n            WHERE id = $2 \n            RETURNING id, game_id, user_id, state as \"state!: State\", created_at, updated_at;",
     "describe": {
       "columns": [
         {
@@ -1165,8 +1087,142 @@
         },
         {
           "ordinal": 1,
-          "name": "state",
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "state!: State",
+          "type_info": {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          },
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "b2116f9843bb5c93c2a12a1475583cef7ddcd4910ed3f3881401c659d39f502c": {
+    "query": "SELECT * FROM users WHERE username ilike $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "username",
           "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "password",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 3,
+          "name": "is_admin",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "b6b7eec230ca7d1e521547f63c8c03ea9a08dcdc05ba4e810a01996ab84de153": {
+    "query": "\n            SELECT invitations.id, invitations.state as \"state!: State\", games.id AS \"game_id\", games.name, games.start_time, games.close_time, games.beverage_count, users.id AS \"user_id\", users.username\n            FROM invitations\n            INNER JOIN games ON invitations.game_id = games.id\n            INNER JOIN users ON games.owner_id = users.id\n            WHERE \n                invitations.user_id = $1 \n                AND games.close_time > NOW() \n                AND games.owner_id != $1\n            ORDER BY games.start_time\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "state!: State",
+          "type_info": {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          }
         },
         {
           "ordinal": 2,
@@ -1219,56 +1275,6 @@
         false,
         false,
         false
-      ]
-    }
-  },
-  "b2116f9843bb5c93c2a12a1475583cef7ddcd4910ed3f3881401c659d39f502c": {
-    "query": "SELECT * FROM users WHERE username ilike $1",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "username",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 2,
-          "name": "password",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 3,
-          "name": "is_admin",
-          "type_info": "Bool"
-        },
-        {
-          "ordinal": 4,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 5,
-          "name": "updated_at",
-          "type_info": "Timestamptz"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        true,
-        true
       ]
     }
   },
@@ -1446,7 +1452,18 @@
       "parameters": {
         "Left": [
           "Int8",
-          "Text"
+          {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          }
         ]
       },
       "nullable": [
@@ -1607,6 +1624,67 @@
       ]
     }
   },
+  "e416b135b814fa111c69e5f3c713e041a0265d3c1eaf081e95f6acff0c23e712": {
+    "query": "\n                SELECT id, game_id, user_id, state as \"state!: State\", created_at, updated_at\n                FROM invitations\n                WHERE id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "game_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 2,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "state!: State",
+          "type_info": {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
   "e8d4c494a6c3ec1c24f5a3d7c62d1a50349beddeedeb0083b12a8ad58ad88fb0": {
     "query": "SELECT * FROM games WHERE start_time < NOW() AND close_time > NOW()",
     "describe": {
@@ -1663,6 +1741,49 @@
         false,
         true,
         true,
+        false
+      ]
+    }
+  },
+  "ea408f84acfa10e7552a2a19981bb010958433c449234563b81cc5d1ea3a39c3": {
+    "query": "SELECT users.id as \"user_id\", username, invitations.state as \"invitation_state: State\"\n            FROM users\n            INNER JOIN invitations ON invitations.user_id = users.id\n            WHERE invitations.game_id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "user_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "username",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "invitation_state: State",
+          "type_info": {
+            "Custom": {
+              "name": "invitation_state",
+              "kind": {
+                "Enum": [
+                  "ACCEPTED",
+                  "PENDING",
+                  "DECLINED"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
         false
       ]
     }
