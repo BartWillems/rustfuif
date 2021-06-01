@@ -99,7 +99,6 @@ impl MarketAgent {
     }
 
     /// Start a periodic price updater
-    /// This consumes self
     pub(crate) async fn start(&self) {
         let agent = self.clone();
         actix::spawn(async move {
