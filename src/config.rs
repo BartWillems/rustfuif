@@ -50,17 +50,11 @@ impl Config {
     }
 
     pub fn redis_url() -> Option<&'static str> {
-        match &CONFIG.redis_url {
-            Some(url) => Some(url.as_ref()),
-            None => None,
-        }
+        CONFIG.redis_url.as_ref().map(|url| url.as_ref())
     }
 
     pub fn sentry_dsn() -> Option<&'static str> {
-        match &CONFIG.sentry_dsn {
-            Some(dsn) => Some(dsn.as_ref()),
-            None => None,
-        }
+        CONFIG.sentry_dsn.as_ref().map(|dsn| dsn.as_ref())
     }
 
     pub fn price_update_interval() -> AtomicU64 {
