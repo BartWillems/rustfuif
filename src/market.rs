@@ -139,20 +139,20 @@ impl MarketAgent {
         let market_status = market.update();
         info!("Stock Market Status: {:?}", market_status);
 
-        let tx = self.db.begin().await?;
+        let mut tx = self.db.begin().await?;
 
-        let games = Game::active_games(&self.db).await?;
+        let games = Game::active_games(&mut tx).await?;
 
         for game in &games {
             let beverages = match market_status {
-                MarketStatus::Crash => game.crash_prices(&self.db).await?,
-                MarketStatus::Regular => game.update_prices(&self.db).await?,
+                MarketStatus::Crash => game.crash_prices(&mut tx).await?,
+                MarketStatus::Regular => game.update_prices(&mut tx).await?,
             };
 
             let changes: Vec<PriceChange> =
                 beverages.iter().map(|beverage| beverage.into()).collect();
 
-            PriceHistory::save(&changes, &self.db).await?;
+            PriceHistory::save(&changes, &mut tx).await?;
         }
 
         tx.commit().await?;
@@ -216,16 +216,16 @@ impl PriceHistory {
     }
 
     #[tracing::instrument(name = "PriceHistory::save", skip(db))]
-    async fn save(changes: &[PriceChange], db: &Pool<Postgres>) -> Result<(), sqlx::Error> {
-        let futures: Vec<_> = changes.iter().map(|change| {
+    async fn save(
+        changes: &[PriceChange],
+        db: &mut sqlx::Transaction<'_, Postgres>,
+    ) -> Result<(), sqlx::Error> {
+        for change in changes {
             sqlx::query!(
                 "INSERT INTO price_histories (game_id, user_id, slot_no, price, created_at) VALUES ($1, $2, $3, $4, $5)", 
                 change.game_id, change.user_id, change.slot_no, change.price, change.created_at
-            ).execute(db)
-        }).collect();
-
-        futures::future::try_join_all(futures).await?;
-
+            ).execute(&mut *db).await?;
+        }
         Ok(())
     }
 }

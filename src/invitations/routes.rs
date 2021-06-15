@@ -56,7 +56,7 @@ async fn invite_user(
 
     let invite = invite.into_inner();
 
-    let game = Game::find_by_id(*game_id, &state.db).await?;
+    let game = Game::find_by_id(*game_id, &mut *state.db.acquire().await?).await?;
     if !game.is_owner(&user) {
         forbidden!("Only the game owner can invite users");
     }

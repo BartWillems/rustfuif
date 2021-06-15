@@ -37,7 +37,6 @@ struct ConnectedUser {
     user: User,
 }
 
-#[allow(dead_code)]
 impl ConnectedUser {
     fn new(recipient: Recipient<Notification>, user: User) -> Self {
         ConnectedUser { recipient, user }

@@ -52,7 +52,10 @@ impl NewInvitation {
         }
     }
 
-    pub async fn save(&self, db: &Pool<Postgres>) -> Result<Invitation, sqlx::Error> {
+    pub async fn save(
+        &self,
+        db: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
+    ) -> Result<Invitation, sqlx::Error> {
         sqlx::query_as!(
             Invitation,
             r#"

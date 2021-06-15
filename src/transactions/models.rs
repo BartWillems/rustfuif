@@ -67,8 +67,9 @@ impl NewSale {
         // 3. Calculate the prices for each beverage in the new sale
         // 4. update sales_counts
         // 5. insert in transactions with the current count
-        let tx = db.begin().await?;
-        let game = Game::find_by_id(self.game_id, db).await?;
+        let mut tx = db.begin().await?;
+
+        let game = Game::find_by_id(self.game_id, &mut tx).await?;
 
         for slot_no in self.slots.keys() {
             if slot_no > &game.beverage_count || slot_no < &0 {
@@ -84,7 +85,7 @@ impl NewSale {
                 "INSERT INTO orders (user_id, game_id) VALUES ($1, $2) RETURNING id",
                 self.user_id, self.game_id
             )
-            .fetch_one(db)
+            .fetch_one(&mut tx)
             .await?
             .id;
 
@@ -93,11 +94,11 @@ impl NewSale {
             Beverage, 
             "SELECT * FROM beverages WHERE user_id = $1 AND game_id = $2 and slot_no = any($3) FOR UPDATE", 
             self.user_id, self.game_id, &keys)
-            .fetch_all(db)
+            .fetch_all(&mut tx)
             .await?;
 
         // 2
-        let mut sales_counts = SalesCount::find_by_game_for_update(self.game_id, db).await?;
+        let mut sales_counts = SalesCount::find_by_game_for_update(self.game_id, &mut tx).await?;
 
         // 3
         for (_, sale) in sales.iter_mut() {
@@ -123,7 +124,7 @@ impl NewSale {
         for sale_count in sales_counts.iter_mut() {
             if let Some(sale) = sales.get(&sale_count.slot_no) {
                 sale_count.sales += sale.amount as i64;
-                sale_count.update(db).await?;
+                sale_count.update(&mut tx).await?;
             }
         }
 
@@ -135,7 +136,7 @@ impl NewSale {
                 Transaction,
                 "INSERT INTO transactions (slot_no, amount, price, order_id) VALUES ($1, $2, $3, $4) RETURNING *",
                 sale.slot_no, sale.amount, sale.price, order_id
-            ).fetch_one(db).await?;
+            ).fetch_one(&mut tx).await?;
             transactions.push(transaction);
         }
 
@@ -265,7 +266,7 @@ impl Transaction {
 impl SalesCount {
     /// Create the empty beverage sale count rows
     /// Should be called when initializing the game
-    pub async fn initialize_slots(game: &Game, db: &Pool<Postgres>) -> Result<(), sqlx::Error> {
+    pub async fn initialize_slots(game: &Game, db: &mut sqlx::Transaction<'_, Postgres>) -> Result<(), sqlx::Error> {
         // Inserting multiple values isn't supported yet sadly: https://github.com/launchbadge/sqlx/issues/294
         for slot_no in 0..game.beverage_count {
             sqlx::query!(
@@ -274,7 +275,7 @@ impl SalesCount {
                 slot_no,
                 0
             )
-            .execute(db)
+            .execute(&mut *db)
             .await?;
         }
 
@@ -285,7 +286,7 @@ impl SalesCount {
     #[tracing::instrument(name = "salescount::find_by_game_for_update")]
     pub(crate) async fn find_by_game_for_update(
         game_id: i64,
-        db: &Pool<Postgres>,
+        db: &mut sqlx::Transaction<'_, Postgres>,
     ) -> Result<Vec<SalesCount>, sqlx::Error> {
         let res = sqlx::query_as!(
             SalesCount,
@@ -313,7 +314,7 @@ impl SalesCount {
     }
 
     #[tracing::instrument(name = "SalesCount::update")]
-    async fn update(&self, db: &Pool<Postgres>) -> Result<SalesCount, sqlx::Error> {
+    async fn update(&self, db: &mut sqlx::Transaction<'_, Postgres>) -> Result<SalesCount, sqlx::Error> {
         sqlx::query_as!(
             SalesCount,
             "UPDATE sales_counts SET sales = $1 WHERE game_id = $2 AND slot_no = $3 RETURNING *",

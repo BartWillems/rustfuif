@@ -80,7 +80,7 @@ impl Game {
     /// and nothing will have happened.
     #[tracing::instrument(name = "game::create")]
     pub async fn create(new_game: CreateGame, db: &Pool<Postgres>) -> Result<Game, ServiceError> {
-        let transaction = db.begin().await?;
+        let mut tx = db.begin().await?;
 
         let game: Game = sqlx::query_as!(
             Game,
@@ -95,17 +95,17 @@ impl Game {
             new_game.close_time,
             new_game.beverage_count
         )
-        .fetch_one(db)
+        .fetch_one(&mut *tx)
         .await?;
 
         NewInvitation::new(game.id, game.owner_id)
             .accept()
-            .save(db)
+            .save(&mut *tx)
             .await?;
 
-        SalesCount::initialize_slots(&game, db).await?;
+        SalesCount::initialize_slots(&game, &mut tx).await?;
 
-        transaction.commit().await?;
+        tx.commit().await?;
 
         Ok(game)
     }
@@ -141,7 +141,7 @@ impl Game {
     }
 
     #[tracing::instrument]
-    pub async fn active_games(db: &Pool<Postgres>) -> Result<Vec<Game>, sqlx::Error> {
+    pub async fn active_games(db: impl sqlx::Executor<'_, Database = sqlx::Postgres>) -> Result<Vec<Game>, sqlx::Error> {
         sqlx::query_as!(Game, "SELECT * FROM games WHERE start_time < NOW() AND close_time > NOW()").fetch_all(db).await
     }
 
@@ -153,7 +153,7 @@ impl Game {
     }
 
     #[tracing::instrument(name = "game::find_by_id")]
-    pub async fn find_by_id(id: i64, db: &Pool<Postgres>) -> Result<Game, sqlx::Error> {
+    pub async fn find_by_id(id: i64, db: impl sqlx::Executor<'_, Database = sqlx::Postgres>) -> Result<Game, sqlx::Error> {
         let game = sqlx::query_as!(Game, "SELECT * FROM games WHERE id = $1", id)
             .fetch_one(db)
             .await?;
@@ -295,18 +295,18 @@ impl Game {
     }
 
     #[tracing::instrument(name = "Game::get_beverages")]
-    pub async fn get_beverages(&self, db: &Pool<Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
+    pub async fn get_beverages(&self, db: impl sqlx::Executor<'_, Database = sqlx::Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
         Beverage::find_by_game(self.id, db).await
     }
 
     /// Update the prices for a game, returning the updated beverages
     #[tracing::instrument]
-    pub async fn update_prices(&self, db: &Pool<Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
-        let mut beverages = self.get_beverages(db).await?;
-        let sales = SalesCount::find_by_game_for_update(self.id, db).await?;
+    pub async fn update_prices(&self, db: &mut sqlx::Transaction<'_, Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
+        let mut beverages = self.get_beverages(&mut *db).await?;
+        let sales = SalesCount::find_by_game_for_update(self.id, &mut *db).await?;
         let average_sales = SalesCount::average_sales(&sales);
 
-        let futures: Vec<_> = beverages.iter_mut().map(|beverage| {
+        for beverage in beverages.iter_mut() {
             for sale in &sales {
                 if sale.slot_no != beverage.slot_no {
                     continue;
@@ -318,31 +318,22 @@ impl Game {
                 let price = beverage.calculate_price(offset);
                 debug!("setting price to: {}", price);
                 beverage.set_price(price);
-                return beverage.save_price(db);
+                beverage.save_price(&mut *db).await?;
             }
-            // When a game is created, empty sales counts should also be created
-            unreachable!("SaleCount was NOT created for beverage: {:?}", beverage);
-        }).collect();
-
-        let beverages: Vec<Beverage> = futures::future::try_join_all(futures).await?;
+        }
 
         Ok(beverages)
     }
 
     /// Set all beverages for this game to their lowest possible value, returning the updated beverages
     #[tracing::instrument]
-    pub async fn crash_prices(&self, db: &Pool<Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
-        let mut beverages = self.get_beverages(db).await?;
+    pub async fn crash_prices(&self, db: &mut sqlx::Transaction<'_, Postgres>) -> Result<Vec<Beverage>, sqlx::Error> {
+        let mut beverages = self.get_beverages(&mut *db).await?;
 
-        let futures: Vec<_> = beverages
-            .iter_mut()
-            .map(|beverage| {
-                beverage.set_price(beverage.min_price);
-                beverage.save_price(db)
-            })
-            .collect();
-
-        let beverages: Vec<Beverage> = futures::future::try_join_all(futures).await?;
+        for beverage in beverages.iter_mut() {
+            beverage.set_price(beverage.min_price);
+            beverage.save_price(db).await?;
+        }
 
         Ok(beverages)
     }
@@ -405,7 +396,7 @@ pub struct Beverage {
 
 impl Beverage {
     pub async fn save(&self, db: &Pool<Postgres>) -> Result<Beverage, ServiceError> {
-        let game = Game::find_by_id(self.game_id, db).await?;
+        let game = Game::find_by_id(self.game_id, &mut *db.acquire().await?).await?;
 
         if self.slot_no >= game.beverage_count {
             bad_request!("a beverage slot exceeds the maximum configured beverage slots");
@@ -439,7 +430,7 @@ impl Beverage {
 
     pub async fn find_by_game(
         game_id: i64,
-        db: &Pool<Postgres>,
+        db: impl sqlx::Executor<'_, Database = sqlx::Postgres>,
     ) -> Result<Vec<Beverage>, sqlx::Error> {
         sqlx::query_as!(
             Beverage,
@@ -473,7 +464,7 @@ impl Beverage {
     }
 
     #[tracing::instrument(name = "Beverage::save_price")]
-    pub async fn save_price(&self, db: &Pool<Postgres>) -> Result<Beverage, sqlx::Error> {
+    pub async fn save_price(&self, db: &mut sqlx::Transaction<'_, Postgres>) -> Result<Beverage, sqlx::Error> {
         sqlx::query_as!(
             Beverage, 
             "UPDATE beverages SET current_price = $1 WHERE game_id = $2 AND user_id = $3 AND slot_no = $4 RETURNING *", 
