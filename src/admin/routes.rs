@@ -3,7 +3,9 @@ use actix_web::web::{Data, Json};
 use actix_web::{get, post, web};
 
 use crate::auth;
+use crate::config::Config;
 use crate::games::Game;
+use crate::market::MarketAgent;
 use crate::server::{Response, State};
 use crate::users::User;
 use crate::websocket::queries::{ActiveGames, ConnectedUsers};
@@ -118,32 +120,31 @@ async fn database_stats(id: Identity, state: Data<State>) -> Response {
 }
 
 #[post("/admin/market/update-prices")]
-async fn update_prices(id: Identity, state: Data<State>) -> Response {
+async fn update_prices(id: Identity) -> Response {
     auth::verify_admin(&id)?;
 
-    state.market.update().await;
+    // TODO: Use the select macro to send things to the agents?
+    // state.market.update().await;
 
-    http_ok_json!("Prices have been updates succesfully");
+    bad_request!("not supported for now");
+
+    // http_ok_json!("Prices have been updates succesfully");
 }
 
 #[get("/admin/market/update-interval")]
-async fn get_price_update_interval(id: Identity, state: Data<State>) -> Response {
+async fn get_price_update_interval(id: Identity) -> Response {
     auth::verify_admin(&id)?;
 
-    http_ok_json!(state.market.interval().as_secs());
+    http_ok_json!(MarketAgent::interval().as_secs());
 }
 
 #[post("/admin/market/update-interval")]
-async fn set_price_update_interval(
-    id: Identity,
-    seconds: Json<u64>,
-    state: Data<State>,
-) -> Response {
+async fn set_price_update_interval(id: Identity, seconds: Json<u64>) -> Response {
     auth::verify_admin(&id)?;
 
-    state.market.set_interval(*seconds).await;
+    Config::set_price_update_interval(*seconds);
 
-    http_ok_json!(state.market.interval().as_secs());
+    http_ok_json!(MarketAgent::interval().as_secs());
 }
 
 pub fn register(cfg: &mut web::ServiceConfig) {

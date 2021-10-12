@@ -44,7 +44,7 @@ sqlx = { version = "0.4", features = [
     "offline",
 ]}
 time = "0.2"
-tokio = { version = "0.3", features = ["sync"], default-features = false }
+tokio = { version = "0.2", features = ["sync", "rt-core", "macros"], default-features = false }
 url = "2.2"
 validator = { version = "0.12", features = ["derive"] }
 

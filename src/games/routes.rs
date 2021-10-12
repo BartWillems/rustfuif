@@ -48,7 +48,7 @@ async fn create(
 
     game.owner_id = auth::get_user(&id)?.id;
 
-    let game = Game::create(game, &state.db).await?;
+    let game = Game::create(game, &state.db, state.notifier.clone()).await?;
 
     http_created_json!(game);
 }

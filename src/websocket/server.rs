@@ -8,7 +8,10 @@ use crate::transactions::Transaction;
 use crate::users::User;
 use crate::websocket::queries::ActiveGamesResponse;
 
-type GameId = i64;
+#[derive(Debug, Copy, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GameId(pub i64);
+
+// type GameId = i64;
 type SessionId = usize;
 
 #[derive(Debug, Serialize, Clone, Copy)]
@@ -126,7 +129,7 @@ impl NotificationServer {
         self.games
             .iter()
             .filter(|(_, sessions)| !sessions.is_empty())
-            .map(|(game_id, sessions)| ActiveGamesResponse::new(*game_id, sessions.len()))
+            .map(|(game_id, sessions)| ActiveGamesResponse::new(game_id.0, sessions.len()))
             .collect()
     }
 
@@ -205,7 +208,7 @@ pub enum Notification {
     /// Notify users in a game when a new sale happened
     NewSale(Sale),
     /// Notify all connected users that he prices are updated
-    PriceUpdate(MarketStatus),
+    PriceUpdate(PriceUpdate),
     /// Notify users in a certain game that someone joined
     /// This is done by sending the ConnectionCount
     UserConnected(ConnectionType),
@@ -224,8 +227,14 @@ pub enum Notification {
 #[derive(Message, Debug, Serialize, Clone)]
 #[rtype(result = "()")]
 pub struct Sale {
-    pub game_id: i64,
+    pub game_id: GameId,
     pub transactions: Vec<Transaction>,
+}
+
+#[derive(Debug, Serialize, Clone, Copy)]
+pub struct PriceUpdate {
+    pub market_status: MarketStatus,
+    pub game_id: GameId,
 }
 
 impl Handler<Notification> for NotificationServer {
@@ -236,7 +245,7 @@ impl Handler<Notification> for NotificationServer {
             Notification::NewSale(sale) => {
                 self.notify_game(Notification::NewSale(sale.clone()), sale.game_id)
             }
-            Notification::PriceUpdate(kind) => self.broadcast(Notification::PriceUpdate(kind)),
+            Notification::PriceUpdate(update) => self.notify_game(notification, update.game_id),
             Notification::UserConnected(connection_type) => self.connection_change(connection_type),
             Notification::UserDisconnected(connection_type) => {
                 self.connection_change(connection_type)
@@ -345,7 +354,7 @@ mod tests {
     async fn session_cleanup() {
         let server = NotificationServer::new().start();
 
-        add_user(&server, ConnectionType::GameConnection(1), true).await;
+        add_user(&server, ConnectionType::GameConnection(GameId(1)), true).await;
 
         let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(1, users.len());
@@ -354,7 +363,7 @@ mod tests {
         assert_eq!(1, games_count);
 
         // connect the user to the same game
-        add_user(&server, ConnectionType::GameConnection(1), true).await;
+        add_user(&server, ConnectionType::GameConnection(GameId(1)), true).await;
 
         let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(2, users.len());
@@ -364,7 +373,7 @@ mod tests {
         assert_eq!(1, games_count);
 
         // connect the user to another game
-        add_user(&server, ConnectionType::GameConnection(2), true).await;
+        add_user(&server, ConnectionType::GameConnection(GameId(2)), true).await;
 
         let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(3, users.len());

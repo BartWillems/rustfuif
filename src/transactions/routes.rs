@@ -10,7 +10,7 @@ use crate::games::Game;
 use crate::server;
 use crate::server::State;
 use crate::transactions::models::{NewSale, SalesCount, Transaction};
-use crate::websocket::{Notification, Sale};
+use crate::websocket::{server::GameId, Notification, Sale};
 
 /// Get the total amount of sold beverages
 #[get("/games/{id}/sales/beverages")]
@@ -64,7 +64,7 @@ async fn create_sale(
     if let Err(e) = state
         .notifier
         .send(Notification::NewSale(Sale {
-            game_id,
+            game_id: GameId(game_id),
             transactions: transactions.clone(),
         }))
         .await

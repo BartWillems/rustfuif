@@ -11,8 +11,6 @@ services:
       TZ: "Europe/Brussels"
     ports:
       - 5432:5432
-    networks:
-      - backend
     volumes:
       - rustfuif_postgres:/var/lib/postgresql/data
     healthcheck:
@@ -31,21 +29,14 @@ services:
     image: "redis:alpine"
     ports:
       - 6379:6379
-    networks:
-      - backend
-  
+
   jaeger:
     image: jaegertracing/all-in-one
     environment:
       SPAN_STORAGE_TYPE: memory
-    networks:
-      - backend
     ports:
       - 6831:6831/udp
       - 16686:16686
-
-networks:
-  backend:
 
 volumes:
   rustfuif_postgres:

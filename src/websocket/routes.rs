@@ -11,7 +11,7 @@ use crate::games::Game;
 use crate::server::State;
 use crate::users::User;
 use crate::websocket::server;
-use crate::websocket::server::ConnectionType;
+use crate::websocket::server::{ConnectionType, GameId};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -40,7 +40,7 @@ pub async fn game_route(
         WebsocketConnection {
             id: 0,
             hb: Instant::now(),
-            connection_type: ConnectionType::GameConnection(*game_id),
+            connection_type: ConnectionType::GameConnection(GameId(*game_id)),
             user,
             notifier: state.notifier.clone(),
         },

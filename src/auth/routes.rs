@@ -25,7 +25,7 @@ async fn login(credentials: Json<Credentials>, id: Identity, state: Data<State>)
             _ => error.into(),
         })?;
 
-    user.verify_password(&credentials.password.as_bytes())?;
+    user.verify_password(credentials.password.as_bytes())?;
 
     let user_string = serde_json::to_string(&user).map_err(|e| {
         error!("unable to serialize the user struct: {}", e);

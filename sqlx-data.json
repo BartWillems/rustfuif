@@ -1149,6 +1149,66 @@
       ]
     }
   },
+  "9c86d6f5cb37148c542c4b771c1c8b7d89983997de429dc093edada955894b37": {
+    "query": "SELECT * FROM games WHERE close_time > NOW()",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "owner_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "start_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "close_time",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 7,
+          "name": "beverage_count",
+          "type_info": "Int2"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false
+      ]
+    }
+  },
   "b2116f9843bb5c93c2a12a1475583cef7ddcd4910ed3f3881401c659d39f502c": {
     "query": "SELECT * FROM users WHERE username ilike $1",
     "describe": {

@@ -16,7 +16,7 @@ use crate::ddg;
 use crate::errors::ServiceError;
 use crate::games;
 use crate::invitations;
-use crate::market;
+use crate::market::MarketAgent;
 use crate::stats;
 use crate::transactions;
 use crate::users;
@@ -40,7 +40,8 @@ fn json_error_handler(error: JsonPayloadError, _: &HttpRequest) -> actix_web::Er
 pub struct State {
     pub db: Pool<Postgres>,
     pub notifier: Addr<NotificationServer>,
-    pub market: market::MarketAgent,
+    // pub market: std::sync::Arc<market::MarketAgent>,
+    // pub exchange: crate::market::Exchange,
 }
 
 pub async fn launch() -> anyhow::Result<()> {
@@ -64,16 +65,16 @@ pub async fn launch() -> anyhow::Result<()> {
 
     let db = Pool::<Postgres>::connect(Config::database_url()).await?;
     let notifier = NotificationServer::new().start();
-    let market = market::MarketAgent::new(db.clone(), notifier.clone());
 
-    debug!("launching price updater");
-    market.start().await;
+    let games = games::Game::unfinished(&db).await?;
+    for game in games {
+        MarketAgent::new(db.clone(), notifier.clone(), game).start();
+    }
 
     HttpServer::new(move || {
         let state = State {
             db: db.clone(),
             notifier: notifier.clone(),
-            market: market.clone(),
         };
 
         App::new()

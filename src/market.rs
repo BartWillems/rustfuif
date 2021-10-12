@@ -1,15 +1,17 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    fmt,
+    time::{Duration, Instant},
+};
 
 use actix::Addr;
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres};
 use tokio::sync::RwLock;
+// use fmt
 
 use crate::errors::ServiceError;
 use crate::games::Game;
-use crate::websocket::server::NotificationServer;
+use crate::websocket::server::{GameId, NotificationServer, PriceUpdate};
 use crate::websocket::Notification;
 use crate::{config::Config, games::Beverage};
 
@@ -20,160 +22,178 @@ pub enum MarketStatus {
     Crash,
 }
 
+#[derive(Debug)]
+struct InnerMarket {
+    last_crash: Instant,
+    status: MarketStatus,
+}
+
 /// holds the current state of the stock market
 ///
 /// when the stock market is crashed, all beverages will be
 /// set to their lowest price
 #[derive(Debug)]
 pub(crate) struct StockMarket {
-    last_crash: Instant,
-    status: MarketStatus,
+    inner: RwLock<InnerMarket>,
 }
 
 impl StockMarket {
     pub(crate) fn new() -> Self {
         StockMarket {
-            // Make sure the market doesn't instantly crash
-            last_crash: Instant::now(),
-            status: MarketStatus::Regular,
+            inner: RwLock::new(InnerMarket {
+                // Make sure the market doesn't instantly crash
+                last_crash: Instant::now(),
+                status: MarketStatus::Regular,
+            }),
         }
     }
 
     /// instantly crash the stockmarket
     /// this should only be used by administrators
-    fn crash(&mut self) {
-        self.last_crash = Instant::now();
-        self.status = MarketStatus::Crash;
+    async fn crash(&self) {
+        let mut inner = self.inner.write().await;
+        inner.last_crash = Instant::now();
+        inner.status = MarketStatus::Crash;
     }
 
     /// Set the market status to regular
     /// Should be used after a crash
-    fn restore_market(&mut self) {
-        self.status = MarketStatus::Regular;
+    async fn restore_market(&self) {
+        let mut inner = self.inner.write().await;
+        inner.status = MarketStatus::Regular;
     }
 
     /// returns true if the last stock market crash was at least
     /// 20 minutes ago
-    pub(crate) fn can_crash(&self) -> bool {
+    pub(crate) async fn can_crash(&self) -> bool {
+        let inner = self.inner.read().await;
         debug!(
             "Last crash: {} seconds ago",
-            self.last_crash.elapsed().as_secs()
+            inner.last_crash.elapsed().as_secs()
         );
-        self.last_crash.elapsed().as_secs() > 60 * 20
+        inner.last_crash.elapsed().as_secs() > 60 * 20
     }
 
     /// crash the stock market if it has been a while since the last crash
     ///
     /// Returns `true` if it has crashed
-    pub(crate) fn update(&mut self) -> MarketStatus {
-        if self.can_crash() {
-            self.crash();
+    pub(crate) async fn update(&self) -> MarketStatus {
+        if self.can_crash().await {
+            self.crash().await;
         } else {
-            self.restore_market();
+            self.restore_market().await;
         }
-        self.status
+        self.inner.read().await.status
     }
 
     /// Returns true if a market crash is happening
-    pub(crate) fn has_crashed(&self) -> bool {
-        matches!(self.status, MarketStatus::Crash)
+    pub(crate) async fn has_crashed(&self) -> bool {
+        matches!(self.inner.read().await.status, MarketStatus::Crash)
     }
 }
 
-#[derive(Clone)]
 pub struct MarketAgent {
     db: Pool<Postgres>,
-    interval: Arc<AtomicU64>,
     notifier: Addr<NotificationServer>,
-    market: Arc<RwLock<StockMarket>>,
+    market: StockMarket,
+    game: Game,
+}
+
+impl fmt::Debug for MarketAgent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MarketAgent")
+            .field("game", &self.game.id)
+            .finish()
+    }
 }
 
 impl MarketAgent {
-    pub fn new(db: Pool<Postgres>, notifier: Addr<NotificationServer>) -> Self {
+    pub fn new(db: Pool<Postgres>, notifier: Addr<NotificationServer>, game: Game) -> Self {
         Self {
             db,
-            interval: Arc::new(Config::price_update_interval()),
             notifier,
-            market: Arc::new(RwLock::new(StockMarket::new())),
+            market: StockMarket::new(),
+            game,
         }
     }
 
     /// Start a periodic price updater
-    pub(crate) async fn start(&self) {
-        let agent = self.clone();
-        actix::spawn(async move {
-            loop {
-                actix_rt::time::delay_for(agent.interval()).await;
+    pub(crate) fn start(self) {
+        tokio::spawn(async move {
+            debug!("Starting market agent for Game({})", self.game.id);
+            if self.game.not_started() {
+                actix_rt::time::delay_for(self.game.duration_until_start()).await;
+            }
 
-                agent.update().await;
+            while self.game.in_progress() {
+                if self.game.is_finished() {
+                    debug!("Game({}) is finished", self.game.id);
+                    break;
+                }
+                actix_rt::time::delay_for(MarketAgent::interval()).await;
+
+                self.update().await;
             }
         });
     }
 
     /// Update the prices and notify the users
+    #[tracing::instrument(name = "StockMarket::update")]
     pub(crate) async fn update(&self) {
         match self.update_prices().await {
             Err(e) => {
                 error!("unable to update prices: {}", e);
             }
             Ok(MarketStatus::Regular) => {
-                info!("succesfully updated the prices");
+                debug!("succesfully updated the prices");
                 self.notifier
-                    .do_send(Notification::PriceUpdate(MarketStatus::Regular));
+                    .do_send(Notification::PriceUpdate(PriceUpdate {
+                        market_status: MarketStatus::Regular,
+                        game_id: GameId(self.game.id),
+                    }));
             }
             Ok(MarketStatus::Crash) => {
                 info!("succesfully updated the prices, with stock market crash");
                 self.notifier
-                    .do_send(Notification::PriceUpdate(MarketStatus::Crash));
+                    .do_send(Notification::PriceUpdate(PriceUpdate {
+                        market_status: MarketStatus::Crash,
+                        game_id: GameId(self.game.id),
+                    }));
             }
         };
     }
 
-    #[tracing::instrument(name = "StockMarket::update_prices", skip(self))]
+    #[tracing::instrument(skip(self))]
     async fn update_prices(&self) -> Result<MarketStatus, ServiceError> {
         let start = Instant::now();
 
-        // Acquire write lock
-        let mut market = self.market.write().await;
-
-        let market_status = market.update();
+        let market_status = self.market.update().await;
         info!("Stock Market Status: {:?}", market_status);
 
         let mut tx = self.db.begin().await?;
 
-        let games = Game::active_games(&mut tx).await?;
+        let beverages = match market_status {
+            MarketStatus::Crash => self.game.crash_prices(&mut tx).await?,
+            MarketStatus::Regular => self.game.update_prices(&mut tx).await?,
+        };
 
-        for game in &games {
-            let beverages = match market_status {
-                MarketStatus::Crash => game.crash_prices(&mut tx).await?,
-                MarketStatus::Regular => game.update_prices(&mut tx).await?,
-            };
+        let changes: Vec<PriceChange> = beverages.iter().map(|beverage| beverage.into()).collect();
 
-            let changes: Vec<PriceChange> =
-                beverages.iter().map(|beverage| beverage.into()).collect();
-
-            PriceHistory::save(&changes, &mut tx).await?;
-        }
+        PriceHistory::save(&changes, &mut tx).await?;
 
         tx.commit().await?;
-        info!("updated {} games in {:?}", games.len(), start.elapsed());
+        info!("updated game({}) in {:?}", self.game.id, start.elapsed());
 
-        if market.has_crashed() {
+        if self.market.has_crashed().await {
             return Ok(MarketStatus::Crash);
         }
 
         Ok(MarketStatus::Regular)
     }
 
-    /// Overwrite the current price update interval
-    /// This takes effect after 1 price update iteration
-    pub(crate) async fn set_interval(&self, new_interval: u64) {
-        self.interval.store(new_interval, Ordering::SeqCst);
-    }
-
     /// Retrieve the current price update interval
-    pub(crate) fn interval(&self) -> Duration {
-        Duration::from_secs(self.interval.load(Ordering::SeqCst))
+    pub(crate) fn interval() -> Duration {
+        Duration::from_secs(Config::price_update_interval())
     }
 }
 

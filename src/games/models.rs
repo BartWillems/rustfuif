@@ -8,8 +8,10 @@ use crate::errors::ServiceError;
 use crate::invitations::{NewInvitation, State};
 use crate::transactions::models::SalesCount;
 use crate::users::{User, UserResponse};
+use crate::market::MarketAgent;
+use crate::websocket::server::NotificationServer;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Game {
     pub id: i64,
@@ -66,6 +68,13 @@ pub struct GameResponse {
     pub owner: UserResponse,
 }
 
+#[derive(Debug)]
+pub enum GameState {
+    NotStarted,
+    InProgress,
+    Finished,
+}
+
 
 /// minimum duration is 30 minutes
 const MIN_GAME_SECONDS: i64 = 60 * 30;
@@ -78,8 +87,8 @@ impl Game {
     ///
     /// When something fails, the transaction rolls-back, returns an error
     /// and nothing will have happened.
-    #[tracing::instrument(name = "game::create")]
-    pub async fn create(new_game: CreateGame, db: &Pool<Postgres>) -> Result<Game, ServiceError> {
+    #[tracing::instrument(name = "game::create", skip(notifier))]
+    pub async fn create(new_game: CreateGame, db: &Pool<Postgres>, notifier: actix::Addr<NotificationServer>) -> Result<Game, ServiceError> {
         let mut tx = db.begin().await?;
 
         let game: Game = sqlx::query_as!(
@@ -107,7 +116,51 @@ impl Game {
 
         tx.commit().await?;
 
+        MarketAgent::new(db.clone(), notifier, game.clone()).start();
+
         Ok(game)
+    }
+
+    pub fn state(&self) -> GameState {
+        // let now = chrono::DateTime::naive_utc(&self)
+        let now = chrono::Utc::now();
+        if self.start_time.gt(&now) {
+            return GameState::NotStarted;
+        }
+        if self.close_time.lt(&now) {
+            return GameState::Finished;
+        }
+        GameState::InProgress
+    }
+
+    pub fn is_finished(&self) -> bool {
+        matches!(self.state(), GameState::Finished)
+    }
+
+    pub fn in_progress(&self) -> bool {
+        matches!(self.state(), GameState::InProgress)
+    }
+
+    pub fn not_started(&self) -> bool {
+        matches!(self.state(), GameState::NotStarted)
+    }
+
+    /// Returns a zero duration if the game has started or has finished
+    pub fn duration_until_start(&self) -> std::time::Duration {
+        match self.start_time.signed_duration_since(Utc::now()).to_std() {
+            Ok(duration) => {
+                duration
+            }
+            Err(_) => {
+                std::time::Duration::from_secs(0)
+            }
+        }
+    }
+
+    /// Return all games that are going to start or are in progress
+    #[tracing::instrument(name = "game::unfinished")]
+    pub async fn unfinished(db: &Pool<Postgres>) -> Result<Vec<Game>, sqlx::Error> {
+        sqlx::query_as!(Game, "SELECT * FROM games WHERE close_time > NOW()").fetch_all(db).await
     }
 
     #[tracing::instrument(name = "game::available_for_purchases")]
@@ -521,7 +574,7 @@ impl crate::validator::Validate<Beverage> for Beverage {
         }
 
         if let Some(url) = self.image_url.as_ref() {
-            if Url::parse(&url).is_err() {
+            if Url::parse(url).is_err() {
                 bad_request!("the image url is not a valid url");
             }
         }

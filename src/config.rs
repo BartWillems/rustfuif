@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use validator::Validate;
 
@@ -12,9 +12,14 @@ pub struct Config {
     redis_url: Option<String>,
     sentry_dsn: Option<String>,
     /// the interval in seconds between price updates
-    price_update_interval: Option<u64>,
+    #[serde(default = "default_interval")]
+    price_update_interval: AtomicU64,
     /// defaults to localhost, which shouldn't cause issues if you're using udp
     opentelemetry_endpoint: Option<String>,
+}
+
+fn default_interval() -> AtomicU64 {
+    AtomicU64::new(120)
 }
 
 lazy_static! {
@@ -57,11 +62,14 @@ impl Config {
         CONFIG.sentry_dsn.as_ref().map(|dsn| dsn.as_ref())
     }
 
-    pub fn price_update_interval() -> AtomicU64 {
-        match CONFIG.price_update_interval {
-            Some(interval) => AtomicU64::new(interval),
-            None => AtomicU64::new(120),
-        }
+    pub fn price_update_interval() -> u64 {
+        CONFIG.price_update_interval.load(Ordering::SeqCst)
+    }
+
+    pub fn set_price_update_interval(interval: u64) {
+        CONFIG
+            .price_update_interval
+            .store(interval, Ordering::SeqCst)
     }
 
     pub fn opentelemetry_endpoint() -> &'static str {
