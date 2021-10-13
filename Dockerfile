@@ -10,7 +10,7 @@ COPY src ./src
 
 RUN cargo build --release
 
-RUN cargo install --version=0.5.2 sqlx-cli --no-default-features --features postgres
+RUN cargo install --version=0.5.9 sqlx-cli --no-default-features --features postgres
 
 FROM debian:buster-slim
 
