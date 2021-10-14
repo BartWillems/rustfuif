@@ -1,3 +1,4 @@
+use rand::Rng;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use validator::Validate;
@@ -14,12 +15,20 @@ pub struct Config {
     /// the interval in seconds between price updates
     #[serde(default = "default_interval")]
     price_update_interval: AtomicU64,
+    #[serde(default = "default_crash_interval")]
+    market_crash_interval: u64,
+    use_jitter: Option<bool>,
     /// defaults to localhost, which shouldn't cause issues if you're using udp
     opentelemetry_endpoint: Option<String>,
 }
 
 fn default_interval() -> AtomicU64 {
     AtomicU64::new(120)
+}
+
+/// 1 Hour
+fn default_crash_interval() -> u64 {
+    60 * 60
 }
 
 lazy_static! {
@@ -70,6 +79,25 @@ impl Config {
         CONFIG
             .price_update_interval
             .store(interval, Ordering::SeqCst)
+    }
+
+    fn use_jitter() -> bool {
+        CONFIG.use_jitter.unwrap_or(true)
+    }
+
+    /// Random jitter used to make the market crashes "unpredictable"
+    fn market_crash_jitter() -> u64 {
+        let mut rng = rand::thread_rng();
+        rng.gen_range(0..60 * 15)
+    }
+
+    /// Returns the market interval ± some jitter
+    pub fn market_crash_interval() -> u64 {
+        if Config::use_jitter() {
+            CONFIG.market_crash_interval + Config::market_crash_jitter()
+        } else {
+            CONFIG.market_crash_interval
+        }
     }
 
     pub fn opentelemetry_endpoint() -> &'static str {
