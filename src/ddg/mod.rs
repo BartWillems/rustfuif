@@ -24,7 +24,7 @@ impl Client {
     /// fetch and set the duckduckgo request token
     /// This token is only valid for a specific request for a (currently unkown) amount of time
     #[tracing::instrument]
-    async fn acquire_token(&mut self, query: &str) -> Result<&Client, ServiceError> {
+    async fn acquire_token(&mut self, query: &str) -> Result<&Self, ServiceError> {
         let resp = self
             .reqwest
             .get(BASE_URI)

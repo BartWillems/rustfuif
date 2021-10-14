@@ -7,7 +7,6 @@ use actix::Addr;
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres};
 use tokio::sync::RwLock;
-// use fmt
 
 use crate::errors::ServiceError;
 use crate::games::Game;

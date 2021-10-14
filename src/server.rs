@@ -40,8 +40,6 @@ fn json_error_handler(error: JsonPayloadError, _: &HttpRequest) -> actix_web::Er
 pub struct State {
     pub db: Pool<Postgres>,
     pub notifier: Addr<NotificationServer>,
-    // pub market: std::sync::Arc<market::MarketAgent>,
-    // pub exchange: crate::market::Exchange,
 }
 
 pub async fn launch() -> anyhow::Result<()> {

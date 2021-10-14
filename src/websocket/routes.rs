@@ -11,7 +11,7 @@ use crate::games::Game;
 use crate::server::State;
 use crate::users::User;
 use crate::websocket::server;
-use crate::websocket::server::{ConnectionType, GameId};
+use crate::websocket::server::{ConnectionType, GameId, SessionId};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -38,7 +38,7 @@ pub async fn game_route(
 
     ws::start(
         WebsocketConnection {
-            id: 0,
+            id: SessionId::default(),
             hb: Instant::now(),
             connection_type: ConnectionType::GameConnection(GameId(*game_id)),
             user,
@@ -65,7 +65,7 @@ pub async fn admin_route(
 
     ws::start(
         WebsocketConnection {
-            id: 0,
+            id: SessionId::default(),
             hb: Instant::now(),
             connection_type: ConnectionType::AdminConnection,
             user,
@@ -80,7 +80,7 @@ pub async fn admin_route(
 struct WebsocketConnection {
     /// unique session id
     /// Get's filled in when connecting
-    id: usize,
+    id: SessionId,
     /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
     /// otherwise we drop connection.
     hb: Instant,

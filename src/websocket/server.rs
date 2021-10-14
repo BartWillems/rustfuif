@@ -11,8 +11,15 @@ use crate::websocket::queries::ActiveGamesResponse;
 #[derive(Debug, Copy, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GameId(pub i64);
 
-// type GameId = i64;
-type SessionId = usize;
+#[derive(Debug, Copy, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, MessageResponse)]
+pub struct SessionId(pub usize);
+
+impl Default for SessionId {
+    /// Used to create an empty session
+    fn default() -> Self {
+        SessionId(0)
+    }
+}
 
 #[derive(Debug, Serialize, Clone, Copy)]
 pub enum ConnectionType {
@@ -21,7 +28,7 @@ pub enum ConnectionType {
 }
 
 #[derive(Message)]
-#[rtype(usize)]
+#[rtype(SessionId)]
 pub struct Connect {
     pub addr: Recipient<Notification>,
     pub user: User,
@@ -31,7 +38,7 @@ pub struct Connect {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Disconnect {
-    pub id: usize,
+    pub id: SessionId,
 }
 
 #[derive(Debug)]
@@ -44,6 +51,7 @@ impl ConnectedUser {
     fn new(recipient: Recipient<Notification>, user: User) -> Self {
         ConnectedUser { recipient, user }
     }
+
     fn send(&self, message: Notification) -> Result<(), actix::prelude::SendError<Notification>> {
         self.recipient.do_send(message)
     }
@@ -111,6 +119,15 @@ impl NotificationServer {
             });
     }
 
+    pub fn notify_user(&self, notification: Notification, user_id: i64) {
+        self.sessions
+            .iter()
+            .filter(|&(_, connection)| connection.user.id == user_id)
+            .for_each(|(_, connection)| {
+                connection.send(notification.clone()).ok();
+            });
+    }
+
     /// returns the number of connected users
     pub fn session_count(&self) -> usize {
         self.sessions.len()
@@ -171,11 +188,11 @@ impl Actor for NotificationServer {
 ///
 /// Register new session and assign unique id to this session
 impl Handler<Connect> for NotificationServer {
-    type Result = usize;
+    type Result = SessionId;
 
     fn handle(&mut self, msg: Connect, ctx: &mut Context<Self>) -> Self::Result {
         // register session with random id
-        let session_id = self.rng.gen::<usize>();
+        let session_id = SessionId(self.rng.gen::<usize>());
         self.sessions
             .insert(session_id, ConnectedUser::new(msg.addr, msg.user));
 
@@ -299,7 +316,7 @@ mod tests {
     use super::*;
 
     #[derive(Message)]
-    #[rtype(result = "Result<Vec<usize>, std::io::Error>")]
+    #[rtype(result = "Result<Vec<SessionId>, std::io::Error>")]
     pub struct InnerSessions;
 
     #[derive(Message)]
@@ -307,10 +324,10 @@ mod tests {
     pub struct InnerGamesCount;
 
     impl Handler<InnerSessions> for NotificationServer {
-        type Result = Result<Vec<usize>, std::io::Error>;
+        type Result = Result<Vec<SessionId>, std::io::Error>;
 
         fn handle(&mut self, _: InnerSessions, _: &mut Context<Self>) -> Self::Result {
-            let session_ids: Vec<usize> = self.sessions.keys().cloned().collect();
+            let session_ids: Vec<SessionId> = self.sessions.keys().cloned().collect();
             Ok(session_ids)
         }
     }
@@ -356,7 +373,7 @@ mod tests {
 
         add_user(&server, ConnectionType::GameConnection(GameId(1)), true).await;
 
-        let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
+        let users: Vec<SessionId> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(1, users.len());
 
         let games_count: usize = server.send(InnerGamesCount).await.unwrap();
@@ -365,7 +382,7 @@ mod tests {
         // connect the user to the same game
         add_user(&server, ConnectionType::GameConnection(GameId(1)), true).await;
 
-        let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
+        let users: Vec<SessionId> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(2, users.len());
 
         // The game count should stay the same
@@ -375,7 +392,7 @@ mod tests {
         // connect the user to another game
         add_user(&server, ConnectionType::GameConnection(GameId(2)), true).await;
 
-        let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
+        let users: Vec<SessionId> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(3, users.len());
 
         let games_count: usize = server.send(InnerGamesCount).await.unwrap();
@@ -388,7 +405,7 @@ mod tests {
             server.send(Disconnect { id }).await.unwrap();
         }
 
-        let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
+        let users: Vec<SessionId> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(0, users.len());
 
         let games_count: usize = server.send(InnerGamesCount).await.unwrap();
@@ -397,7 +414,7 @@ mod tests {
         // connect an admin user
         // the games count should not change
         add_user(&server, ConnectionType::AdminConnection, true).await;
-        let users: Vec<usize> = server.send(InnerSessions).await.unwrap().unwrap();
+        let users: Vec<SessionId> = server.send(InnerSessions).await.unwrap().unwrap();
         assert_eq!(1, users.len());
 
         let games_count: usize = server.send(InnerGamesCount).await.unwrap();
